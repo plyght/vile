@@ -2912,7 +2912,7 @@ unmark(int f GCC_UNUSED, int n GCC_UNUSED)
    by default, we should have scrolling messages, a pressreturn call, and
    a screen update.
 
-   any numeric argument will suppress the pressreturn call, and therefore
+   any numeric argument will suppress the press-return call, and therefore
    also the scrolling of the messages and screen update.
 
    if you're leaving (quitting, or suspending to the shell, you want the
