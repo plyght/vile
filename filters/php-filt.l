@@ -2,14 +2,13 @@
 %x HTML CODE COMMENT HEREDOC NOWDOC
 
 %{
-
 /*
- * $Id: php-filt.l,v 1.28 2025/01/26 11:35:28 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/php-filt.l,v 1.22 2010/07/13 13:24:23 tom Exp $
  *
  * Filter to add vile "attribution" sequences to PHP scripts.
  * - T.Dickey
  *
- * see
+ * see 
  *	http://www.php.net/manual/en/index.php
  *
  * todo:
@@ -20,9 +19,9 @@
 #include <filters.h>
 #include <fltstack.h>
 
-DefineFilter(php);
+DefineFilter("php");
 
-#define isQuote(ch) (ch != 0 && strchr("'", ch) != NULL)
+#define isQuote(ch) (ch != 0 && strchr("'", ch) != 0)
 
 static char *Action_attr;
 static char *Comment_attr;
@@ -37,7 +36,6 @@ static int here_exp;
 
 static int got_here(char *text, int length);
 static void save_here(char *text, int length);
-
 %}
 
 BLANK		[[:blank:]]*
@@ -57,12 +55,12 @@ NUMBER		{SIGN}?({DECIMAL}|{OCTAL}|{HEXADECIMAL}|{REAL})
 
 %%
 
-<HTML>"<?"("[pP][hH][pP]")? { WriteToken(Action_attr); push_state(CODE); }
+<HTML>"<?"("php")?	{ WriteToken(Action_attr); push_state(CODE); }
 <CODE>"?>"		{ WriteToken(Action_attr); pop_state(); }
 
 <CODE>"${"{IDENT}"}"	|
 <CODE>"$"{IDENT}	{ WriteToken(Ident2_attr); }
-<CODE>{IDENT}		{ WriteToken(get_keyword_attr(yytext)); }
+<CODE>{IDENT}		{ WriteToken(keyword_attr(yytext)); }
 <CODE>";"		{ ECHO; }
 
 <CODE>"/*"		{ BeginQuote(COMMENT, Comment_attr); }
@@ -134,7 +132,7 @@ got_here(char *text, int length)
 		if (pass)
 		    flt_bfr_append(text + j, 1);
 	    } else {
-		if (here_tag != NULL && (text[j] != here_tag[k++]))
+		if (here_tag != 0 && (text[j] != here_tag[k++]))
 		    return 0;
 		if (pass)
 		    flt_bfr_append(text + j, 1);
@@ -150,15 +148,15 @@ save_here(char *text, int length)
     char *s;
 
     here_exp = 1;
-    if ((here_tag = do_alloc(here_tag, (size_t) length, &here_len)) != NULL) {
+    if ((here_tag = do_alloc(here_tag, (size_t) length, &here_len)) != 0) {
 	s = here_tag;
 	while (length--) {
 	    if (isQuote(*text)) {
 		here_exp = 0;
-	    } else if (strchr(" \t", *text) != NULL) {
+	    } else if (strchr(" \t", *text) != 0) {
 		if (s != here_tag)
 		    break;
-	    } else if (strchr("<", *text) == NULL) {
+	    } else if (strchr("<", *text) == 0) {
 		*s++ = *text;
 	    }
 	    text++;
@@ -178,17 +176,17 @@ do_filter(FILE *inputs)
 {
     InitLEX(inputs);
 
-    Action_attr = class_attr(NAME_ACTION);
+    Action_attr  = class_attr(NAME_ACTION);
     Comment_attr = class_attr(NAME_COMMENT);
-    Error_attr = class_attr(NAME_ERROR);
-    Ident2_attr = class_attr(NAME_IDENT2);
-    Number_attr = class_attr(NAME_NUMBER);
-    String_attr = class_attr(NAME_LITERAL);
+    Error_attr   = class_attr(NAME_ERROR);
+    Ident2_attr  = class_attr(NAME_IDENT2);
+    Number_attr  = class_attr(NAME_NUMBER);
+    String_attr  = class_attr(NAME_LITERAL);
 
     begin_state(HTML);
     RunLEX();
-    flt_bfr_error();
     end_state();
+    flt_bfr_error();
 }
 
 #if NO_LEAKS

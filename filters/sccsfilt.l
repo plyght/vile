@@ -7,14 +7,14 @@
 %{
 
 /*
- * $Id: sccsfilt.l,v 1.23 2013/12/02 01:32:53 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/sccsfilt.l,v 1.20 2009/04/04 00:50:29 tom Exp $
  *
  * Filter to add vile "attribution" sequences to SCCS files.
  */
 
 #include <filters.h>
 
-DefineFilter(sccs);
+DefineFilter("sccs");
 
 static char *Marker_attr;
 static char *Insert_attr;
@@ -80,12 +80,12 @@ do_filter(FILE *inputs)
 {
     InitLEX(inputs);
 
-    Marker_attr = class_attr("Marker");
-    Insert_attr = class_attr("Insert");
-    Delete_attr = class_attr("Delete");
+    Marker_attr  = class_attr("Marker");
+    Insert_attr  = class_attr("Insert");
+    Delete_attr  = class_attr("Delete");
     Comment_attr = class_attr(NAME_COMMENT);
-    Error_attr = class_attr(NAME_ERROR);
-    String_attr = class_attr(NAME_LITERAL);
+    Error_attr   = class_attr(NAME_ERROR);
+    String_attr  = class_attr(NAME_LITERAL);
 
     begin_state(INITIAL);
     RunLEX();

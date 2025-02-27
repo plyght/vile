@@ -1,4 +1,4 @@
-; $Id: modes.rc,v 1.153 2022/08/20 16:15:44 tom Exp $
+; $Id: modes.rc,v 1.108 2010/06/12 17:08:48 tom Exp $
 ; majormodes in this file are ordered alphabetically for convenience - the
 ; precedence used by vile is strictly alphabetic, counting case.  Use the
 ; before and after qualifiers to override the precedence.
@@ -137,13 +137,12 @@ define-mode bnf
 ; autoconf templates:
 ~with define-submode c
 	mode-filename	'^llib-[\w.]*$'
+	ignoresuffix	'\.\(in\|orig\|~\)$'
 ~endwith
 
 ; for Lynx lynx.cfg
 define-mode cfg
 ~with define-submode cfg
-	qualifiers=all
-	preamble	'^#.*\(lynx\|Lynx\)'
 	suffixes	'\.cfg$'
 	comment-prefix	'^\s*#'
 	comments	'^\s*#\s*$'
@@ -233,7 +232,7 @@ define-mode cweb
 ; excludes the if-block.
 define-mode dcl
 ~with define-submode dcl
-	suffixes	'\.\(com\|dcl\)$'
+	suffixes	'\.\(com\|dcl\|tpu\)$'
 	comment-prefix	'^\s*\$!'
 	comments	'^\s*\$!\s*$'
 	ignorecase
@@ -321,19 +320,6 @@ define-mode est
 	cindent
 ~endwith
 
-; EmbeddedRuby
-define-mode erb
-~with define-submode erb
-	suffixes	'\.erb$'
-~endwith
-
-; Erlang
-define-mode erl
-~with define-submode erl
-	suf '\.[he]rl$'
-	comment-prefix	'^\s*%'
-~endwith
-
 ; Embedded SQL in C/C++
 define-mode esql
 ~with define-submode esql
@@ -380,11 +366,6 @@ define-mode fdl
 	fence-fi   '^\$endtext\s*$'
 ~endwith
 
-define-mode go
-~with define-submode go
-	suffixes	'\.\(go\)$'
-~endwith
-
 define-mode haskell
 ~with define-submode haskell
 	suffixes	'\.\(hs\|lhs\|hsc\)$'
@@ -393,7 +374,7 @@ define-mode haskell
 ; Inherit the C-style fences for JavaScript, but add new ones for HTML
 define-mode html
 ~with define-submode html
-	suffixes	'\.\(html\|htm\|shtml\)$'
+	suffixes	'\.\(html\|htm\)$'
 	pre		'^\s*\(<html>\|<script>\|<!doctype\|<!--\)'
 	fence-pairs	'<>()[]{}'
 	ignorecase
@@ -410,14 +391,6 @@ define-mode html
 	fence-end	'-->'
 ~endwith
 
-" markdown
-define-mode md
-~with define-submode md
-	suffixes	'\.\(md\)$'
-	tabstop=8
-	shiftwidth=4
-~endwith
-
 define-mode midl
 ~with define-submode midl
 	suffixes	'\.\(idl\|odl\)$'
@@ -426,7 +399,7 @@ define-mode midl
 
 define-mode mcrl
 ~with define-submode mcrl
-	suffixes	'\.\(mcrl\(2\)\?\)$'
+	suffixes	'\.\(mcrl\)$'
 	fence-pairs     '{}()[]'
 	comment-prefix  '^\s*%'
 	comments        '^\s*%.*$'
@@ -436,8 +409,9 @@ define-mode mcrl
 define-mode mvn
 ~with define-submode mvn
 	before xml
-	mode-filename	'pom\([\d.-]\+\)\?\.xml'
-	suffixes	'\.\(pom\)$'
+	qualifiers=all
+	mode-filename	'pom.xml'
+	suffixes	'\.\(pom\|\)$'
 	pre		'^\s*<?xml\s.*'
 	fence-pairs	'<>()[]{}'
 	comment-prefix	'^\s*--'
@@ -449,11 +423,6 @@ define-mode ini
 	suffixes	'\.\(ini\|reg\|vbp\|clw\)$'
 	ignorecase
 	dos
-~endwith
-
-define-mode desktop
-~with define-submode desktop
-	suffixes	'\.\(desktop\)$'
 ~endwith
 
 define-mode info
@@ -496,13 +465,6 @@ define-mode js
 	cindent-chars &cat ':' $fences
 ~endwith
 
-define-mode json
-~with define-submode json
-	suffixes	'\.\(json\)$'
-	cindent
-	cindent-chars &cat ':' $fences
-~endwith
-
 define-mode jsp
 ~with define-submode jsp
 	before		"html"
@@ -530,7 +492,7 @@ define-mode latex
 
 define-mode lex
 ~with define-submode lex
-	suffixes	'\.\(l\|ll\|lex\|flex\|flx\|gperf\)$'
+	suffixes	'\.\(l\|lex\|flex\|flx\)$'
 	cindent
 	cindent-chars &cat ':#' $fences
 ~endwith
@@ -561,8 +523,8 @@ define-mode lua
 ; actually, m4 used for autoconf scripts, which is Bourne-shell
 define-mode m4
 ~with define-submode m4
-	preamble   '\(^\s*\(divert(\|dnl\>\)\|-*- Autotest -*-\)'
-	suffixes   '\.\(ac\|m4\)$'
+	pre '^\s*dnl\>'
+	suffixes	'\.\(ac\|m4\)$'
 	comment-prefix '^\s*\(dnl\|#\)'
 	comments   '^\s*\(dnl\>\|#\)\s*$'
 	fence-if   '^\s*\<if\>'
@@ -591,21 +553,20 @@ define-mode mailcap
 
 define-mode make
 ~with define-submode make
-	mode-pathname	'^.*/\(share\|lib\d*\)/pkgconfig/[[:graph:]]\+\.pc$'
-	mode-filename	'^\(\(BSD\|GNU\)\?[Mm]akefile.*\|make\..*\|.*\.mak\|.*\.mk\|Jamdefs.*\|Jamfile\)$'
+	mode-pathname	'^/[^/]\+/lib/pkgconfig/[[:graph:]]\+\.pc$'
+	mode-filename	'^\([Mm]akefile.*\|make\..*\|.*\.mak\|.*\.mk\|Jamdefs.*\|Jamfile\)$'
 	preamble	'^#!\s*\(\/[^\\]*\)\?\<make\>'
 	comment-prefix	'^\s*[!#]'
 	comments	'^\s*[!#]\s*$'
-	tabinsert
 ~elsewith define-submode make group 'gnumake'
 	fence-if   '^[ ]*if'
 	fence-else '^[ ]*else\>'
 	fence-fi   '^[ ]*endif\>'
 ~elsewith define-submode make group 'nmake'
-	fence-if   '^\s*!\s*if'
-	fence-elif '^\s*!\s*else\s*if'
-	fence-else '^\s*!\s*else\>'
-	fence-fi   '^\s*!\s*endif\>'
+	fence-if   '^\s*!if'
+	fence-elif '^\s*!else\s*if'
+	fence-else '^\s*!else\>'
+	fence-fi   '^\s*!endif\>'
 ~if &sin $os 'win32'
 	ignorecase
 ~endif
@@ -635,23 +596,21 @@ define-mode nmake
 ~with define-submode nmake
 	suffixes	'\.dsp$'
 	dos
-	comment-prefix	'^\s*[#]'
-	comments	'^\s*[#]\s*$'
-~if &sin $os 'win32'
-	ignorecase
-~endif
+	comment-prefix	'^\s*[!#]'
+	comments	'^\s*[!#]\s*$'
 ~with define-submode nmake group 'nmake'
-	fence-if   '^\s*!\s*if'
-	fence-elif '^\s*!\s*else\s*if'
-	fence-else '^\s*!\s*else\>'
-	fence-fi   '^\s*!\s*endif\>'
+	fence-if   '^\s*!if'
+	fence-elif '^\s*!else\s*if'
+	fence-else '^\s*!else\>'
+	fence-fi   '^\s*!endif\>'
+	ignorecase
 ~endwith
 ~endwith
 
 define-mode nr
 ~with define-submode nr
 	after		"sh"
-	suffixes	'\.\(\([1-9ln][a-z]\?\)\|me\|mm\|ms\|man\|tmac\)$'
+	suffixes	'\.\(\([1-9ln][a-z]\?\)\|me\|mm\|ms\|man\)$'
 	preamble	'^\.\(\\"\|[[:alpha:]]\)'
 	comment-prefix	'^\.\\"'
 	comments	'^\.\\"\s*$'
@@ -659,7 +618,7 @@ define-mode nr
 
 define-mode nsis
 ~with define-submode nsis
-	suffixes	'\.\(nsi\|nsh\)$'
+	suffixes	'\.\(nsi\)$'
 	ignorecase
 	dos
 ~endwith
@@ -678,7 +637,7 @@ define-mode objc
 
 define-mode pas
 ~with define-submode pas
-	suffixes	'\.\(p\|pas\|pp\)$'
+	suffixes	'\.\(p\|pas\)$'
 ~endwith
 
 define-mode pc
@@ -692,8 +651,8 @@ define-mode pc
 ; very expensive to resolve, we combine it with the similar 'while' group.
 define-mode perl
 ~with define-submode perl
-	preamble	'^#!\s*\(\/[^\\]*\)\?\<perl[0-5]*\>'
-	suffixes	'\.\(pl\|pm\|PL\|pod\)$'
+	preamble	'^#!\s*\(\/[^\\]*\)\?\<perl[0-9]*\>'
+	suffixes	'\.\(pl\|pm\|PL\)$'
 	mode-pathname	'^.*perl.*\.t$'
 	before		"mail"
 	cindent
@@ -714,23 +673,6 @@ define-mode perl
 ;	fence-fi       '^\s*}'
 ~endwith
 
-define-mode raku
-~with define-submode raku
-	preamble	'^\(#!\s*\(\/[^\\]*\)\?\<\(perl6\|rakudo\)\>\)\|\(\s*use\s\+v6\s*;\)'
-	suffixes	'\.\(pl\?6\|pm6\|raku\(\|mod\|test\)\)$'
-	mode-pathname	'^.*rakudo.*\.t$'
-	after		"perl"
-	cindent
-	cindent-chars  &cat ':' $fences
-	comment-prefix '^\s*#'
-	comments       '^\s*#\s*$'
-	fence-pairs    '{}()[]<>'
-	fence-if       '^\s*if\>.*{'
-	fence-elif     '^\s*}\s*elsif\s*(.*{'
-	fence-else     '^\s*}\s*else\s*{'
-	fence-fi       '^\s*}\s*$'
-~endwith
-
 define-mode php
 ~with define-submode php
 	suffixes	'\.\(php\)$'
@@ -743,14 +685,6 @@ define-mode pot
 	suffixes	'\.\(pot\|po\)$'
 	comment-prefix '^#'
 	comments       '^#\s*$'
-~endwith
-
-define-mode powershell
-~with define-submode powershell
-	suffixes	'\.\(ps1\)$'
-	ignorecase
-	comment-prefix	'^\s*#'
-	comments	'^\s*#\s\+\s*$'
 ~endwith
 
 define-mode prolog
@@ -819,9 +753,6 @@ define-mode RCS
 define-mode rpm
 ~with define-submode rpm
 	suffixes	'\.spec$'
-	fence-if	'^\s*%if\>'
-	fence-else	'^\s*%else\>'
-	fence-fi	'^\s*%endif\>'
 ~endwith
 
 define-mode rtf
@@ -830,12 +761,6 @@ define-mode rtf
 	suffixes	'\.rtf$'
 	dos
 	notabinsert
-~endwith
-
-define-mode rust
-~with define-submode rust
-	suffixes	'\.rs$'
-	cindent
 ~endwith
 
 ; (see RCS)
@@ -868,51 +793,27 @@ define-mode sed
 	comments	'^\s*#\s*$'
 ~endwith
 
-; This is matched after 'csh', and will pick up /bin/sh, /bin/bash
+; This is matched after 'csh', and will pick up /bin/sh, /bin/bash, /bin/ksh
 ; FIXME "Jamrules" is something like sh, but uses different rules for "^", etc.
 define-mode sh
 ~with define-submode sh
-	mode-filename	'^\(\.profile\|Jamrules\)$'
-	suffixes	'\(\.\(sh\|shar\|.*shrc\)$\)'
-	preamble	'^\(\(#!\s*\(\/[^\\]*\)\?sh\>\(\s*[-]\+[\a]*\s*\)\?\)\|:\)\s*$'
+	mode-filename	'^\(\([a-z.-]*profile\)\|Jamrules\)$'
+	suffixes	'\(\.\(sh\|ksh\|shar\|.*shrc\|bash_[a-z]\+\|ebuild\)$\)'
+	pre '^\(\(#!\s*\(\/[^\\]*\)\?sh\>\(\s*[-]\+[\a]*\s*\)\?\)\|:\)\s*$'
 	comment-prefix	'^\s*[:#]'
 	comments	'^\s*[:#]\s*$'
-	fence-if	'^\s*\<if\>'
-	fence-elif	'^\s*\<elif\>'
-	fence-else	'^\s*\<else\>'
-	fence-fi	'^\s*\<fi\>'
+	fence-if   '^\s*\<if\>'
+	fence-elif '^\s*\<elif\>'
+	fence-else '^\s*\<else\>'
+	fence-fi   '^\s*\<fi\>'
 ~elsewith define-submode sh group 'case'
-	fence-if	'^\s*\<case\>.*\<in\>'
-	fence-elif	'^\s*[^ 	)]\+)'
-	fence-else	'^\s*\*)'
-	fence-fi	'^\s*\<esac\>'
+	fence-if   '^\s*\<case\>.*\<in\>'
+	fence-elif '^\s*[^ 	)]\+)'
+	fence-else '^\s*\*)'
+	fence-fi   '^\s*\<esac\>'
 ~elsewith define-submode sh group 'do'
-	fence-if	'\(^\s*\<do\>\|;\s*\<do\>\)\s*$'
-	fence-fi	'^\s*\<done\>'
-~endwith
-
-derive-mode bash sh
-~with define-submode bash
-	before sh
-	mode-filename	'^\(\.bash_[a-z]\+$\)'
-	suffixes	'\(\.\(bash_[a-z]\+$\|ebuild\)\)'
-	preamble	'^\(\(#!\s*\(\/[^\\]*\)\?bash\>\(\s*[-]\+[\a]*\s*\)\?\)\|:\)\s*$'
-~endwith
-
-derive-mode ksh sh
-~with define-submode ksh
-	before bash
-	mode-filename	'^\([a-z.-]*kshrc\)$'
-	suffixes	'\(\.\(ksh\)$\)'
-	preamble	'^\(\(#!\s*\(\/[^\\]*\)\?ksh\>\(\s*[-]\+[\a]*\s*\)\?\)\|:\)\s*$'
-~endwith
-
-derive-mode zsh sh
-~with define-submode zsh
-	before bash
-	mode-filename	'^\(\.\)?z\(shenv\|profile\|shrc\|login\|logout\)$'
-	suffixes	'\(\.\(zsh\)$\)'
-	preamble	'^\(\(#!\s*\(\/[^\\]*\)\?zsh\>\(\s*[-]\+[\a]*\s*\)\?\)\|:\)\s*$'
+	fence-if   '\(^\s*\<do\>\|;\s*\<do\>\)\s*$'
+	fence-fi   '^\s*\<done\>'
 ~endwith
 
 define-mode sml
@@ -1001,31 +902,9 @@ define-mode ti
 	comments	'^\s*[:#]\s*$'
 ~endwith
 
-define-mode tpu
-~with define-submode tpu
-	suffixes	'\.\(tpu\)$'
-	comment-prefix	'^\s*\$!'
-	comments	'^\s*\$!\s*$'
-	ignorecase
-~elsewith define-submode tpu group 'if-once'
-	fence-if	'^\s*\(\$\s*\)\?\<if\>.*\<then\>'
-~elsewith define-submode tpu group 'if-block'
-	fence-if	'^\s*\(\$\s*\)\?\<if\>'
-	fence-else	'^\s*\(\$\s*\)\?\<else\>'
-	fence-fi	'^\s*\(\$\s*\)\?\<endif\>'
-~endwith
-
-; typescript is a dialect of javascript.  It is spelled out here because "ts"
-; is already an abbreviation for "tabstop".
-define-mode typescript
-~with define-submode typescript
-	suffixes	'\.\(ts\)$'
-~endwith
-
 define-mode txt
 ~with define-submode txt
 	mode-filename	'^\(\(TODO\|\(\(.*-\)\?README\)\|CHANGES\|[Cc]hange[Ll]og\|COPYING\).*\)$'
-	preamble	'-\*- text -\*-'
 	suffixes	'\.\(txt\|doc\|hlp\)$'
 	comment-prefix	'^\s*--'
 	comments	'^\s*--\s*$'
@@ -1135,24 +1014,36 @@ define-mode vb6
 	fence-fi	'^\s*\<end\s\+select\>'
 ~endwith
 
-derive-mode vbs vb6
+; FIXME this should be the same as vb6mode except for the preamble and keywords
+define-mode vbs
 ~with define-submode vbs
 	before		"basic"
 	suffixes	'\.\(vbs\)$'
 	comment-prefix	"^\\s*'"
-~endwith
-remove-submode vbs preamble
-
-define-mode vcproj
-~with define-submode vcproj
-	before		"mvn"
-	suffixes	'\.\(vcproj\)\(\.\w\+\)\?$'
-~endwith
-
-define-mode vcxproj
-~with define-submode vcxproj
-	before		"mvn"
-	suffixes	'\.\(vcxproj\)\(\.\w\+\)\?$'
+	comments	"^\\s*'\\s\\+\\s*$"
+	dos
+	ignorecase
+	notabinsert
+	tabstop=4
+	shiftwidth=4
+	; disallow continuation lines, or if-then-statement lines
+	fence-if	"^\\s*if\\>.*\\<then\\>\\(\\s*\'.*\\)\\?$"
+	fence-elif	'^\s*elseif\>'
+	fence-else	'^\s*else\>'
+	fence-fi	'^\s*end\s\+if\>'
+	sections	&cat %vb6-access '\(Sub\|Function\|Property\)'
+~elsewith define-submode vbs group 'for-loop'
+	fence-if	'^\s*for\>'
+	fence-fi	'^\s*next\>'
+~elsewith define-submode vbs group 'while-loop'
+	fence-if	'^\s*while\>'
+	fence-fi	'^\s*wend\>'
+~elsewith define-submode vbs group 'sub'
+	fence-if	&cat %vb6-access 'sub\>'
+	fence-fi	'^\s*end\s\+sub\>'
+~elsewith define-submode vbs group 'function'
+	fence-if	&cat %vb6-access 'function\>'
+	fence-fi	'^\s*end\s\+function\>'
 ~endwith
 
 define-mode vlog
@@ -1267,17 +1158,7 @@ define-mode xsl
 
 define-mode yacc
 ~with define-submode yacc
-	suffixes	'\.\(y\|yy\|yacc\)$'
+	suffixes	'\.\(y\|yacc\)$'
 	cindent
 	cindent-chars &cat ':#' $fences
-~endwith
-
-define-majormode yaml
-remove-submode yaml cindent
-~with define-submode yaml
-	before conf
-	suffixes	'\.\(yaml\|yml\)$'
-	notabinsert
-	tabstop=2
-	shiftwidth=2
 ~endwith

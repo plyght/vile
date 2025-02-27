@@ -1,6 +1,6 @@
 /*
- * $Id: btree.c,v 1.57 2025/01/26 14:47:08 tom Exp $
- * Copyright 1997-2024,2025 by Thomas E. Dickey
+ * $Id: btree.c,v 1.50 2010/05/19 10:44:50 tom Exp $
+ * Copyright 1997-2008,2010 by Thomas E. Dickey
  *
  * Maintains a balanced binary tree (aka AVL tree) of unspecified nodes.  The
  * algorithm is taken from "The Art of Computer Programming -- Volume 3 --
@@ -37,7 +37,7 @@
 #include <dmalloc.h>
 #endif
 
-#define castalloc(cast,nbytes) (cast *)malloc((size_t) nbytes)
+#define castalloc(cast,nbytes) (cast *)malloc(nbytes)
 #define	for_ever for(;;)
 #define beginDisplay()		/* nothing */
 #define endofDisplay()		/* nothing */
@@ -131,12 +131,12 @@ btree_insert(BI_TREE * funcs, BI_DATA * data)
     BI_NODE *r;
 
     int a;
-    BI_DATA *value = NULL;
+    BI_DATA *value = 0;
 
     TRACE(("btree_insert(%p,%s)\n", funcs, data->bi_key));
-    if (p == NULL) {
-	if ((p = (*funcs->allocat) (data)) == NULL)
-	    return NULL;
+    if (p == 0) {
+	if ((p = (*funcs->allocat) (data)) == 0)
+	    return 0;
 
 	RLINK(t) = p;
 	funcs->depth += 1;
@@ -146,7 +146,7 @@ btree_insert(BI_TREE * funcs, BI_DATA * data)
     /* (A2:Compare) */
     while ((a = COMPARE(data->bi_key, KEY(p))) != 0) {
 	/* (A3,A4: move left/right accordingly) */
-	if ((q = LINK(a, p)) != NULL) {
+	if ((q = LINK(a, p)) != 0) {
 	    value = &(p->value);
 	    if (B(q)) {
 		t = p;
@@ -156,8 +156,8 @@ btree_insert(BI_TREE * funcs, BI_DATA * data)
 	    /* ...continue comparing */
 	} else {
 	    /* (A5:Insert) */
-	    if ((q = (*funcs->allocat) (data)) == NULL)
-		return NULL;
+	    if ((q = (*funcs->allocat) (data)) == 0)
+		return 0;
 
 	    LINK(a, p) = q;
 	    funcs->count += 1;
@@ -206,7 +206,7 @@ btree_insert(BI_TREE * funcs, BI_DATA * data)
 		    TRACE(("(A9: Double rotation)\n"));
 		    p = LINK(-a, r);
 		    assert(p != 0);
-		    if (p == NULL) {
+		    if (p == 0) {
 			TRACE(("(BUG: null pointer)\n"));
 			break;
 		    }
@@ -325,22 +325,22 @@ btree_delete(BI_TREE * funcs, const char *data)
     TRACE(("btree_delete(%p,%s)\n", funcs, NonNull(data)));
 
     if (funcs->count != 0) {
-	STACKDATA stack[MAXSTK + 1];
+	STACKDATA stack[MAXSTK];
 	BI_NODE *item;
 	int top = 0;
 	int done = 0;
 
 	/* (A1:Initialize) */
 	item = &(funcs->head);
-	if (item == NULL
-	    || (item = LINK(1, item)) == NULL) {
+	if (item == 0
+	    || (item = LINK(1, item)) == 0) {
 	    TRACE(("...not found @%d\n", __LINE__));
 	    return 0;
 	}
 
 	for (;;) {
 	    /* (A2:Compare) */
-	    if (item == NULL || KEY(item) == NULL) {
+	    if (item == NULL || KEY(item) == 0) {
 		TRACE(("...not found @%d\n", __LINE__));
 		return 0;
 	    } else {
@@ -350,7 +350,7 @@ btree_delete(BI_TREE * funcs, const char *data)
 	    }
 
 	    /* Push direction and node onto stack */
-	    assert(top < (MAXSTK - 1));
+	    assert(top < MAXSTK);
 	    if (top >= MAXSTK) {
 		TRACE(("(BUG: stack overflow)\n"));
 		return 0;
@@ -383,8 +383,8 @@ btree_delete(BI_TREE * funcs, const char *data)
 	    BI_NODE *child = item->links[1];
 
 	    /* Save the path */
-	    assert(top < (MAXSTK - 1));
-	    if (top >= (MAXSTK - 1)) {
+	    assert(top < MAXSTK);
+	    if (top >= MAXSTK) {
 		TRACE(("(BUG: stack overflow)\n"));
 		return 0;
 	    }
@@ -450,20 +450,20 @@ btree_search(BI_TREE * funcs, const char *data)
 
     int a;
 
-    if (p == NULL) {
-	return NULL;
+    if (p == 0) {
+	return 0;
     }
     /* (A2:Compare) */
     while ((a = COMPARE(data, KEY(p))) != 0) {
 	/* (A3,A4: move left/right accordingly) */
-	if ((q = LINK(a, p)) != NULL) {
+	if ((q = LINK(a, p)) != 0) {
 	    p = q;
 	    /* ...continue comparing */
 	} else {
 	    break;
 	}
     }
-    return a ? NULL : &(p->value);
+    return a ? 0 : &(p->value);
 }
 
 /******************************************************************************/
@@ -559,17 +559,17 @@ btree_printf(BI_TREE * funcs)
 BI_NODE *
 btree_pmatch(BI_NODE * n, const int mode, const char *name)
 {
-    BI_NODE *m = NULL;
+    BI_NODE *m = 0;
     size_t len = strlen(name);
 
-    while (n != NULL) {
+    while (n != 0) {
 	int cmp;
 
 	cmp = strncmp(name, BI_KEY(n), len);
 
 	if (cmp == 0) {
 	    if (mode
-		&& (m = btree_pmatch(BI_LEFT(n), mode, name)) != NULL)
+		&& (m = btree_pmatch(BI_LEFT(n), mode, name)) != 0)
 		n = m;
 	    return n;
 	} else if (cmp < 0) {
@@ -578,7 +578,7 @@ btree_pmatch(BI_NODE * n, const int mode, const char *name)
 	    n = BI_RIGHT(n);
 	}
     }
-    return NULL;
+    return 0;
 }
 
 /*
@@ -591,7 +591,7 @@ btree_pcount(BI_NODE * node, char *matchname, size_t len)
     int right = 0;
     int me = 0;
 
-    if (BI_LEFT(node) != NULL) {
+    if (BI_LEFT(node) != 0) {
 	left = btree_pcount(BI_LEFT(node), matchname, len);
     }
 
@@ -599,7 +599,7 @@ btree_pcount(BI_NODE * node, char *matchname, size_t len)
 	|| (strncmp(BI_KEY(node), matchname, len) == 0))
 	me = 1;
 
-    if (BI_RIGHT(node) != NULL) {
+    if (BI_RIGHT(node) != 0) {
 	right = btree_pcount(BI_RIGHT(node), matchname, len);
     }
 
@@ -609,7 +609,7 @@ btree_pcount(BI_NODE * node, char *matchname, size_t len)
 static void
 build_parray(BI_NODE * head, char *matchname, size_t len, const char **nptr, int *i)
 {
-    if (BI_LEFT(head) != NULL) {
+    if (BI_LEFT(head) != 0) {
 	build_parray(BI_LEFT(head), matchname, len, nptr, i);
     }
 
@@ -619,7 +619,7 @@ build_parray(BI_NODE * head, char *matchname, size_t len, const char **nptr, int
 	(*i)++;
     }
 
-    if (BI_RIGHT(head) != NULL) {
+    if (BI_RIGHT(head) != 0) {
 	build_parray(BI_RIGHT(head), matchname, len, nptr, i);
     }
 }
@@ -632,18 +632,18 @@ const char **
 btree_parray(BI_TREE * tree, char *name, size_t len)
 {
     BI_NODE *top;
-    const char **nptr = NULL;
+    const char **nptr = 0;
     top = btree_pmatch(BI_RIGHT(&(tree->head)), 0, name);
 
-    if (top != NULL) {
+    if (top != 0) {
 	int i = 0;
 	size_t cnt = (size_t) btree_pcount(top, name, len);
 	beginDisplay();
 	nptr = castalloc(const char *, sizeof(const char *) * (cnt + 1));
 	endofDisplay();
-	if (nptr != NULL) {
+	if (nptr != 0) {
 	    build_parray(top, name, len, nptr, &i);
-	    nptr[i] = NULL;
+	    nptr[i] = 0;
 	}
     }
     return nptr;
@@ -742,7 +742,7 @@ btree_verify(BI_TREE * funcs, BI_NODE * p)
 
 /******************************************************************************/
 #undef typecalloc
-#define typecalloc(cast) (cast *)calloc((size_t) 1, sizeof(cast))
+#define typecalloc(cast) (cast *)calloc(sizeof(cast),1)
 
 static BI_NODE *
 new_node(BI_DATA * data)

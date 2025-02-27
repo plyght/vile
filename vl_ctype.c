@@ -1,6 +1,8 @@
 /*
- * $Id: vl_ctype.c,v 1.23 2025/01/26 14:35:39 tom Exp $
- *
+ * $Header: /usr/build/vile/vile/RCS/vl_ctype.c,v 1.13 2010/02/07 17:55:01 tom Exp $
+ */
+
+/*
  * On Linux, the normal/wide ctypes give comparable results in the range 0-255,
  * reflecting the fact that codes 128-255 in Unicode are the "same" as
  * Latin-1.  However, Solaris' wide ctypes give only "non-space" results for
@@ -45,21 +47,34 @@ vl_ctype_init(int print_lo, int print_hi)
     TRACE(("narrow_locale:%s\n", NonNull(vl_narrow_enc.locale)));
     TRACE(("current_locale:%s\n", NonNull(save_ctype)));
 
-    if (okCTYPE2(vl_narrow_enc))
+    if (vl_narrow_enc.locale)
 	setlocale(LC_CTYPE, vl_narrow_enc.locale);
-    else if (okCTYPE2(vl_wide_enc))
+    else if (vl_wide_enc.locale)
 	setlocale(LC_CTYPE, vl_wide_enc.locale);
 
     for (c = 0; c < N_chars; c++) {
 	if (print_hi > 0 && c > print_hi) {
-	    setVlCTYPE(c, 0);
-	} else if (!vl_8bit_builtin() && okCTYPE2(vl_narrow_enc)) {
-	    setVlCTYPE(c, vl_ctype_bits(c, -TRUE));
-	    vl_uppercase[c + 1] = (char) toupper(c);
-	    vl_lowercase[c + 1] = (char) tolower(c);
+	    vlCTYPE(c) = 0;
+	} else if (okCTYPE2(vl_narrow_enc)) {
+	    vlCTYPE(c) = vl_ctype_bits(c, -TRUE);
+	    vl_uppercase[c] = (char) toupper(c);
+	    vl_lowercase[c] = (char) tolower(c);
 	} else {
 	    /* fallback to built-in character tables */
-	    vl_8bit_ctype_init(okCTYPE2(vl_wide_enc), c);
+	    if (okCTYPE2(vl_wide_enc)) {
+		vlCTYPE(c) = vl_ctype_latin1[c];
+	    } else {
+		vlCTYPE(c) = vl_ctype_ascii[c];
+	    }
+	    vl_uppercase[c] = (char) c;
+	    vl_lowercase[c] = (char) c;
+	    if (isAlpha(c)) {
+		if (isUpper(c)) {
+		    vl_lowercase[c] = (char) (c ^ DIFCASE);
+		} else {
+		    vl_uppercase[c] = (char) (c ^ DIFCASE);
+		}
+	    }
 	}
     }
 #else /* ! OPT_LOCALE */
@@ -67,98 +82,98 @@ vl_ctype_init(int print_lo, int print_hi)
 
     /* control characters */
     for (c = 0; c < ' '; c++)
-	addVlCTYPE(c, vl_cntrl);
-    addVlCTYPE(127, vl_cntrl);
+	vlCTYPE(c) |= vl_cntrl;
+    vlCTYPE(127) |= vl_cntrl;
 
     /* lowercase */
     for (c = 'a'; c <= 'z'; c++)
-	addVlCTYPE(c, vl_lower);
+	vlCTYPE(c) |= vl_lower;
 #if OPT_ISO_8859
     for (c = 0xc0; c <= 0xd6; c++)
-	addVlCTYPE(c, vl_lower);
+	vlCTYPE(c) |= vl_lower;
     for (c = 0xd8; c <= 0xde; c++)
-	addVlCTYPE(c, vl_lower);
+	vlCTYPE(c) |= vl_lower;
 #endif
     /* uppercase */
     for (c = 'A'; c <= 'Z'; c++)
-	addVlCTYPE(c, vl_upper);
+	vlCTYPE(c) |= vl_upper;
 #if OPT_ISO_8859
     for (c = 0xdf; c <= 0xf6; c++)
-	addVlCTYPE(c, vl_upper);
+	vlCTYPE(c) |= vl_upper;
     for (c = 0xf8; c <= 0xff; c++)
-	addVlCTYPE(c, vl_upper);
+	vlCTYPE(c) |= vl_upper;
 #endif
 
     /*
      * If you want to do this properly, compile-in locale support.
      */
     for (c = 0; c < N_chars; c++) {
-	vl_uppercase[c + 1] = (char) c;
-	vl_lowercase[c + 1] = (char) c;
+	vl_uppercase[c] = (char) c;
+	vl_lowercase[c] = (char) c;
 	if (isAlpha(c)) {
 	    if (isUpper(c)) {
-		vl_lowercase[c + 1] = (char) (c ^ DIFCASE);
+		vl_lowercase[c] = (char) (c ^ DIFCASE);
 	    } else {
-		vl_uppercase[c + 1] = (char) (c ^ DIFCASE);
+		vl_uppercase[c] = (char) (c ^ DIFCASE);
 	    }
 	}
     }
 
     /* digits */
     for (c = '0'; c <= '9'; c++)
-	addVlCTYPE(c, vl_digit);
+	vlCTYPE(c) |= vl_digit;
 #ifdef vl_xdigit
     /* hex digits */
     for (c = '0'; c <= '9'; c++)
-	addVlCTYPE(c, vl_xdigit);
+	vlCTYPE(c) |= vl_xdigit;
     for (c = 'a'; c <= 'f'; c++)
-	addVlCTYPE(c, vl_xdigit);
+	vlCTYPE(c) |= vl_xdigit;
     for (c = 'A'; c <= 'F'; c++)
-	addVlCTYPE(c, vl_xdigit);
+	vlCTYPE(c) |= vl_xdigit;
 #endif
 
     /* punctuation */
     for (c = '!'; c <= '/'; c++)
-	addVlCTYPE(c, vl_punct);
+	vlCTYPE(c) |= vl_punct;
     for (c = ':'; c <= '@'; c++)
-	addVlCTYPE(c, vl_punct);
+	vlCTYPE(c) |= vl_punct;
     for (c = '['; c <= '`'; c++)
-	addVlCTYPE(c, vl_punct);
+	vlCTYPE(c) |= vl_punct;
     for (c = L_CURLY; c <= '~'; c++)
-	addVlCTYPE(c, vl_punct);
+	vlCTYPE(c) |= vl_punct;
 #if OPT_ISO_8859
     for (c = 0xa1; c <= 0xbf; c++)
-	addVlCTYPE(c, vl_punct);
+	vlCTYPE(c) |= vl_punct;
 #endif
 
     /* printable */
     for (c = ' '; c <= '~'; c++)
-	addVlCTYPE(c, vl_print);
+	vlCTYPE(c) |= vl_print;
 
     /* whitespace */
-    addVlCTYPE(' ', vl_space);
+    vlCTYPE(' ') |= vl_space;
 #if OPT_ISO_8859
-    addVlCTYPE(0xa0, vl_space);
+    vlCTYPE(0xa0) |= vl_space;
 #endif
-    addVlCTYPE('\t', vl_space);
-    addVlCTYPE('\r', vl_space);
-    addVlCTYPE('\n', vl_space);
-    addVlCTYPE('\f', vl_space);
+    vlCTYPE('\t') |= vl_space;
+    vlCTYPE('\r') |= vl_space;
+    vlCTYPE('\n') |= vl_space;
+    vlCTYPE('\f') |= vl_space;
 
 #endif /* OPT_LOCALE */
 
     /* legal in pathnames */
-    addVlCTYPE('.', vl_pathn);
-    addVlCTYPE('_', vl_pathn);
-    addVlCTYPE('~', vl_pathn);
-    addVlCTYPE('-', vl_pathn);
-    addVlCTYPE('/', vl_pathn);
+    vlCTYPE('.') |= vl_pathn;
+    vlCTYPE('_') |= vl_pathn;
+    vlCTYPE('~') |= vl_pathn;
+    vlCTYPE('-') |= vl_pathn;
+    vlCTYPE('/') |= vl_pathn;
 
     /* legal in "identifiers" */
-    addVlCTYPE('_', vl_ident | vl_qident);
-    addVlCTYPE(':', vl_qident);
+    vlCTYPE('_') |= vl_ident | vl_qident;
+    vlCTYPE(':') |= vl_qident;
 #if SYS_VMS
-    addVlCTYPE('$', vl_ident | vl_qident);
+    vlCTYPE('$') |= vl_ident | vl_qident;
 #endif
 
     c = print_lo;
@@ -176,91 +191,91 @@ vl_ctype_init(int print_lo, int print_hi)
     TRACE(("Forcing printable for [%d..min(%d,%d)]\n",
 	   c, print_hi - 1, N_chars - 1));
     while (c <= print_hi && c < N_chars)
-	addVlCTYPE(c++, vl_print);
+	vlCTYPE(c++) |= vl_print;
 
 #if DISP_X11
     for (c = 0; c < N_chars; c++) {
 	if (isPrint(c) && !gui_isprint(c)) {
-	    clrVlCTYPE(c, vl_print);
+	    vlCTYPE(c) &= ~vl_print;
 	}
     }
 #endif
     /* backspacers: ^H, rubout */
-    addVlCTYPE('\b', vl_bspace);
-    addVlCTYPE(127, vl_bspace);
+    vlCTYPE('\b') |= vl_bspace;
+    vlCTYPE(127) |= vl_bspace;
 
     /* wildcard chars for most shells */
-    addVlCTYPE('*', vl_wild);
-    addVlCTYPE('?', vl_wild);
+    vlCTYPE('*') |= vl_wild;
+    vlCTYPE('?') |= vl_wild;
 #if !OPT_VMS_PATH
 #if SYS_UNIX
-    addVlCTYPE('~', vl_wild);
+    vlCTYPE('~') |= vl_wild;
 #endif
-    addVlCTYPE(L_BLOCK, vl_wild);
-    addVlCTYPE(R_BLOCK, vl_wild);
-    addVlCTYPE(L_CURLY, vl_wild);
-    addVlCTYPE(R_CURLY, vl_wild);
-    addVlCTYPE('$', vl_wild);
-    addVlCTYPE('`', vl_wild);
+    vlCTYPE(L_BLOCK) |= vl_wild;
+    vlCTYPE(R_BLOCK) |= vl_wild;
+    vlCTYPE(L_CURLY) |= vl_wild;
+    vlCTYPE(R_CURLY) |= vl_wild;
+    vlCTYPE('$') |= vl_wild;
+    vlCTYPE('`') |= vl_wild;
 #endif
 
     /* ex mode line specifiers */
-    addVlCTYPE(',', vl_linespec);
-    addVlCTYPE('%', vl_linespec);
-    addVlCTYPE('-', vl_linespec);
-    addVlCTYPE('+', vl_linespec);
-    addVlCTYPE(';', vl_linespec);
-    addVlCTYPE('.', vl_linespec);
-    addVlCTYPE('$', vl_linespec);
-    addVlCTYPE('\'', vl_linespec);
+    vlCTYPE(',') |= vl_linespec;
+    vlCTYPE('%') |= vl_linespec;
+    vlCTYPE('-') |= vl_linespec;
+    vlCTYPE('+') |= vl_linespec;
+    vlCTYPE(';') |= vl_linespec;
+    vlCTYPE('.') |= vl_linespec;
+    vlCTYPE('$') |= vl_linespec;
+    vlCTYPE('\'') |= vl_linespec;
 
     /* fences */
-    addVlCTYPE(L_CURLY, vl_fence);
-    addVlCTYPE(R_CURLY, vl_fence);
-    addVlCTYPE(L_PAREN, vl_fence);
-    addVlCTYPE(R_PAREN, vl_fence);
-    addVlCTYPE(L_BLOCK, vl_fence);
-    addVlCTYPE(R_BLOCK, vl_fence);
+    vlCTYPE(L_CURLY) |= vl_fence;
+    vlCTYPE(R_CURLY) |= vl_fence;
+    vlCTYPE(L_PAREN) |= vl_fence;
+    vlCTYPE(R_PAREN) |= vl_fence;
+    vlCTYPE(L_BLOCK) |= vl_fence;
+    vlCTYPE(R_BLOCK) |= vl_fence;
 
 #if OPT_VMS_PATH
-    addVlCTYPE(L_BLOCK, vl_pathn);
-    addVlCTYPE(R_BLOCK, vl_pathn);
-    addVlCTYPE(L_ANGLE, vl_pathn);
-    addVlCTYPE(R_ANGLE, vl_pathn);
-    addVlCTYPE('$', vl_pathn);
-    addVlCTYPE(':', vl_pathn);
-    addVlCTYPE(';', vl_pathn);
+    vlCTYPE(L_BLOCK) |= vl_pathn;
+    vlCTYPE(R_BLOCK) |= vl_pathn;
+    vlCTYPE(L_ANGLE) |= vl_pathn;
+    vlCTYPE(R_ANGLE) |= vl_pathn;
+    vlCTYPE('$') |= vl_pathn;
+    vlCTYPE(':') |= vl_pathn;
+    vlCTYPE(';') |= vl_pathn;
 #endif
 
 #if OPT_MSDOS_PATH
-    addVlCTYPE(BACKSLASH, vl_pathn);
-    addVlCTYPE(':', vl_pathn);
+    vlCTYPE(BACKSLASH) |= vl_pathn;
+    vlCTYPE(':') |= vl_pathn;
 #endif
 
 #if OPT_WIDE_CTYPES
     /* scratch-buffer-names (usually superset of vl_pathn) */
-    addVlCTYPE(SCRTCH_LEFT[0], vl_scrtch);
-    addVlCTYPE(SCRTCH_RIGHT[0], vl_scrtch);
-    addVlCTYPE(' ', vl_scrtch);	/* ...to handle "[Buffer List]" */
+    vlCTYPE(SCRTCH_LEFT[0]) |= vl_scrtch;
+    vlCTYPE(SCRTCH_RIGHT[0]) |= vl_scrtch;
+    vlCTYPE(' ') |= vl_scrtch;	/* ...to handle "[Buffer List]" */
 #endif
 
     for (c = 0; c < N_chars; c++) {
 	if (!(isSpace(c)))
-	    addVlCTYPE(c, vl_nonspace);
+	    vlCTYPE(c) |= vl_nonspace;
 	if (isDigit(c))
-	    addVlCTYPE(c, vl_linespec);
+	    vlCTYPE(c) |= vl_linespec;
 	if (isAlpha(c) || isDigit(c))
-	    addVlCTYPE(c, vl_ident | vl_pathn | vl_qident);
+	    vlCTYPE(c) |= vl_ident | vl_pathn | vl_qident;
 #if OPT_WIDE_CTYPES
 	if (isSpace(c) || isPrint(c))
-	    addVlCTYPE(c, vl_shpipe);
+	    vlCTYPE(c) |= vl_shpipe;
 	if (ispath(c))
-	    addVlCTYPE(c, vl_scrtch);
+	    vlCTYPE(c) |= vl_scrtch;
 #endif
     }
 
 #if OPT_LOCALE
-    if (save_ctype != NULL)
+    if (save_ctype != 0)
 	(void) setlocale(LC_CTYPE, save_ctype);
 #endif
 
@@ -270,7 +285,7 @@ vl_ctype_init(int print_lo, int print_hi)
 /*
  * Return the character-type bits for the given character.  There are several
  * cases.
- *
+ * 
  * vile supports a 256-entry table for "character classes", which are used
  * mainly to support systems with single-byte encodings.  Some of those (no all
  * older systems) may have incorrect character types; that is the reason for
@@ -379,13 +394,13 @@ vl_ctype_apply(void)
     TRACE(("vl_ctype_apply\n"));
     if (ctype_sets) {
 	for (n = 0; n < N_chars; n++) {
-	    addVlCTYPE(n, ctype_sets[n]);
+	    vlCTYPE(n) |= ctype_sets[n];
 	    TRACE(("...set %d:%#lx\n", n, (ULONG) vlCTYPE(n)));
 	}
     }
     if (ctype_clrs) {
 	for (n = 0; n < N_chars; n++) {
-	    clrVlCTYPE(n, ctype_clrs[n]);
+	    vlCTYPE(n) &= ~ctype_clrs[n];
 	    TRACE(("...clr %d:%#lx\n", n, (ULONG) vlCTYPE(n)));
 	}
     }
@@ -409,14 +424,14 @@ vl_ctype_set(int ch, CHARTYPE cclass)
 {
     TRACE(("vl_ctype_set %d:%#lx\n", ch, (ULONG) cclass));
 
-    if (ctype_sets == NULL) {
-	ctype_sets = typecallocn(CHARTYPE, (size_t) N_chars);
+    if (ctype_sets == 0) {
+	ctype_sets = typecallocn(CHARTYPE, N_chars);
     }
-    if (ctype_sets != NULL) {
+    if (ctype_sets != 0) {
 	ctype_sets[ch] |= cclass;
-	addVlCTYPE(ch, cclass);
+	vlCTYPE(ch) |= cclass;
     }
-    if (ctype_clrs != NULL) {
+    if (ctype_clrs != 0) {
 	ctype_clrs[ch] &= ~cclass;
     }
 }
@@ -426,14 +441,14 @@ vl_ctype_clr(int ch, CHARTYPE cclass)
 {
     TRACE(("vl_ctype_clr %d:%#lx\n", ch, (ULONG) cclass));
 
-    if (ctype_clrs == NULL) {
-	ctype_clrs = typecallocn(CHARTYPE, (size_t) N_chars);
+    if (ctype_clrs == 0) {
+	ctype_clrs = typecallocn(CHARTYPE, N_chars);
     }
-    if (ctype_clrs != NULL) {
+    if (ctype_clrs != 0) {
 	ctype_clrs[ch] |= cclass;
-	clrVlCTYPE(ch, cclass);
+	vlCTYPE(ch) &= ~cclass;
     }
-    if (ctype_sets != NULL) {
+    if (ctype_sets != 0) {
 	ctype_sets[ch] &= ~cclass;
     }
 }

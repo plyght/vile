@@ -7,7 +7,7 @@
 %{
 
 /*
- * $Id: vilefilt.l,v 1.79 2025/01/26 11:38:02 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/vilefilt.l,v 1.68 2010/05/11 21:39:56 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of vile macros
  * - T.Dickey
@@ -15,7 +15,7 @@
 
 #include <filters.h>
 
-#define FLTSTACK_EXTRA int with_state;
+#define FLTSTACK_EXTRA int with_state; int with_active;
 #define FltStack_WITH_STATE   FLTSTACK_THIS.with_state
 #define FltStack_WITH_ACTIVE  FLTSTACK_THIS.with_state
 #include <fltstack.h>
@@ -26,7 +26,7 @@
 #define HAVE_DIRECTIVE 0
 #endif
 
-DefineFilter(vile);
+DefineFilter("vile");
 
 static const char *Action_attr;
 static const char *Comment_attr;
@@ -37,7 +37,7 @@ static const char *Number_attr;
 static const char *Preproc_attr;
 static const char *String_attr;
 
-static const char *command_attr(char *text);
+static const char * command_attr(char *text);
 static int is_funckey(const char *text);
 static void handle_keyword(char *text, int len);
 static void handle_newline(void);
@@ -79,7 +79,7 @@ BINDING		(M-)?((^[AX]-(^)?{VISIBLE})|((#|FN)-?{VISIBLE})|^.)
 SSTRING		(\'(\\[^']|[^'\n])*\')
 DSTRING		\"(\\.|[^\\"\n])*\"
 
-FUNCTION	&[[:alpha:]][[:alnum:]-]*
+FUNCTION	&[[:alpha:]]+
 
 PARAMETER	[$]{DECIMAL}
 VARIABLE	[$%]{NAME}
@@ -154,9 +154,9 @@ SPACE		;
 static void
 handle_keyword(char *text, int len)
 {
-    const char *attr = (is_funckey(text)
-			? String_attr
-			: command_attr(text));
+    const char *attr = is_funckey(text)
+		       ? String_attr
+		       : command_attr(text);
 
 #if HAVE_DIRECTIVE
     if (vile_keywords) {
@@ -171,25 +171,22 @@ handle_keyword(char *text, int len)
 	    } else if (vl_check_cmd(cmd, USEREG)) {
 		new_state(REGISTER);
 	    } else if (vl_check_cmd(cmd, OPER)) {
-		;		/* operators are followed by motion */
+		;	/* operators are followed by motion */
 	    } else if (vl_check_cmd(cmd, EXTRA)) {
 		new_state(LITERAL);
 	    }
 	    break;
 	case REGISTER:
 	    attr = String_attr;
-	    if (yyleng != 1)
-		attr = Error_attr;
+	    if (yyleng != 1) attr = Error_attr;
 	    new_state(NORMAL);
 	    break;
 	case MAJORMODE_NAME:
-	    if (*attr == 0)
-		attr = "U";
+	    if (*attr == 0) attr = "U";
 	    new_state(NORMAL);
 	    break;
 	case SUBMODE_NAME:
-	    if (*attr == 0)
-		attr = "U";
+	    if (*attr == 0) attr = "U";
 	    new_state(SUBMODE_VALS);
 	    break;
 	case SUBMODE_VALS:
@@ -264,6 +261,7 @@ handle_prepro(char *text, int len)
 	    break;
 	case D_ELSEWITH:
 	    if (FLTSTACK_OK) {
+		FltStack_WITH_ACTIVE = 1;
 		FltStack_WITH_STATE = -1;
 	    } else {
 		attr = Error_attr;
@@ -290,15 +288,15 @@ command_attr(char *text)
 {
     if (vile_keywords) {
 	static char none[] = "";
-	return vl_lookup_cmd(text) != NULL ? Keyword_attr : none;
+	return vl_lookup_cmd(text) != 0 ? Keyword_attr : none;
     }
-    return get_keyword_attr(text);
+    return keyword_attr(text);
 }
 
 static int
 is_funckey(const char *text)
 {
-    return (!strncmp(text, "FN-", (size_t) 3));
+    return (!strncmp(text, "FN-", 3));
 }
 
 #if HAVE_DIRECTIVE
@@ -345,13 +343,13 @@ check_ctl_v(char *text, int len)
 		    unsigned ch = CharOf(*text++);
 		    switch (base) {
 		    case 8:
-			ok = isdigit(CharOf(ch)) && (ch < '8');
+			ok = isdigit(ch) && (ch < '8');
 			break;
 		    case 10:
-			ok = isdigit(CharOf(ch));
+			ok = isdigit(ch);
 			break;
 		    case 16:
-			ok = isxdigit(CharOf(ch));
+			ok = isxdigit(ch);
 			break;
 		    }
 		    if (ok) {
@@ -419,14 +417,14 @@ do_filter(FILE *inputs)
 {
     InitLEX(inputs);
 
-    Action_attr = class_attr(NAME_ACTION);
+    Action_attr  = class_attr(NAME_ACTION);
     Comment_attr = class_attr(NAME_COMMENT);
-    Error_attr = class_attr(NAME_ERROR);
-    Ident2_attr = class_attr(NAME_IDENT2);
+    Error_attr   = class_attr(NAME_ERROR);
+    Ident2_attr  = class_attr(NAME_IDENT2);
     Keyword_attr = class_attr(NAME_KEYWORD);
-    Number_attr = class_attr(NAME_NUMBER);
+    Number_attr  = class_attr(NAME_NUMBER);
     Preproc_attr = class_attr(NAME_PREPROC);
-    String_attr = class_attr(NAME_LITERAL);
+    String_attr  = class_attr(NAME_LITERAL);
 
     begin_state(NORMAL);
     FltStack_WITH_ACTIVE = 0;

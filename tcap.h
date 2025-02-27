@@ -1,7 +1,7 @@
 /*
  * Configurable headers used by termcap/terminfo driver for vile.
  *
- * $Id: tcap.h,v 1.22 2025/01/26 11:58:52 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/tcap.h,v 1.15 2008/10/15 23:35:48 tom Exp $
  */
 
 #ifndef VILE_TCAP_H
@@ -91,7 +91,7 @@ extern "C" {
 #if USE_TERMINFO
 #  define USE_TERMCAP 0
 #  define CAPNAME(a,b)        b
-#  define NO_CAP(s)           (s == NULL || s == (char *)-1)
+#  define NO_CAP(s)           (s == 0 || s == (char *)-1)
 #  if !defined(HAVE_TIGETNUM) && defined(HAVE_TIGETINT)
 #    define tigetnum tigetint
 #  endif
@@ -106,10 +106,10 @@ extern char PC;			/* used in 'tputs()' */
 #endif
 
 #define I_AM_XTERM(given) \
-    if (given != NULL && \
-    	(strstr(given, "xterm") != NULL || strstr(given, "rxvt") != NULL)) { \
+    if (given != 0 && \
+    	(strstr(given, "xterm") != 0 || strstr(given, "rxvt") != 0)) { \
 	i_am_xterm = TRUE; \
-    } else if ((t = TGETSTR(CAPNAME("Km", "kmous"), &p)) != NULL \
+    } else if ((t = TGETSTR(CAPNAME("Km", "kmous"), &p)) != 0 \
 	       && (t != (char *) (-1)) \
 	       && !strcmp(t, "\033[M")) { \
 	i_am_xterm = TRUE; \
@@ -118,11 +118,6 @@ extern char PC;			/* used in 'tputs()' */
     } else { \
 	i_am_xterm = FALSE; \
     }
-
-/* suppress external when using this in configure script */
-#if defined(CHECK_PROTOTYPES) && CHECK_PROTOTYPES
-#define vl_strncpy(d,s,l) strncpy(d,s,l)
-#endif
 
 #if DISP_TERMCAP
 
@@ -151,7 +146,7 @@ static int
 vl_tgetnum(const char *name)
 {
     char temp[10];
-    return tgetnum(vl_strncpy(temp, name, sizeof(temp)));
+    return tgetnum(strcpy(temp, name));
 }
 #define TGETNUM(name) vl_tgetnum(name)
 
@@ -165,7 +160,7 @@ static int
 vl_tgetnum(const char *name)
 {
     char temp[10];
-    return tigetnum(vl_strncpy(temp, name, sizeof(temp)));
+    return tigetnum(strcpy(temp, name));
 }
 #define TGETNUM(name) vl_tgetnum(name)
 
@@ -184,14 +179,14 @@ extern	int	tgetent (char *buffer, char *termtype);
 extern	int	tgetflag (char *name);
 #endif
 #ifdef MISSING_EXTERN_TGETSTR
-extern	char *	tgetstr (const char *name, char **area);
+extern	char *	tigetstr (const char *name, char **area);
 #endif
 
 static int
 vl_tgetflag(const char *name)
 {
     char temp[10];
-    return tgetflag(vl_strncpy(temp, name, sizeof(temp)));
+    return tgetflag(strcpy(temp, name));
 }
 #define TGETFLAG(name) vl_tgetflag(name)
 
@@ -199,7 +194,7 @@ static char *
 vl_tgetstr(const char *name, char **area)
 {
     char temp[10];
-    return tgetstr(vl_strncpy(temp, name, sizeof(temp)), area);
+    return tgetstr(strcpy(temp, name), area);
 }
 #define TGETSTR(name, bufp) vl_tgetstr(name, bufp)
 
@@ -216,7 +211,7 @@ static int
 vl_tgetflag(const char *name)
 {
     char temp[10];
-    return tigetflag(vl_strncpy(temp, name, sizeof(temp)));
+    return tigetflag(strcpy(temp, name));
 }
 #define TGETFLAG(name) vl_tgetflag(name)
 
@@ -224,7 +219,7 @@ static char *
 vl_tgetstr(const char *name)
 {
     char temp[10];
-    return tigetstr(vl_strncpy(temp, name, sizeof(temp)));
+    return tigetstr(strcpy(temp, name));
 }
 #define TGETSTR(name, bufp) vl_tgetstr(name)
 

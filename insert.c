@@ -4,7 +4,7 @@
  * Most code probably by Dan Lawrence or Dave Conroy for MicroEMACS
  * Extensions for vile by Paul Fox
  *
- * $Id: insert.c,v 1.193 2025/01/26 14:15:12 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/insert.c,v 1.174 2010/02/06 00:02:10 tom Exp $
  */
 
 #include	"estruct.h"
@@ -12,36 +12,9 @@
 
 #define	DOT_ARGUMENT	((dotcmdactive == PLAY) && dotcmdarg)
 
-#if OPT_SHELL && SYS_UNIX && defined(SIGTSTP)	/* job control, ^Z */
-#define USE_SIGTSTP 1
-#else
-#define USE_SIGTSTP 0
-#endif
-
 #define	BackspaceLimit() (b_val(curbp,MDBACKLIMIT) && autoindented <= 0)\
 			? DOT.o\
 			: w_left_margin(curwp)
-
-/* Use this to convert from UTF-8 in cases where a character is needed rather
- * than a series of bytes.
- */
-#if OPT_MULTIBYTE
-#define DecodeUTF8(target, source) \
-	    B_COUNT limit; \
-	    UINT utf8; \
-	    int test; \
- \
-	    if ((vl_encoding >= enc_UTF8) \
-		&& b_is_utfXX(curbp) \
-		&& (limit = (B_COUNT) strlen(source)) > 1 \
-		&& (test = vl_check_utf8(source, limit)) > 1 \
-		&& vl_conv_to_utf32(&utf8, source, (B_COUNT) test) == test) { \
-		target = (int) utf8; \
-		source += test; \
-	    } else
-#else
-#define DecodeUTF8(target, source)	/* nothing */
-#endif
 
 static int backspace(void);
 static int doindent(int ind);
@@ -102,23 +75,22 @@ past_wrapmargin(int c)
 static int
 wrap_at_col(int c)
 {
-    int rc;
     int n;
 
     /* if we'll split the line, there is no point in wrapping */
     if (isreturn(c)
 	&& (DOT.o >= llength(DOT.l)
-	    || !isSpace(lgetc(DOT.l, DOT.o)))) {
-	rc = FALSE;
-    } else if (past_wrapmargin(c) >= 0) {
-	rc = TRUE;
-    } else if (b_val(curbp, MDWRAPWORDS)
-	       && (n = getfillcol(curbp)) > 0) {
-	rc = (getccol(FALSE) > n);
-    } else {
-	rc = FALSE;
-    }
-    return rc;
+	    || !isSpace(lgetc(DOT.l, DOT.o))))
+	return FALSE;
+
+    if (past_wrapmargin(c) >= 0)
+	return TRUE;
+
+    if (b_val(curbp, MDWRAP)
+	&& (n = getfillcol(curbp)) > 0)
+	return (getccol(FALSE) > n);
+
+    return FALSE;
 }
 
 /* advance one character past the current position, for 'append()' */
@@ -432,13 +404,9 @@ replacechar(int f, int n)
     if (clexec || isnamedcmd) {
 	int status;
 	static char cbuf[NLINE];
-	char *tp = cbuf;
-	if ((status = mlreply("Replace with: ", cbuf, sizeof(cbuf))) != TRUE)
+	if ((status = mlreply("Replace with: ", cbuf, 2)) != TRUE)
 	    return status;
-	{
-	    DecodeUTF8(c, tp)
-		c = *tp;
-	}
+	c = cbuf[0];
     } else {
 	set_insertmode(INSMODE_RPL);	/* need to fool SPEC prefix code */
 	if (dotcmdactive != PLAY)
@@ -485,55 +453,11 @@ replacechar(int f, int n)
 /*
  * Check if a command is safe to execute within insert-mode.
  */
-static const CMDFUNC *
-can_ins_exec(int c)
-{
-    const CMDFUNC *cfp = NULL;
-    int always = isSpecial(c);
-    int okay = FALSE;
-
-    if (always || global_g_val(GMDINSEXEC)) {
-	if ((cfp = InsertKeyBinding(c)) != NULL) {
-	    okay = always;
-
-	    if (!always) {
-		/* filter out things that would be a nuisance */
-		if (ABORTED(c) ||
-		    isreturn(c) ||
-		    isBlank(c) ||
-		    isbackspace(c) ||
-		    c == tocntrl('D') ||
-		    c == tocntrl('T') ||
-		    c == startc ||
-		    c == stopc ||
-#if USE_SIGTSTP			/* job control, ^Z */
-		    c == suspc ||
-#endif
-		    c == killc ||
-		    c == wkillc) {
-		    /* ...unless they are rebound to user macros */
-		    /* FIXME - implement check */
-		    okay = FALSE;
-		} else {
-		    okay = TRUE;
-		}
-	    }
-
-	    /*
-	     * Finally, verify that the character is at least (a) bound to a
-	     * goal/motion, making its movement consistent and/or (b) undoable.
-	     */
-	    if (okay) {
-		if ((cfp->c_flags & (GOAL | MOTION)) == 0
-		    && (cfp->c_flags & (UNDO | REDO)) != (UNDO | REDO)) {
-		    okay = FALSE;
-		}
-	    }
-	}
-    }
-
-    return okay ? cfp : NULL;
-}
+#define can_ins_exec(cfp,c) \
+	((isSpecial(c) || global_g_val(GMDINSEXEC)) \
+	 && (cfp = InsertKeyBinding(c)) != 0 \
+	 && ((cfp->c_flags & (GOAL|MOTION)) != 0 \
+	  || (cfp->c_flags & (UNDO|REDO)) == (UNDO|REDO))) \
 
 /*
  * Execute a command within the insert-mode.
@@ -586,7 +510,6 @@ ins_anytime(int playback, int cur_count, int max_count, int *splicep)
     static int nested;
     int osavedmode;
     const CMDFUNC *cfp;
-    int changed = FALSE;
 
     /*
      * Prevent recursion of insert-chars (it's confusing).
@@ -603,7 +526,7 @@ ins_anytime(int playback, int cur_count, int max_count, int *splicep)
 	cur_count += dotcmdcnt - dotcmdrep;
     }
 
-    if (playback && (insbuff != NULL))
+    if (playback && (insbuff != 0))
 	itb_first(insbuff);
     else if (!itb_init(&insbuff, esc_c)) {
 	nested--;
@@ -620,8 +543,6 @@ ins_anytime(int playback, int cur_count, int max_count, int *splicep)
     last_insert_char = EOS;
 
     for_ever {
-	if (curwp->w_flag & WFEDIT)
-	    changed++;
 
 	/*
 	 * Read another character from the insertion-string.
@@ -646,9 +567,9 @@ ins_anytime(int playback, int cur_count, int max_count, int *splicep)
 	     */
 	    if (global_g_val(GMDINSEXEC)) {
 		if (c == cntl_a) {
-		    c = (int) (CTLA | (UINT) keystroke());
+		    c = (int) (CTLA | keystroke());
 		} else if (c == cntl_x) {
-		    c = (int) (CTLX | (UINT) keystroke());
+		    c = (int) (CTLX | keystroke());
 		}
 	    }
 #if OPT_MOUSE
@@ -677,7 +598,7 @@ ins_anytime(int playback, int cur_count, int max_count, int *splicep)
 	/* if we're allowed to honor SPEC bindings,
 	   then see if it's bound to something, and
 	   execute it */
-	if ((cfp = can_ins_exec(c)) != NULL) {
+	if (can_ins_exec(cfp, c)) {
 	    backsp_limit = insertion_exec(cfp);
 	    continue;
 	} else if (isSpecial(c)) {
@@ -725,7 +646,7 @@ ins_anytime(int playback, int cur_count, int max_count, int *splicep)
 	    /* if we're allowed to honor meta-character bindings,
 	       then see if it's bound to something, and
 	       insert it if not */
-	    if ((cfp = can_ins_exec(c)) != NULL) {
+	    if (can_ins_exec(cfp, c)) {
 		backsp_limit = insertion_exec(cfp);
 		continue;
 	    }
@@ -734,7 +655,7 @@ ins_anytime(int playback, int cur_count, int max_count, int *splicep)
 	if (c == startc || c == stopc) {	/* ^Q and ^S */
 	    continue;
 	}
-#if USE_SIGTSTP			/* job control, ^Z */
+#if OPT_SHELL && SYS_UNIX && defined(SIGTSTP)	/* job control, ^Z */
 	else if (c == suspc) {
 	    status = bktoshell(FALSE, 1);
 	}
@@ -768,16 +689,6 @@ ins_anytime(int playback, int cur_count, int max_count, int *splicep)
     set_insertmode(FALSE);
     savedmode = osavedmode;
     nested--;
-
-    /*
-     * If we did changes for an insert, ensure that we do some tidying up to
-     * undo temporary changes to the display.
-     */
-    if (changed) {
-	chg_buff(curbp, WFEDIT);
-	update(TRUE);
-    }
-
     return (status);
 }
 
@@ -813,8 +724,7 @@ blanks_on_line(void)
     int save = DOT.o;
     int list = w_val(curwp, WMDLIST);
 
-    for (DOT.o = b_left_margin(curbp); DOT.o < llength(DOT.l); DOT.o +=
-	 BytesAt(DOT.l, DOT.o)) {
+    for (DOT.o = 0; DOT.o < llength(DOT.l); DOT.o += BytesAt(DOT.l, DOT.o)) {
 	if (isSpace(CharAtDot())
 	    && getccol(list) >= indentwas) {
 	    code = TRUE;
@@ -833,8 +743,8 @@ is_cindent_char(BUFFER *bp, int ch)
 {
     return valid_buffer(bp)
 	&& b_val(bp, MDCINDENT)
-	&& (b_val_ptr(bp, VAL_CINDENT_CHARS) != NULL)
-	&& (vl_index(b_val_ptr(bp, VAL_CINDENT_CHARS), ch) != NULL);
+	&& (b_val_ptr(bp, VAL_CINDENT_CHARS) != 0)
+	&& (strchr(b_val_ptr(bp, VAL_CINDENT_CHARS), ch) != 0);
 }
 
 /*
@@ -860,10 +770,8 @@ is_utf8_continuation(BUFFER *bp, int ch)
 int
 inschar(int c, int *backsp_limit_p)
 {
-    int rc = FALSE;
     CmdFunc execfunc;		/* ptr to function to execute */
 
-    TRACE((T_CALLED "inschar U+%04X\n", c));
     execfunc = NULL;
     if (c == quotec) {
 	execfunc = quote_next;
@@ -884,9 +792,8 @@ inschar(int c, int *backsp_limit_p)
 		|| (is_print && (offset >= 1) && blanks_on_line())) {
 		int status = wrapword(wm_flag, is_space);
 		*backsp_limit_p = w_left_margin(curwp);
-		if (wm_flag && is_space) {
-		    returnCode(status);
-		}
+		if (wm_flag && is_space)
+		    return status;
 	    } else if (wm_flag
 		       && !blanks_on_line()
 		       && (c == '\t' || is_print)) {
@@ -975,46 +882,40 @@ inschar(int c, int *backsp_limit_p)
 	}
 
 	last_insert_char = c;
+
     }
 
-    if (execfunc != NULL) {
-	rc = (*execfunc) (FALSE, 1);
-    } else {
-	/* make it a real character again */
-	c = kcod2key(c);
+    if (execfunc != NULL)
+	return (*execfunc) (FALSE, 1);
 
-	/* if we are in overwrite mode, not at eol,
-	   and next char is not a tab or we are at a tab stop,
-	   delete a char forword                        */
-	if ((insertmode == INSMODE_OVR)
-	    && !is_utf8_continuation(curbp, c)
-	    && (!DOT_ARGUMENT || (dotcmdrep <= 1))
-	    && (DOT.o < llength(DOT.l))
-	    && (CharAtDot() != '\t'
-		|| DOT.o % tabstop_val(curbp) == tabstop_val(curbp) - 1)) {
-	    autoindented = -1;
-	    (void) ldel_chars((B_COUNT) 1, FALSE);
-	}
+    /* make it a real character again */
+    c = kcod2key(c);
 
-	/* do the appropriate insertion */
-	if (allow_aindent && b_val(curbp, MDCINDENT)) {
-	    int dir;
-	    if (is_cindent_char(curbp, c)
-		&& is_user_fence(c, &dir)
-		&& dir == REVERSE) {
-		rc = insbrace(1, c);
-	    } else if (c == '#' && is_cindent_char(curbp, '#')) {
-		rc = inspound();
-	    } else {
-		autoindented = -1;
-		rc = lins_chars(1, c);
-	    }
-	} else {
-	    autoindented = -1;
-	    rc = lins_chars(1, c);
+    /* if we are in overwrite mode, not at eol,
+       and next char is not a tab or we are at a tab stop,
+       delete a char forword                        */
+    if ((insertmode == INSMODE_OVR)
+	&& !is_utf8_continuation(curbp, c)
+	&& (!DOT_ARGUMENT || (dotcmdrep <= 1))
+	&& (DOT.o < llength(DOT.l))
+	&& (CharAtDot() != '\t'
+	    || DOT.o % tabstop_val(curbp) == tabstop_val(curbp) - 1)) {
+	autoindented = -1;
+	(void) ldel_chars(1, FALSE);
+    }
+
+    /* do the appropriate insertion */
+    if (allow_aindent && b_val(curbp, MDCINDENT)) {
+	int dir;
+	if (is_cindent_char(curbp, c) && is_user_fence(c, &dir) && dir == REVERSE) {
+	    return insbrace(1, c);
+	} else if (c == '#' && is_cindent_char(curbp, '#')) {
+	    return inspound();
 	}
     }
-    returnCode(rc);
+
+    autoindented = -1;
+    return lins_chars(1, c);
 }
 
 #if ! SMALLER
@@ -1062,13 +963,10 @@ istring(int f, int n, int mode)
 	backsp_limit = BackspaceLimit();
 
 	/* insert it */
-	while (n-- > 0) {
+	while (n--) {
 	    tp = tstring;
 	    while (*tp) {
-		int c;
-		DecodeUTF8(c, tp)
-		    c = CharOf(*tp++);
-		if ((status = inschar(c, &backsp_limit)) != TRUE) {
+		if ((status = inschar(*tp++, &backsp_limit)) != TRUE) {
 		    n = 0;
 		    break;
 		}
@@ -1146,7 +1044,7 @@ backspace(void)
     int s;
 
     if ((s = backchar(TRUE, 1)) == TRUE && insertmode != INSMODE_OVR)
-	s = ldel_chars((B_COUNT) 1, FALSE);
+	s = ldel_chars(1, FALSE);
     return (s);
 }
 
@@ -1242,7 +1140,7 @@ previndent(int *bracefp)
 	    (void) gomark(FALSE, 1);
 	    return 0;
 	}
-	DOT.o = b_left_margin(curbp);
+	DOT.o = 0;
 	/* if the line starts with a #, then don't copy its indent */
     } while ((skipindent-- > 0) || (cmode && lgetc(DOT.l, 0) == '#'));
 
@@ -1516,13 +1414,10 @@ shiftwidth(int f GCC_UNUSED, int n GCC_UNUSED)
 }
 
 /*
- * Quote the next character, and insert it into the buffer.  That character may
- * be literal, or composed of decimal or hexadecimal digits:
- *
- * a) the newline, which always has its line splitting meaning, and
- * b) the digits are accumulated (up to a radix-based limit).
- *
- * The resulting value is inserted into the buffer.
+ * Quote the next character, and insert it into the buffer. All the characters
+ * are taken literally, with the exception of a) the newline, which always has
+ * its line splitting meaning, and b) decimal digits, which are accumulated
+ * (up to three of them) and the resulting value put in the buffer.
  *
  * A character is always read, even if it is inserted 0 times, for regularity.
  */

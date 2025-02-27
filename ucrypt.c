@@ -2,22 +2,34 @@
  * Unix crypt(1)-style interface.
  * Written by T.E.Dickey for vile (March 1999).
  *
- * $Id: ucrypt.c,v 1.25 2018/10/25 22:50:17 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/ucrypt.c,v 1.17 2010/03/02 01:41:20 tom Exp $
+ *
  */
 
-#include "estruct.h"
-#include "edef.h"
+# include	"estruct.h"
+# include	"edef.h"
 
 #if	OPT_ENCRYPT
 
-#include "vl_crypt.h"
+#define MASKED(n) ((n) & (N_chars - 1))
+
+#define LEN_CLEAR 8
+#define LEN_CRYPT 13
+
+static unsigned	index_1;
+static unsigned	index_2;
+
+static char	table1[N_chars];
+static char	table2[N_chars];
+static char	table3[N_chars];
 
 /*
  * Get the string to use as an encryption string.
  */
 static int
-get_encryption_key(char *key,	/* where to write key */
-		   size_t len)
+get_encryption_key(		/* make encryption key */
+char	*key,			/* where to write key */
+UINT	len)
 {
     int status;			/* return status */
     int save_vl_echo = vl_echo;
@@ -27,24 +39,70 @@ get_encryption_key(char *key,	/* where to write key */
     vl_echo = FALSE;
 
     temp[0] = EOS;
-    status = mlreply("-Encryption String: ", temp, (UINT) (len - 1));
+    status = mlreply("-Encryption String: ", temp, len-1);
     vl_echo = save_vl_echo;
 
     if (status == TRUE)
 	vl_make_encrypt_key(key, temp);
 
     mlerase();
-    return (status);
+    return(status);
+}
+
+void
+vl_encrypt_blok(char *buf, UINT len)
+{
+    unsigned c1, c2;
+
+    for (c2 = 0; c2 < len; c2++) {
+	c1 = (UCHAR) buf[c2];
+	buf[c2] = (char) ((UCHAR) table2[
+		MASKED((UCHAR) table3[
+		    MASKED((UCHAR) table1[
+			MASKED(c1+index_1)] + index_2)
+			    ] - index_2)
+			] - index_1);
+	if (++index_1 >= N_chars) {
+	    index_1 = 0;
+	    if(++index_2 >= N_chars)
+		index_2 = 0;
+	}
+    }
+}
+
+int
+vl_encrypt_char(int ch)
+{
+    char buffer[2];
+    buffer[0] = (char) ch;
+    vl_encrypt_blok(buffer, 1);
+    return buffer[0];
 }
 
 /*
- * Set the buffer's encryption key if needed.
+ * Calls to 'crypt()' are slow; do this only after we have gotten a new
+ * key from the user.
  */
-int
-vl_resetkey(BUFFER *bp,
-	    const char *fname)
+void
+vl_make_encrypt_key (char *dst, const char *src)
 {
-    register int s;		/* temporary return value */
+    char key[LEN_CLEAR];
+    char salt[2];
+
+    memcpy(key,  src,  sizeof(key));
+    memcpy(salt, src,  sizeof(salt));
+    memcpy(dst, (char *)crypt(key, salt), LEN_CRYPT);
+    dst[LEN_CRYPT] = 0;
+
+    TRACE(("made encryption key(%s)\n", dst));
+}
+
+int
+vl_resetkey(		/* set the buffer's encryption key if needed */
+BUFFER	*bp,
+const char *fname)
+{
+    register int s;	/* temporary return value */
 
     /* flag the buffer as not having encryption */
     ffdocrypt(FALSE);
@@ -55,10 +113,10 @@ vl_resetkey(BUFFER *bp,
 
 	/* don't automatically inherit key from other buffers */
 	if (bp->b_cryptkey[0] != EOS
-	    && !b_is_argument(bp)
-	    && strcmp(lengthen_path(vl_strncpy(temp, fname, sizeof(temp))), bp->b_fname)) {
-	    char prompt[80];
-	    (void) lsprintf(prompt, "Use crypt-key from %s", bp->b_bname);
+	 && !b_is_argument(bp)
+	 && strcmp(lengthen_path(strcpy(temp, fname)), bp->b_fname)) {
+	    char	prompt[80];
+	    (void)lsprintf(prompt, "Use crypt-key from %s", bp->b_bname);
 	    s = mlyesno(prompt);
 	    if (s != TRUE)
 		return (s == FALSE);
@@ -72,7 +130,7 @@ vl_resetkey(BUFFER *bp,
 	}
 
 	ffdocrypt(TRUE);
-	vl_setup_encrypt(bp->b_cryptkey, vl_seed);
+	vl_setup_encrypt(bp->b_cryptkey);
     }
 
     return TRUE;
@@ -81,18 +139,18 @@ vl_resetkey(BUFFER *bp,
 /* change current buffer's encryption key */
 /* ARGSUSED */
 int
-vl_setkey(int f GCC_UNUSED,
-	  int n GCC_UNUSED)
+vl_setkey(
+int f GCC_UNUSED,
+int n GCC_UNUSED)
 {
     char result[NKEYLEN];
-    int rc;
+    int rc = get_encryption_key(result, sizeof(result));
 
-    memset(result, 0, sizeof(result));
-    rc = get_encryption_key(result, sizeof(result));
     if (rc == TRUE) {
 	TRACE(("set key for %s\n", curbp->b_bname));
-	(void) vl_strncpy(curbp->b_cryptkey, result, sizeof(curbp->b_cryptkey));
-	set_local_b_val(curbp, MDCRYPT, TRUE);
+	(void)strcpy(curbp->b_cryptkey, result);
+	make_local_b_val(curbp, MDCRYPT);
+	set_b_val(curbp, MDCRYPT, TRUE);
 	curwp->w_flag |= WFMODE;
     } else if (rc == FALSE) {
 	if (curbp->b_cryptkey[0] != EOS) {
@@ -101,9 +159,10 @@ vl_setkey(int f GCC_UNUSED,
 		TRACE(("reset key for %s\n", curbp->b_bname));
 		curbp->b_cryptkey[0] = EOS;
 		if (global_b_val(MDCRYPT)) {
-		    set_local_b_val(curbp, MDCRYPT, FALSE);
+		    make_local_b_val(curbp, MDCRYPT);
+		    set_b_val(curbp, MDCRYPT, FALSE);
 		    curwp->w_flag |= WFMODE;
-		} else if (b_val(curbp, MDCRYPT)) {
+		} else if (b_val(curbp,MDCRYPT)) {
 		    make_global_val(curbp->b_values.bv, global_b_values.bv, MDCRYPT);
 		    curwp->w_flag |= WFMODE;
 		}
@@ -111,6 +170,53 @@ vl_setkey(int f GCC_UNUSED,
 	}
     }
     return (rc);
+}
+
+/*
+ * Call this function at the beginning of encrypting/decrypting a file, i.e.,
+ * while writing or reading it.
+ */
+void
+vl_setup_encrypt(char *encrypted_password)
+{
+    int j;
+    unsigned c1, c2;
+    char temp;
+    unsigned mixs;
+    int myseed = seed;	/* this isn't a random number, it's a parameter */
+
+    TRACE(("setup_encrypt(%s)\n", encrypted_password));
+
+    for (j = 0; j < LEN_CRYPT; j++)
+	myseed = myseed * encrypted_password[j] + j;
+
+    for (j = 0; j < N_chars; j++)
+	table1[j] = (char) j;
+    memset(table3, 0, sizeof(table3));
+
+    for (j = 0; j < N_chars; j++) {
+	myseed = 5 * myseed + encrypted_password[j % LEN_CRYPT];
+	mixs = (unsigned) (myseed % 65521);
+	c2   = (unsigned) (N_chars-1 - j);
+	c1   = MASKED(mixs) % (c2+1);
+	mixs >>= 8;
+	temp = table1[c2];
+	table1[c2] = table1[c1];
+	table1[c1] = temp;
+	if (table3[c2] == 0) {
+	    c1 = MASKED(mixs) % c2;
+	    while (table3[c1] != 0)
+		c1 = (c1+1) % c2;
+	    table3[c2] = (char) c1;
+	    table3[c1] = (char) c2;
+	}
+    }
+
+    for(j = 0; j < N_chars; j++)
+	table2[MASKED(table1[j])] = (char) j;
+
+    index_1 = 0;
+    index_2 = 0;
 }
 
 #endif

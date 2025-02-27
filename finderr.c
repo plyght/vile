@@ -3,9 +3,9 @@
  * written for vile by paul fox.
  * rewritten to use regular expressions by T.Dickey
  *
- * Copyright (c) 1990-2019,2025 by Paul Fox and Thomas Dickey
+ * Copyright (c) 1990-2008 by Paul Fox and Thomas Dickey
  *
- * $Id: finderr.c,v 1.154 2025/01/26 14:47:08 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/finderr.c,v 1.139 2010/05/03 23:50:39 tom Exp $
  *
  */
 
@@ -152,24 +152,20 @@ char *const predefined[] =
 #endif
 
     "^%B:%L:%T",		/* "pp" in scratch buf */
-    "^[^:]\\+: %V directory [`']%[^']'",	/* GNU make */
+    "^[^:]\\+: %V directory `%[^']'",	/* GNU make */
     "%T at %F line %L.*",	/* perl 5 */
     "^%F\\[%L\\]:%T",		/* hgrep */
     "^\"%[^\"]\", line %L, col %C, %T",		/* ncurses, atac */
     "^\"%[^\"]\", line %L, %T",	/* ncurses */
-    "^%F:%L\\.%C\\(-\\d\\+\\)\\?:%T",	/* bison */
-    "^%F: \\a - line %L of \"%F\", %T",		/* byacc */
-    "^\\[%[^:]:%L\\]: %T",	/* cppcheck */
-    "^\\[%[^:]:%L\\]\\( -> \\[[^]]\\+\\]\\)\\?: %T",	/* cppcheck */
 };
 
-static ERR_PATTERN *exp_table = NULL;
+static ERR_PATTERN *exp_table = 0;
 static size_t exp_count = 0;
 
 void
 set_febuff(const char *name)
 {
-    (void) strncpy0(febuff, name, (size_t) NBUFN);
+    (void) strncpy0(febuff, name, NBUFN);
     newfebuff = TRUE;
 }
 
@@ -248,14 +244,14 @@ convert_pattern(ERR_PATTERN * errp, LINE *lp)
     static const char normal[] = "\\([^ \t]\\+\\)";
     static const char remain[] = "\\(.\\+\\)";
 
-    char *temp = NULL, *src, *dst = NULL;
-    regexp *exp = NULL;
+    char *temp = 0, *src, *dst = 0;
+    regexp *exp = 0;
     int pass;
     int word;
     int mark;
     int range;
     int status = TRUE;
-    size_t want = (size_t) llength(lp);
+    size_t want = llength(lp);
     char *first = lvalue(lp);
     char *last = first + want;
 
@@ -281,7 +277,7 @@ convert_pattern(ERR_PATTERN * errp, LINE *lp)
 		    mark = W_VERB;
 		    break;
 		case 'F':
-		    if (tb_values(filename_expr) != NULL) {
+		    if (tb_values(filename_expr) != 0) {
 			APP_S(before);
 			APP_T(tb_values(filename_expr));
 			APP_S(after);
@@ -361,7 +357,7 @@ convert_pattern(ERR_PATTERN * errp, LINE *lp)
 	    beginDisplay();
 	    dst = temp = typeallocn(char, want + 1);
 	    endofDisplay();
-	    if (dst == NULL) {
+	    if (dst == 0) {
 		status = no_memory("convert_pattern");
 		break;
 	    }
@@ -369,7 +365,7 @@ convert_pattern(ERR_PATTERN * errp, LINE *lp)
 	    *dst = EOS;
 	}
     }
-    if (temp != NULL) {
+    if (temp != 0) {
 #if OPT_TRACE
 	TRACE(("COMPILE %s\n", temp));
 	for (word = 0; word < W_LAST; word++)
@@ -394,14 +390,14 @@ convert_pattern(ERR_PATTERN * errp, LINE *lp)
 static void
 free_patterns(void)
 {
-    if (exp_table != NULL) {
+    if (exp_table != 0) {
 	beginDisplay();
 	while (exp_count-- != 0) {
 	    free(exp_table[exp_count].exp_text);
 	    free((char *) (exp_table[exp_count].exp_comp));
 	}
 	free((char *) exp_table);
-	exp_table = NULL;
+	exp_table = 0;
 	exp_count = 0;
 	endofDisplay();
     }
@@ -431,7 +427,7 @@ load_patterns(void)
     int status = TRUE;
 
     /* find the error-expressions buffer */
-    if ((bp = find_b_name(ERRORS_BufName)) == NULL) {
+    if ((bp = find_b_name(ERRORS_BufName)) == 0) {
 	if ((bp = bfind(ERRORS_BufName, BFINVS)) == NULL)
 	    return FALSE;
 
@@ -454,11 +450,11 @@ load_patterns(void)
 
     if (exp_count == 0) {
 	beginDisplay();
-	exp_count = (size_t) bp->b_linecount;
+	exp_count = bp->b_linecount;
 	exp_table = typeallocn(ERR_PATTERN, exp_count);
 	endofDisplay();
 
-	if (exp_table != NULL) {
+	if (exp_table != 0) {
 	    for (n = 0; n < W_LAST; n++)
 		exp_table->words[n] = -1;
 	    n = 0;
@@ -483,7 +479,7 @@ load_patterns(void)
 static ERR_PATTERN *
 next_pattern(size_t count)
 {
-    ERR_PATTERN *result = NULL;
+    ERR_PATTERN *result = 0;
 
     if (count < exp_count)
 	result = &exp_table[count];
@@ -502,11 +498,11 @@ decode_exp(ERR_PATTERN * exp)
 	TBUFF **buffer;
 	long *number;
     } lookup[] = {
-	{ W_VERB, &fe_verb, NULL },
-	{ W_FILE, &fe_file, NULL },
-	{ W_LINE, NULL, &fe_line },
-	{ W_COLM, NULL, &fe_colm },
-	{ W_TEXT, &fe_text, NULL },
+	{ W_VERB, &fe_verb, 0 },
+	{ W_FILE, &fe_file, 0 },
+	{ W_LINE, 0, &fe_line },
+	{ W_COLM, 0, &fe_colm },
+	{ W_TEXT, &fe_text, 0 },
     };
     /* *INDENT-ON* */
 
@@ -518,7 +514,7 @@ decode_exp(ERR_PATTERN * exp)
     TRACE(("decode_exp{%s}\n", exp->exp_text));
 
     for (j = 0; j < W_LAST; j++) {
-	if (lookup[j].buffer != NULL) {
+	if (lookup[j].buffer != 0) {
 	    tb_free(lookup[j].buffer);
 	} else {
 	    *(lookup[j].number) = 0;
@@ -537,15 +533,15 @@ decode_exp(ERR_PATTERN * exp)
      *          \([a-zA-Z]:\)
      */
     for (n = 1; !failed && (n < NSUBEXP); n++) {
-	if (p->startp[n] == NULL || p->endp[n] == NULL)
+	if (p->startp[n] == 0 || p->endp[n] == 0)
 	    continue;		/* discount nested atom */
 	if (p->startp[n] >= p->endp[n])
 	    continue;		/* discount empty atom */
-	temp = NULL;
+	temp = 0;
 	if (tb_bappend(&temp,
 		       p->startp[n],
-		       (size_t) (p->endp[n] - p->startp[n])) == NULL
-	    || tb_append(&temp, EOS) == NULL) {
+		       (size_t) (p->endp[n] - p->startp[n])) == 0
+	    || tb_append(&temp, EOS) == 0) {
 	    (void) no_memory("finderr");
 	    failed = TRUE;
 	} else if (tb_length(temp) == 0) {
@@ -602,7 +598,7 @@ goto_column(void)
     if (error_tabstop > 0)
 	set_tabstop_val(curbp, error_tabstop);
 
-    gocol((int) (fe_colm ? fe_colm - cC_base : 0));
+    gocol(fe_colm ? fe_colm - cC_base : 0);
 
     if (error_tabstop > 0)
 	set_tabstop_val(curbp, saved_tabstop);
@@ -610,7 +606,7 @@ goto_column(void)
 
 #define DIRLEVELS 20
 static int dir_level = 0;
-static char *dir_stack[DIRLEVELS + 1];
+static char *dir_stack[DIRLEVELS];
 
 static void
 freeDirs(void)
@@ -636,7 +632,7 @@ updateDirs(const char *errverb, const char *errfile)
     } else if (!strcmp("Leaving", errverb)) {
 	if (dir_level > 0) {
 	    beginDisplay();
-	    if (dir_stack[dir_level] != NULL)
+	    if (dir_stack[dir_level] != 0)
 		free(dir_stack[dir_level]);
 	    --dir_level;
 	    endofDisplay();
@@ -667,11 +663,11 @@ finderr(int f GCC_UNUSED, int n GCC_UNUSED)
     char ferrfile[NFILEN];
     size_t len;
 
-    static long oerrline = -1;
+    static int oerrline = -1;
     static TBUFF *oerrfile;
     static TBUFF *oerrtext;
 
-    static LINE *odotp = NULL;
+    static LINE *odotp = 0;
 
     if (!comp_err_exps(FALSE, 1))
 	return (FALSE);
@@ -687,11 +683,11 @@ finderr(int f GCC_UNUSED, int n GCC_UNUSED)
 	oerrfile = tb_init(&oerrfile, EOS);
 	oerrtext = tb_init(&oerrtext, EOS);
 	freeDirs();
-	odotp = NULL;
+	odotp = 0;
 	endofDisplay();
     }
     dotp = getdot(sbp);
-    if (dotp == NULL) {
+    if (dotp == 0) {
 	TRACE(("getdot returns null\n"));
 	return (FALSE);
     }
@@ -715,21 +711,20 @@ finderr(int f GCC_UNUSED, int n GCC_UNUSED)
 
 	    if (lisreal(tdotp)) {
 		count = 0;
-		while ((exp = next_pattern(count++)) != NULL) {
+		while ((exp = next_pattern(count++)) != 0) {
 		    if (exp->words[W_VERB] > 0)
-			if (lregexec(exp->exp_comp, tdotp, 0,
-				     llength(tdotp), FALSE))
+			if (lregexec(exp->exp_comp, tdotp, 0, llength(tdotp)))
 			    break;
 		}
 
-		if (exp != NULL) {
+		if (exp != 0) {
 		    if (decode_exp(exp))
 			return ABORT;
 
 		    errverb = tb_values(fe_verb);
 		    errfile = tb_values(fe_file);
 
-		    if (errverb != NULL && errfile != NULL) {
+		    if (errverb != 0 && errfile != 0) {
 			updateDirs(errverb, errfile);
 		    }
 		} else if (interrupted()) {
@@ -750,12 +745,10 @@ finderr(int f GCC_UNUSED, int n GCC_UNUSED)
 	 */
 	if (lisreal(dotp)) {
 	    count = 0;
-	    while ((exp = next_pattern(count++)) != NULL
-		   && !lregexec(exp->exp_comp, dotp, 0, llength(dotp), FALSE)) {
-		;
-	    }
+	    while ((exp = next_pattern(count++)) != 0
+		   && !lregexec(exp->exp_comp, dotp, 0, llength(dotp))) ;
 
-	    if (exp != NULL) {
+	    if (exp != 0) {
 		TRACE(("matched TEXT:%.*s\n", llength(dotp), lvalue(dotp)));
 		if (decode_exp(exp))
 		    return ABORT;
@@ -764,16 +757,16 @@ finderr(int f GCC_UNUSED, int n GCC_UNUSED)
 		errfile = tb_values(fe_file);
 		errtext = tb_values(fe_text);
 
-		if (errfile != NULL
+		if (errfile != 0
 		    && fe_line > 0) {
 		    if (oerrline != fe_line
 			|| strcmp(tb_values(oerrfile), errfile))
 			break;
 		    if (oerrline == fe_line
-			&& errtext != NULL
+			&& errtext != 0
 			&& strcmp(tb_values(oerrtext), errtext))
 			break;
-		} else if (errverb != NULL && errfile != NULL) {
+		} else if (errverb != 0 && errfile != 0) {
 		    updateDirs(errverb, errfile);
 		}
 	    }
@@ -823,9 +816,9 @@ finderr(int f GCC_UNUSED, int n GCC_UNUSED)
     } else {
 	mlforce("Error: %.*s", llength(dotp), lvalue(dotp));
 	errtext = lvalue(dotp);
-	len = (size_t) llength(dotp);
+	len = llength(dotp);
     }
-    if ((oerrtext = tb_init(&oerrtext, EOS)) != NULL) {
+    if ((oerrtext = tb_init(&oerrtext, EOS)) != 0) {
 	tb_bappend(&oerrtext, errtext, len);
 	tb_append(&oerrtext, EOS);
     }
@@ -836,18 +829,17 @@ finderr(int f GCC_UNUSED, int n GCC_UNUSED)
     } else if ((fe_line - lL_base) >= curbp->b_lines_on_disk) {
 	status = gotoeob(f, n);
     } else {
-	status = gotoline(TRUE,
-			  (int) -(curbp->b_lines_on_disk - fe_line + lL_base));
+	status = gotoline(TRUE, -(curbp->b_lines_on_disk - fe_line + lL_base));
     }
     goto_column();
 
     oerrline = fe_line;
     (void) tb_scopy(&oerrfile, errfile);
     if (status == TRUE) {
-	TBUFF *match = NULL;
+	TBUFF *match = 0;
 	var_ERROR_EXPR((TBUFF **) 0, exp_table[count - 1].exp_text);
-	if (tb_bappend(&match, lvalue(dotp), (size_t) llength(dotp))
-	    && tb_append(&match, EOS) != NULL) {
+	if (tb_bappend(&match, lvalue(dotp), llength(dotp))
+	    && tb_append(&match, EOS) != 0) {
 	    var_ERROR_MATCH((TBUFF **) 0, tb_values(match));
 	    tb_free(&match);
 	}
@@ -914,7 +906,7 @@ finderrbuf(int f GCC_UNUSED, int n GCC_UNUSED)
     if (s == FALSE) {
 	set_febuff(OUTPUT_BufName);
     } else {
-	if ((bp = find_any_buffer(name)) == NULL)
+	if ((bp = find_any_buffer(name)) == 0)
 	    return FALSE;
 	set_febuff(bp->b_bname);
     }
@@ -933,11 +925,11 @@ make_err_regex_list(int dum1 GCC_UNUSED, void *ptr GCC_UNUSED)
     bprintf("--- Error Meta-Expressions and Resulting Regular Expressions ");
     bpadc('-', term.cols - DOT.o);
 
-    if (exp_table == NULL)
+    if (exp_table == 0)
 	load_patterns();
 
-    if (exp_table != NULL
-	&& (bp = find_b_name(ERRORS_BufName)) != NULL) {
+    if (exp_table != 0
+	&& (bp = find_b_name(ERRORS_BufName)) != 0) {
 	size_t j = 0;
 	b_set_left_margin(curbp, ERR_PREFIX);
 	for_each_line(lp, bp) {

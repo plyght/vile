@@ -123,7 +123,7 @@ ncurses.  this requires a number of tools:
 	+ you will have to regenerate the configure script, using
 	  autoconf 2.13, with the patches from
 
-	  https://invisible-island.net/autoconf/autoconf.html
+	  http://invisible-island.net/autoconf/autoconf.html
 
 	+ you'll need ksh (build or obtain a copy of pdksh 5.2.13 or
 	  better).
@@ -134,8 +134,8 @@ the termcap library distributed with EMX does not work well.  use ncurses:
 
 	+ ncurses 4.2 or later, with patches through September 1998, from
 
-	  https://invisible-island.net/ncurses/ncurses.faq.html
-	  https://invisible-island.net/archives/ncurses/
+	  http://invisible-island.net/ncurses/ncurses.faq.html
+	  ftp://invisible-island.net/ncurses/
 
 	+ use '$TERM=ansi', or start customizing from that.
 
@@ -256,5 +256,5 @@ tom dickey, dickey@invisible-island.net
 paul fox, pgf@foxharp.boston.ma.us (home)
 
 ------------------------
-$Id: README.PC,v 1.37 2022/12/22 21:05:54 tom Exp $
+$Header: /usr/build/vile/vile/RCS/README.PC,v 1.33 2005/11/30 01:32:30 tom Exp $
 ------------------------

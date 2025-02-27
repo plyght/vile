@@ -27,15 +27,10 @@
 # Consult the macro $(PERL_SCRIPTS) in the file makefile.wnt to ascertain the
 # current list of vile-based perl scripts known to work in a Win32 environment.
 #
-# $Id: mkprlenv.wnt,v 1.12 2017/02/20 20:00:22 tom Exp $
+# $Header: /usr/build/vile/vile/RCS/mkprlenv.wnt,v 1.9 2005/12/07 11:55:18 tom Exp $
 #
     perl -w <<
-        use strict;
-        require Config;
-        my $$dir;
-        my $$lib;
-        my $$inc;
-        my $$utils;
+	require Config;
         foreach $$dir (@INC)
         {
             $$lib="$$dir\\CORE\\" . $$Config::Config{'libperl'};
@@ -74,7 +69,7 @@
         }
         print
  "Checking existence of directory specified by VILE_LIBDIR_PATH env var...\n";
-        my $$root_dir=$$ENV{"VILE_LIBDIR_PATH"};
+        $$root_dir=$$ENV{"VILE_LIBDIR_PATH"};
         if (! $$root_dir)
         {
             print "error: Environment var VILE_LIBDIR_PATH does not exist\n";
@@ -108,7 +103,7 @@
 #
 #               The user's writable directory must have a subdirectory
 #               called "perl".  Create if it doesn't exist.
-                my $$script_dir = $$root_dir . "\\perl";
+                $$script_dir = $$root_dir . "\\perl";
                 if (-f $$script_dir)
                 {
                     print
@@ -120,7 +115,7 @@
                     print "error: can't create \"$$script_dir\": $$!\n";
                     exit(1);
                 }
-                my $$script_sub = $$script_dir . "\\Vile";
+                $$script_sub = $$script_dir . "\\Vile";
                 if (! -d $$script_sub && ! mkdir($$script_sub, 0755))
                 {
                     print "error: can't create \"$$script_sub\": $$!\n";
@@ -132,7 +127,7 @@
 #               attempt to create a junk file in this directory as a test
 #               of its accessibility.
 #
-                my $$test_file = "$$script_dir\\vile_perl_tst.txt";
+                $$test_file = "$$script_dir\\vile_perl_tst.txt";
                 if (open(TEST_FD, "> $$test_file") == 0)
                 {
                     print
@@ -144,37 +139,25 @@
 #
 #               Write out results.
 #
-                if ( -f "$(PERLCFG)" )
-                {
-                    print "removing old $(PERLCFG)\n";
-                    unlink "$(PERLCFG)";
-                }
-                if (open(SOME_FD, "> $(PERLCFG)"))
-                {
-                    my $$w_lib = $$lib =~ s/\//\\/rg;
-                    my $$w_inc = $$inc =~ s/\//\\/rg;
-                    my $$w_utils = $$utils =~ s/\//\\/rg;
-                    print SOME_FD "VILE_PERL_LIB=$$w_lib\n";
-                    print SOME_FD "VILE_PERL_INC=$$w_inc\n";
-                    print SOME_FD "VILE_PERL_UTILS=$$w_utils\n";
-                    close SOME_FD;
-                }
-                else
+                if (open(SOME_FD, "> $(PERLCFG)") == 0)
                 {
                     print "error: creating $(PERLCFG): $$!\n";
                     exit(1);
                 }
+                print SOME_FD "VILE_PERL_LIB=$$lib\n";
+                print SOME_FD "VILE_PERL_INC=$$inc\n";
+                print SOME_FD "VILE_PERL_UTILS=$$utils\n";
+                close SOME_FD;
 #
 #               copy win32-compatible perl scripts to user-specified directory
 #
-                my $$mylist;
                 $$mylist = "$(PERL_SCRIPTS)";
                 $$mylist =~ s@/@\\@g;
-                my @scripts = split ' ', "$$mylist";
-                foreach my $$file (@scripts)
+                @scripts = split ' ', "$$mylist";
+                foreach $$file (@scripts)
                 {
-                    my $$src  = $$file;
-                    my $$dest = "$$root_dir\\$$file";
+                    $$src  = $$file;
+                    $$dest = "$$root_dir\\$$file";
                     printf "copying $$src -> $$dest...\n";
                     `copy $$src $$dest`;
                     if ( ! -f $$dest ) {
@@ -195,5 +178,4 @@
     -del $(EXEFILE)
     -del perl.c
 # Look ma, a recursive make
-    @echo doing recursive make...
     $(MAKE) -f makefile.wnt CFG=$(CFG) OPT=$(OPT) ICON=$(ICON)

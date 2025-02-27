@@ -4,7 +4,7 @@
 %{
 
 /*
- * $Id: ti-filt.l,v 1.31 2025/01/26 11:38:02 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/ti-filt.l,v 1.26 2009/04/25 16:31:09 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of terminfo
  */
@@ -12,7 +12,7 @@
 #include <filters.h>
 #undef YY_NO_UNPUT
 
-DefineFilter(ti);
+DefineFilter("ti");
 
 #define WriteAlias(attr) \
 	WriteToken3(attr, yyleng - 1); \
@@ -27,7 +27,7 @@ static char *String_attr;
 
 static int commented;
 
-static const char *check_name(const char *name);
+static const char * check_name(const char *name);
 static void echo_vals(char *text, int size, char *attr);
 
 %}
@@ -42,10 +42,7 @@ ALIAS		[[:alnum:]][[:alnum:]_.+-]*
 COMMA		[,]
 ESCNL		{COMMA}{SPACE}*\\\n\t
 
-HEXNUM		"0x"[[:xdigit:]]+
-DECNUM		[[:digit:]]+
-
-NUMBER		"#"({HEXNUM}|{DECNUM})
+NUMBER		"#"[[:digit:]]+
 STRING		"="(\\.|\^.|[^,\^\\])*
 
 %%
@@ -86,11 +83,11 @@ echo_vals(char *text, int size, char *attr)
 static const char *
 check_name(const char *name)
 {
-    const char *attr = get_keyword_attr(name);
-    if (attr == NULL)
+    const char *attr = keyword_attr(name);
+    if (attr == 0)
 	attr = "";
     if (strcmp(attr, Keyword_attr))
-	attr = Action_attr;
+    	attr = Action_attr;
     return attr;
 }
 
@@ -105,12 +102,12 @@ do_filter(FILE *inputs)
 {
     InitLEX(inputs);
 
-    Action_attr = class_attr(NAME_ACTION);
+    Action_attr  = class_attr(NAME_ACTION);
     Comment_attr = class_attr(NAME_COMMENT);
     Keyword_attr = class_attr(NAME_KEYWORD);
-    Number_attr = class_attr(NAME_NUMBER);
-    Ident_attr = class_attr(NAME_IDENT);
-    String_attr = class_attr(NAME_LITERAL);
+    Number_attr  = class_attr(NAME_NUMBER);
+    Ident_attr   = class_attr(NAME_IDENT);
+    String_attr  = class_attr(NAME_LITERAL);
 
     commented = 0;
 

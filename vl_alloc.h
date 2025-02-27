@@ -1,7 +1,7 @@
 /*
- * $Id: vl_alloc.h,v 1.14 2025/01/26 14:21:55 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/vl_alloc.h,v 1.1 2005/11/18 01:27:00 tom Exp $
  *
- * Copyright 2005-2024,2025 Thomas E. Dickey and Paul G. Fox
+ * Copyright 2005, Thomas E. Dickey and Paul G. Fox
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the
@@ -32,35 +32,17 @@
 #define VL_ALLOC_H_incl 1
 
 /* structure-allocate, for appeasing strict compilers */
-#define	castalloc(type,nbytes)		(type *)malloc((size_t) nbytes)
-#define	castrealloc(type,ptr,nbytes)	(type *)realloc((ptr), (size_t)(nbytes))
-#define	typecalloc(type)		(type *)calloc((size_t) 1, sizeof(type))
-#define	typecallocn(type,ntypes)	(type *)calloc((size_t) ntypes, sizeof(type))
-#define	typealloc(type)			(type *)malloc(sizeof(type))
-#define	typeallocn(type,ntypes)		(type *)malloc((ntypes)*sizeof(type))
-#define	typereallocn(type,ptr,ntypes)	(type *)realloc((ptr),\
-							(ntypes)*sizeof(type))
-#define	typeallocplus(type,extra)	(type *)calloc((extra)+sizeof(type), (size_t) 1)
+#define	castalloc(cast,nbytes)		(cast *)malloc(nbytes)
+#define	castrealloc(cast,ptr,nbytes)	(cast *)realloc((ptr),(nbytes))
+#define	typecalloc(cast)		(cast *)calloc(sizeof(cast),1)
+#define	typecallocn(cast,ntypes)	(cast *)calloc(sizeof(cast),ntypes)
+#define	typealloc(cast)			(cast *)malloc(sizeof(cast))
+#define	typeallocn(cast,ntypes)		(cast *)malloc((ntypes)*sizeof(cast))
+#define	typereallocn(cast,ptr,ntypes)	(cast *)realloc((ptr),\
+							(ntypes)*sizeof(cast))
+#define	typeallocplus(cast,extra)	(cast *)calloc((extra)+sizeof(cast),1)
 
-#define safe_castrealloc(type,ptr,nbytes) \
-	{ \
-	    type *safe_ptr = castrealloc(type,ptr,nbytes); \
-	    if (safe_ptr == NULL) { \
-		ptr = NULL; \
-	    } \
-	    ptr = safe_ptr; \
-	}
-
-#define safe_typereallocn(type,ptr,ntypes) \
-	{ \
-	    type *safe_ptr = typereallocn(type,ptr,ntypes); \
-	    if (safe_ptr == NULL) { \
-		free(ptr); \
-	    } \
-	    ptr = safe_ptr; \
-	}
-
-#define	FreeAndNull(p)	do { if ((p) != NULL) { free(p); p = NULL; } } while (0)
-#define	FreeIfNeeded(p)	do { if ((p) != NULL) free(p); } while (0)
+#define	FreeAndNull(p)	if ((p) != 0)	{ free(p); p = 0; }
+#define	FreeIfNeeded(p)	if ((p) != 0)	free(p)
 
 #endif /* VL_ALLOC_H_incl */

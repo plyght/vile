@@ -3,7 +3,7 @@
  * that take motion operators.
  * written for vile.  Copyright (c) 1990, 1995-2003 by Paul Fox
  *
- * $Id: opers.c,v 1.106 2025/01/26 14:28:56 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/opers.c,v 1.97 2008/08/17 16:25:49 tom Exp $
  *
  */
 
@@ -38,7 +38,7 @@ vile_op(int f, int n, OpsFunc fn, const char *str)
 	cfp = havemotion;
 	havemotion = NULL;
     } else {
-	TBUFF *tok = NULL;
+	TBUFF *tok = 0;
 
 	mlwrite("%s operation pending...", str);
 	(void) update(FALSE);
@@ -47,13 +47,11 @@ vile_op(int f, int n, OpsFunc fn, const char *str)
 	/* or a command line, as approp. */
 	if (clexec) {
 	    char *value = mac_unquotedarg(&tok);	/* get the next token */
-	    if (value != NULL && strcmp(value, "lines")) {
+	    if (value != 0 && strcmp(value, "lines"))
 		cfp = engl2fnc(value);
-	    } else {
+	    else
 		cfp = &f_godotplus;
-	    }
 	} else {
-	    int foo = f;
 	    thiskey = lastkey;
 	    c = kbd_seq();
 
@@ -67,22 +65,13 @@ vile_op(int f, int n, OpsFunc fn, const char *str)
 	    /* allow second chance for entering counts */
 	    do_repeats(&c, &f, &n);
 
-	    /*
-	     * If we had no repeat-count at all, this is a simple stutter.
-	     * If we had a repeat-count coming into this function, foo is
-	     * nonzero, and we want to interpret the count as lines.
-	     *
-	     * Otherwise (if we picked up a repeat count on the second try),
-	     * then that can apply to a motion.
-	     */
-	    if (thiskey == lastkey && (foo || !f)) {
+	    if (thiskey == lastkey)
 		cfp = &f_godotplus;
-	    } else {
+	    else
 		cfp = DefaultKeyBinding(c);
-	    }
 
 	}
-	if (cfp != NULL) {
+	if (cfp != 0) {
 	    mlerase();
 	} else {
 	    if (!clexec) {
@@ -111,9 +100,6 @@ vile_op(int f, int n, OpsFunc fn, const char *str)
 
 	/* and execute the motion */
 	if ((status = execute(cfp, f, n)) == TRUE) {
-	    if (regionshape == rgn_FULLLINE) {
-		DOT.o = b_left_margin(curbp);
-	    }
 	    post_op_dot = DOT;
 	} else {
 	    mlforce("[Motion failed]");
@@ -147,7 +133,7 @@ vile_op(int f, int n, OpsFunc fn, const char *str)
 
     regionshape = rgn_EXACT;
     doingopcmd = FALSE;
-    haveregion = NULL;
+    haveregion = FALSE;
     cmd_motion = save_cmd_motion;
 
     returnCode(status);
@@ -244,7 +230,7 @@ operyank(int f, int n)
     opcmd = OPDEL;
     wantregion = &region;
     s = vile_op(f, n, yankregion, "Yank");
-    wantregion = NULL;
+    wantregion = 0;
     /*
      * If the associated motion was to the left, or up, we want to set DOT to
      * the beginning of the region, to match vi's behavior.  Otherwise leave
@@ -483,38 +469,3 @@ operopenrect(int f, int n)
     regionshape = rgn_RECTANGLE;
     return vile_op(f, n, openregion, "Opening");
 }
-
-#if !SMALLER
-int
-del_emptylines(int f, int n)
-{
-    int status;
-
-    opcmd = OPOTHER;
-    lines_deleted = 0;
-    status = vile_op(f, n, del_emptylines_region, "Delete empty lines");
-
-    if (do_report(lines_deleted))
-	mlforce("[%d lines deleted]", lines_deleted);
-    return status;
-}
-
-int
-frc_emptylines(int f, int n)
-{
-    int status;
-
-    opcmd = OPOTHER;
-    lines_deleted = 0;
-    status = vile_op(f, n, frc_emptylines_region, "Force empty lines");
-
-    if (do_report(lines_deleted)) {
-	if (lines_deleted > 0) {
-	    mlforce("[%d lines deleted", lines_deleted);
-	} else {
-	    mlforce("[%d lines added]", -lines_deleted);
-	}
-    }
-    return status;
-}
-#endif

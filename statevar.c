@@ -3,7 +3,7 @@
  *	for getting and setting the values of the vile state variables,
  *	plus helper utility functions.
  *
- * $Id: statevar.c,v 1.173 2025/01/26 17:08:26 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/statevar.c,v 1.151 2010/06/09 20:54:25 tom Exp $
  */
 
 #include	<estruct.h>
@@ -46,7 +46,6 @@ DftEnv(const char *name, const char *dft)
     name = safe_getenv(name);
     result = isEmpty(name) ? dft : name;
 #else
-    (void) name;
     result = dft;
 #endif
     return result;
@@ -58,8 +57,8 @@ SetEnv(char **namep, const char *value)
     char *newvalue;
 
     beginDisplay();
-    if (*namep == NULL || strcmp(*namep, value)) {
-	if ((newvalue = strmalloc(value)) != NULL) {
+    if (*namep == 0 || strcmp(*namep, value)) {
+	if ((newvalue = strmalloc(value)) != 0) {
 #if OPT_EVAL && OPT_SHELL
 	    FreeIfNeeded(*namep);
 #endif
@@ -140,7 +139,7 @@ static int
 any_ro_STR(TBUFF **rp, const char *vp, const char *value)
 {
     if (rp) {
-	if (value != NULL) {
+	if (value != 0) {
 	    tb_scopy(rp, value);
 	    return TRUE;
 	}
@@ -154,7 +153,7 @@ static int
 any_rw_STR(TBUFF **rp, const char *vp, TBUFF **value)
 {
     if (rp) {
-	if (value != NULL && *value != NULL) {
+	if (value != 0 && *value != 0) {
 	    tb_copy(rp, *value);
 	    return TRUE;
 	}
@@ -169,13 +168,13 @@ static int
 any_rw_EXPR(TBUFF **rp, const char *vp, TBUFF **value)
 {
     if (rp) {
-	if (value != NULL) {
+	if (value != 0) {
 	    tb_copy(rp, *value);
 	    return TRUE;
 	}
     } else if (vp) {
 	regexp *exp = regcomp(vp, strlen(vp), TRUE);
-	if (exp != NULL) {
+	if (exp != 0) {
 	    beginDisplay();
 	    free(exp);
 	    endofDisplay();
@@ -190,7 +189,7 @@ static int
 any_ro_TBUFF(TBUFF **rp, const char *vp, TBUFF **value)
 {
     if (rp) {
-	if (value != NULL) {
+	if (value != 0) {
 	    tb_copy(rp, *value);
 	    return TRUE;
 	}
@@ -204,7 +203,7 @@ static int
 any_rw_TBUFF(TBUFF **rp, const char *vp, TBUFF **value)
 {
     if (rp) {
-	if (value != NULL) {
+	if (value != 0) {
 	    tb_copy(rp, *value);
 	    return TRUE;
 	}
@@ -249,7 +248,7 @@ static int
 any_REGEX_MATCH(TBUFF **rp, const char *vp, REGEXVAL * rexp)
 {
     if (rp) {
-	(void) vl_regex2tbuff(rp, rexp, vl_get_it_all);
+	(void) vl_regex2tbuff(rp, rexp, FALSE);
 	return TRUE;
     } else if (vp && valid_buffer(curbp)) {
 	return lrepl_regex(rexp, vp, (int) strlen(vp));
@@ -267,7 +266,7 @@ any_HOOK(TBUFF **rp, const char *vp, HOOK * hook)
 	tb_scopy(rp, hook->proc);
 	return TRUE;
     } else if (vp) {
-	(void) strncpy0(hook->proc, vp, (size_t) NBUFN);
+	(void) strncpy0(hook->proc, vp, NBUFN);
 	return TRUE;
     } else {
 	return FALSE;
@@ -276,18 +275,17 @@ any_HOOK(TBUFF **rp, const char *vp, HOOK * hook)
 #endif
 
 const char *
-safe_getenv(const char *name)
+safe_getenv(const char *s)
 {
     const char *result;
 #if OPT_EVAL && OPT_SHELL
-    char *v = getenv(name);
+    char *v = getenv(s);
 #if defined(_WIN32)
     if (v == 0)
-	v = vile_getenv(name);
+	v = vile_getenv(s);
 #endif
     result = NONNULL(v);
 #else
-    (void) name;
     result = "";
 #endif
     return result;
@@ -316,7 +314,7 @@ safe_getenv(const char *name)
 char *
 get_shell(void)
 {
-    if (shell == NULL)
+    if (shell == 0)
 	SetEnv(&shell, DftEnv(SHELL_NAME, SHELL_PATH));
     return shell;
 }
@@ -326,7 +324,7 @@ get_shell(void)
 char *
 get_findpath(void)
 {
-    if (findpath == NULL)
+    if (findpath == 0)
 	SetEnv(&findpath, DftEnv("VILE_FINDPATH", ""));
     return (findpath);
 }
@@ -339,7 +337,7 @@ get_findpath(void)
 char *
 get_xshell(void)
 {
-    if (x_shell == NULL)
+    if (x_shell == 0)
 	SetEnv(&x_shell, DftEnv("XSHELL", DEFAULT_XSHELL));
     return x_shell;
 }
@@ -350,7 +348,7 @@ get_xshell(void)
 char *
 get_xshellflags(void)
 {
-    if (x_shellflags == NULL)
+    if (x_shellflags == 0)
 	SetEnv(&x_shellflags, DftEnv("XSHELLFLAGS", DEFAULT_XSHELLFLAGS));
     return x_shellflags;
 }
@@ -358,7 +356,7 @@ get_xshellflags(void)
 char *
 get_xdisplay(void)
 {
-    if (x_display == NULL)
+    if (x_display == 0)
 	SetEnv(&x_display, DftEnv("DISPLAY", x_get_display_name()));
     return x_display;
 }
@@ -368,7 +366,7 @@ get_xdisplay(void)
 char *
 get_directory(void)
 {
-    if (directory == NULL)
+    if (directory == 0)
 	SetEnv(&directory, DftEnv("TMP", P_tmpdir));
     return directory;
 }
@@ -377,8 +375,8 @@ get_directory(void)
 static KILLREG *
 default_kill(void)
 {
-    KILLREG *result = NULL;
-    if (kbs[0].kbufh != NULL) {
+    KILLREG *result = 0;
+    if (kbs[0].kbufh != 0) {
 	int n = index2ukb(0);
 	result = kbs + n;
     }
@@ -389,7 +387,7 @@ default_kill(void)
 char *
 get_cdpath(void)
 {
-    if (cdpath == NULL)
+    if (cdpath == 0)
 	SetEnv(&cdpath, DftEnv("CDPATH", ""));
     return cdpath;
 }
@@ -439,52 +437,57 @@ cfgopts(void)
 #endif
 #if DISP_ANSI
 	"ansi",
-#elif DISP_BORLAND
+#endif
+#if DISP_BORLAND
 	"borland",
-#elif DISP_CURSES
+#endif
+#if DISP_CURSES
 	"curses",
-#elif DISP_NTCONS
+#endif
+#if DISP_NTCONS
 	"ntcons",
-#elif DISP_NTWIN
+#endif
+#if DISP_NTWIN
 	"ntwin",
-#elif DISP_TERMCAP
+#endif
+#if DISP_TERMCAP
 # if USE_TERMINFO
 	"terminfo",
 # else
 	"termcap",
 # endif
-#elif DISP_VIO
+#endif
+#if DISP_VIO
 	"os2vio",
-#elif DISP_VMSVT
+#endif
+#if DISP_VMSVT
 	"vmsvt",
-#elif DISP_X11
-# if ATHENA_WIDGETS
-	"athena",
-#  if defined(HAVE_LIB_XAW3DXFT)
-	"xaw3dxft",
-#  elif defined(HAVE_LIB_XAW3D)
-	"xaw3d",
-#  elif defined(HAVE_LIB_XAWPLUS)
-	"xawplus",
-#  elif defined(HAVE_LIB_NEXTAW)
-	"nextaw",
-#  elif defined(HAVE_LIB_XAW)
-	"xaw",
-#  else
-	"other-xaw",
-#  endif
-# elif MOTIF_WIDGETS
+#endif
+#if DISP_X11
+# if OL_WIDGETS
+	"openlook",
+# endif
+# if MOTIF_WIDGETS
 	"motif",
 # endif
-# if defined(XRENDERFONT)
-	"xft",
+# if ATHENA_WIDGETS
+	"athena",
+#  ifdef HAVE_LIB_XAW
+	"xaw",
+#  endif
+#  ifdef HAVE_LIB_XAW3D
+	"xaw3d",
+#  endif
+#  ifdef HAVE_LIB_NEXTAW
+	"nextaw",
+#  endif
 # endif
 #endif
 	NULL			/* End of list marker */
     };
     static TBUFF *optstring;
 
-    if (optstring == NULL) {
+    if (optstring == 0) {
 	const char **lclopt;
 
 	optstring = tb_init(&optstring, EOS);
@@ -504,7 +507,7 @@ int
 var_ABUFNAME(TBUFF **rp, const char *vp)
 {
     BUFFER *bp;
-    return any_ro_STR(rp, vp, ((bp = find_alt()) != NULL) ? bp->b_bname : "");
+    return any_ro_STR(rp, vp, ((bp = find_alt()) != 0) ? bp->b_bname : "");
 }
 
 #if OPT_HOOKS
@@ -718,7 +721,7 @@ var_CRYPTKEY(TBUFF **rp, const char *vp)
 	FreeIfNeeded(cryptkey);
 	cryptkey = typeallocn(char, NKEYLEN);
 	endofDisplay();
-	if (cryptkey == NULL)
+	if (cryptkey == 0)
 	    return no_memory("var_CRYPTKEY");
 	vl_make_encrypt_key(cryptkey, vp);
 	return TRUE;
@@ -736,23 +739,7 @@ var_CURCHAR(TBUFF **rp, const char *vp)
 	render_ulong(rp, vl_getcchar() + 1);
 	return TRUE;
     } else if (vp && valid_buffer(curbp)) {
-	return gotochr(TRUE, (int) strtol(vp, NULL, 0));
-    } else {
-	return FALSE;
-    }
-}
-
-int
-var_EMPTY_LINES(TBUFF **rp, const char *vp)
-{
-    if (rp) {
-	render_int(rp, var_empty_lines);
-	return TRUE;
-    } else if (vp) {
-	var_empty_lines = (int) strtol(vp, NULL, 0);
-	if (var_empty_lines <= 0)
-	    var_empty_lines = 1;
-	return TRUE;
+	return gotochr(TRUE, strtol(vp, 0, 0));
     } else {
 	return FALSE;
     }
@@ -766,7 +753,7 @@ var_CURCOL(TBUFF **rp, const char *vp)
 	render_int(rp, getccol(FALSE) + 1);
 	return TRUE;
     } else if (vp && valid_buffer(curbp)) {
-	return gotocol(TRUE, (int) strtol(vp, NULL, 0));
+	return gotocol(TRUE, strtol(vp, 0, 0));
     } else {
 	return FALSE;
     }
@@ -779,7 +766,7 @@ var_CURLINE(TBUFF **rp, const char *vp)
 	render_int(rp, getcline());
 	return TRUE;
     } else if (vp && valid_buffer(curbp)) {
-	return gotoline(TRUE, (int) strtol(vp, NULL, 0));
+	return gotoline(TRUE, strtol(vp, 0, 0));
     } else {
 	return FALSE;
     }
@@ -807,7 +794,7 @@ var_CWLINE(TBUFF **rp, const char *vp)
 	render_int(rp, getlinerow());
 	return TRUE;
     } else if (vp && valid_buffer(curbp)) {
-	return forwline(TRUE, (int) strtol(vp, NULL, 0) - getlinerow());
+	return forwline(TRUE, strtol(vp, 0, 0) - getlinerow());
     } else {
 	return FALSE;
     }
@@ -883,12 +870,23 @@ var_EOC(TBUFF **rp, const char *vp)
     return any_ro_BOOL(rp, vp, ev_end_of_cmd ? 1 : 0);
 }
 
+int
+var_FILENAME_IC(TBUFF **rp, const char *vp)
+{
+#if OPT_CASELESS || SYS_VMS
+    static int myvalue = TRUE;
+#else
+    static int myvalue = FALSE;
+#endif
+    return any_ro_BOOL(rp, vp, myvalue);
+}
+
 #if OPT_FINDERR
 int
 var_FILENAME_EXPR(TBUFF **rp, const char *vp)
 {
     int code = any_rw_EXPR(rp, vp, &filename_expr);
-    if (rp != NULL && code == TRUE) {
+    if (rp != 0 && code == TRUE) {
 	free_err_exps(curbp);
 	update_err_regex();
     }
@@ -1081,8 +1079,8 @@ var_KILL(TBUFF **rp, const char *vp)
 	int used;
 
 	tb_init(rp, EOS);
-	if ((kr != NULL) && (kb = kr->kbufh) != NULL) {
-	    while (kb->d_next != NULL) {
+	if ((kr != 0) && (kb = kr->kbufh) != 0) {
+	    while (kb->d_next != 0) {
 		if ((used = KBLOCK) > limit)
 		    used = limit;
 		tb_bappend(rp, (char *) (kb->d_chunk), (size_t) used);
@@ -1112,8 +1110,8 @@ var_KILL_SIZE(TBUFF **rp, const char *vp)
 	KILLREG *kr = default_kill();
 	KILL *kb;
 	int result = 0;
-	if ((kr != NULL) && (kb = kr->kbufh) != NULL) {
-	    while (kb->d_next != NULL) {
+	if ((kr != 0) && (kb = kr->kbufh) != 0) {
+	    while (kb->d_next != 0) {
 		result += KBLOCK;
 		kb = kb->d_next;
 	    }
@@ -1150,15 +1148,12 @@ var_LCOLS(TBUFF **rp, const char *vp)
 	/* temporarily set linewrap to avoid having the sideways value
 	 * subtracted from the returned column.
 	 */
-	int save_break = w_val(curwp, WMDLINEBREAK);
-	int save_wrap = w_val(curwp, WMDLINEWRAP);
-	w_val(curwp, WMDLINEBREAK) = 1;
+	int save = w_val(curwp, WMDLINEWRAP);
 	w_val(curwp, WMDLINEWRAP) = 1;
 #endif
 	col = offs2col(curwp, DOT.l, llength(DOT.l));
 #ifdef WMDLINEWRAP
-	w_val(curwp, WMDLINEBREAK) = save_break;
-	w_val(curwp, WMDLINEWRAP) = save_wrap;
+	w_val(curwp, WMDLINEWRAP) = save;
 #endif
 	render_int(rp, col);
 	return TRUE;
@@ -1199,7 +1194,7 @@ var_LOCALE(TBUFF **rp, const char *vp)
 int
 var_MAJORMODE(TBUFF **rp, const char *vp)
 {
-    return any_ro_STR(rp, vp, ((valid_buffer(curbp) && curbp->majr != NULL)
+    return any_ro_STR(rp, vp, ((valid_buffer(curbp) && curbp->majr != 0)
 			       ? curbp->majr->shortname
 			       : ""));
 }
@@ -1247,7 +1242,7 @@ int
 var_MLFORMAT(TBUFF **rp, const char *vp)
 {
     if (rp) {
-	if (modeline_format == NULL)
+	if (modeline_format == 0)
 	    mlforce("BUG: modeline_format uninitialized");
 	else
 	    tb_scopy(rp, modeline_format);
@@ -1276,7 +1271,7 @@ var_NCOLORS(TBUFF **rp, const char *vp)
 	render_int(rp, ncolors);
 	return TRUE;
     } else if (vp) {
-	return set_colors((int) strtol(vp, NULL, 0));
+	return set_colors(strtol(vp, 0, 0));
     }
     return FALSE;
 }
@@ -1295,7 +1290,7 @@ var_NTILDES(TBUFF **rp, const char *vp)
 	render_int(rp, ntildes);
 	return TRUE;
     } else if (vp) {
-	ntildes = (int) strtol(vp, NULL, 0);
+	ntildes = strtol(vp, 0, 0);
 	if (ntildes > 100)
 	    ntildes = 100;
 	return TRUE;
@@ -1328,10 +1323,10 @@ var_PAGELEN(TBUFF **rp, const char *vp)
 	result = TRUE;
     } else if (vp) {
 #if DISP_X11 || DISP_NTWIN
-	gui_resize(term.cols, (int) strtol(vp, NULL, 0));
+	gui_resize(term.cols, strtol(vp, 0, 0));
 	result = TRUE;
 #else
-	result = newlength(TRUE, (int) strtol(vp, NULL, 0));
+	result = newlength(TRUE, strtol(vp, 0, 0));
 #endif
     }
     return result;
@@ -1376,7 +1371,7 @@ int
 var_POSFORMAT(TBUFF **rp, const char *vp)
 {
     if (rp) {
-	if (position_format == NULL)
+	if (position_format == 0)
 	    mlforce("BUG: position_format uninitialized");
 	else
 	    tb_scopy(rp, position_format);
@@ -1400,10 +1395,10 @@ var_CURWIDTH(TBUFF **rp, const char *vp)
 	result = TRUE;
     } else if (vp) {
 #if DISP_X11 || DISP_NTWIN
-	gui_resize((int) strtol(vp, NULL, 0), term.rows);
+	gui_resize(strtol(vp, 0, 0), term.rows);
 	result = TRUE;
 #else
-	result = newwidth(TRUE, (int) strtol(vp, NULL, 0));
+	result = newwidth(TRUE, strtol(vp, 0, 0));
 #endif
     }
     return result;
@@ -1541,11 +1536,11 @@ int
 var_SEED(TBUFF **rp, const char *vp)
 {
     if (rp) {
-	render_int(rp, vl_seed);
+	render_int(rp, seed);
 	return TRUE;
     } else if (vp) {
-	vl_seed = (int) strtol(vp, NULL, 0);
-	srand((UINT) vl_seed);
+	seed = strtol(vp, 0, 0);
+	srand((UINT) seed);
 	return TRUE;
     } else {
 	return FALSE;
@@ -1553,18 +1548,6 @@ var_SEED(TBUFF **rp, const char *vp)
 }
 
 #if OPT_SHELL
-int
-var_LOOK_IN_CWD(TBUFF **rp, const char *vp)
-{
-    return any_rw_BOOL(rp, vp, &look_in_cwd);
-}
-
-int
-var_LOOK_IN_HOME(TBUFF **rp, const char *vp)
-{
-    return any_rw_BOOL(rp, vp, &look_in_home);
-}
-
 int
 var_SHELL(TBUFF **rp, const char *vp)
 {
@@ -1641,7 +1624,7 @@ var_BUF_ENCODING(TBUFF **rp, const char *vp GCC_UNUSED)
 	int code = (valid_buffer(curbp)
 		    ? b_val(curbp, VAL_FILE_ENCODING)
 		    : enc_AUTO);
-	const char *value = NULL;
+	const char *value = 0;
 
 	switch ((ENC_CHOICES) (code)) {
 	case enc_POSIX:
@@ -1689,33 +1672,9 @@ var_CMD_ENCODING(TBUFF **rp, const char *vp)
     } else if (vp) {
 	int choice = choice_to_code(&fsm_cmd_encoding_blist, vp, strlen(vp));
 	cmd_encoding = (ENC_CHOICES) choice;
-	set_local_b_val(bminip, VAL_FILE_ENCODING, vl_encoding);
+	make_local_b_val(bminip, VAL_FILE_ENCODING);
+	set_b_val(bminip, VAL_FILE_ENCODING, vl_encoding);
 	return TRUE;
-    }
-    return FALSE;
-}
-
-int
-var_KBD_ENCODING(TBUFF **rp, const char *vp)
-{
-    if (rp) {
-	tb_scopy(rp, encoding2s(kbd_encoding));
-	return TRUE;
-    } else if (vp) {
-#if OPT_VL_OPEN_MBTERM
-	int choice = choice_to_code(&fsm_kbd_encoding_blist, vp, strlen(vp));
-	kbd_encoding = (ENC_CHOICES) choice;
-	/* We can use 8-bit keyboard in UTF-8 mode, but have not setup
-	 * tables to use UTF-8 keyboard in 8-bit mode (though it is feasible
-	 * to implement this).
-	 */
-	if (kbd_encoding > term.get_enc())
-	    kbd_encoding = term.get_enc();
-	return TRUE;
-#else
-	/* treat as readonly value */
-	;
-#endif
     }
     return FALSE;
 }
@@ -1845,7 +1804,7 @@ var_WLINES(TBUFF **rp, const char *vp)
 	render_int(rp, curwp->w_ntrows);
 	return TRUE;
     } else if (vp && curwp) {
-	return resize(TRUE, (int) strtol(vp, NULL, 0));
+	return resize(TRUE, strtol(vp, 0, 0));
     } else {
 	return FALSE;
     }
@@ -1855,42 +1814,6 @@ int
 var_WORD(TBUFF **rp, const char *vp)
 {
     return any_CTYPE_MATCH(rp, vp, vl_nonspace);
-}
-
-int
-var_GET_AT_DOT(TBUFF **rp, const char *vp)
-{
-    return any_rw_BOOL(rp, vp, &vl_get_at_dot);
-}
-
-int
-var_GET_IT_ALL(TBUFF **rp, const char *vp)
-{
-    return any_rw_BOOL(rp, vp, &vl_get_it_all);
-}
-
-int
-var_GET_LENGTH(TBUFF **rp, const char *vp)
-{
-    return any_ro_INT(rp, vp, vl_get_length);
-}
-
-int
-var_GET_OFFSET(TBUFF **rp, const char *vp)
-{
-    return any_ro_INT(rp, vp, vl_get_offset);
-}
-
-int
-var_SYSTEM_NAME(TBUFF **rp, const char *vp)
-{
-    return any_ro_STR(rp, vp, opersys);
-}
-
-int
-var_SYSTEM_CRLF(TBUFF **rp, const char *vp)
-{
-    return any_rw_BOOL(rp, vp, &system_crlf);
 }
 
 #if OPT_HOOKS
@@ -1952,7 +1875,7 @@ ev_leaks(void)
 {
 #if OPT_EVAL
     UVAR *p;
-    while ((p = temp_vars) != NULL)
+    while ((p = temp_vars) != 0)
 	rmv_tempvar(p->u_name);
 
 #if OPT_EVAL && OPT_SHELL

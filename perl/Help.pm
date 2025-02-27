@@ -15,15 +15,13 @@
 #
 #   You should have received a copy of the GNU General Public License
 #   along with this program; if not, write to the Free Software
-#   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+#   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
 package Help;
 
-use strict;
-
 =head1 NAME
 
-Help - section-level help-commands for Vile
+Help
 
 =head1 SYNOPSIS
 
@@ -65,8 +63,6 @@ help-related key bindings retain their original behavior.
 
 =head1 USAGE
 
-=over 4
-
 =item help
 
 =item h
@@ -107,8 +103,6 @@ the B<help-...> commands, which is really the whole point.  For example:
 effectively displays a complete "table of contents" for the Vile help text
 (notwithstanding the state of the I<popup-choices> mode, of course).
 
-=back
-
 =head1 BUGS
 
 I grow carnivorous plants.  Bugs are not really an issue for me...
@@ -127,6 +121,7 @@ S<J. Chris Coppick, 2001 (last updated: Oct. 10, 2001)>
 
 =cut
 
+
 use Vile;
 use Vile::Manual;
 require Vile::Exporter;
@@ -136,19 +131,19 @@ use IO::File;
 # use warnings;
 
 sub import {
-    Vile::Exporter::import(@_);
-    _setup();
+   Vile::Exporter::import(@_);
+   _setup();
 }
 
 sub _setup {
 
-    my $fullscreen = Vile::get('%help-fullscreen');
+   my $fullscreen = Vile::get('%help-fullscreen');
 
-    _addHelpCommands();
+   _addHelpCommands();
 
-    if ( $fullscreen ne 'ERROR' ) {
+   if ($fullscreen ne 'ERROR') {
 
-        eval <<EOD;
+      eval <<EOD;
 	 Vile::register \"h\",
 			sub {
 			   Vile::command \"list-help\";
@@ -157,7 +152,7 @@ sub _setup {
 			}
 EOD
 
-        eval <<EOD;
+      eval <<EOD;
 	 Vile::register \"help\",
 			sub {
 			   Vile::command \"list-help\";
@@ -166,59 +161,59 @@ EOD
 			}
 EOD
 
-    }
+   }
 
-    return 0;
+   return 0;
 
 }
 
+
 sub _addHelpCommands {
 
-    my ( $startdir, $helpfile, $cmd, $section, $fh, $lastpos );
+   my ($startdir, $helpfile, $cmd, $section, $fh, $lastpos);
 
-    $startdir = Vile::get('$startup-path');
-    $helpfile = Vile::get('$helpfile');
-    $fh       = new IO::File "$startdir/$helpfile", "r";
-    if ( !defined($fh) ) {
-        print "Help:  couldn't open $startdir/$helpfile";
-        return 0;
-    }
+   $startdir = Vile::get('$startup-path');
+   $helpfile = Vile::get('$helpfile');
+   $fh = new IO::File "$startdir/$helpfile", "r";
+   if (!defined($fh)) {
+      print "Help:  couldn't open $startdir/$helpfile";
+      return 0;
+   }
 
-    while ( defined( $_ = <$fh> ) ) {
-        if (/^([[:upper:][:digit:]].*$)/) {
-            $section = $1;
-            next if (/^Copyright/);
-            next if (/^Credits/);
-            $lastpos = $fh->getpos;
-            last if ( !defined( $_ = <$fh> ) );
-            if (/^-+[-\s]*$/) {
-                $section =~ s/\s*\(.*\)$//;
-                $cmd     = "help-" . $section;
-                $section = quotemeta($section);
-                $cmd =~ tr/ [A-Z]/-[a-z]/;
-                $cmd =~ s/\"//g;
-                $cmd =~ s/\:$//;
-                $cmd =~ s/\.//g;
+   while (defined($_ = <$fh>)) {
+      if (/^([[:upper:][:digit:]].*$)/) {
+	 $section = $1;
+	 next if (/^Copyright/);
+	 next if (/^Credits/);
+	 $lastpos = $fh->getpos;
+	 last if (!defined($_ = <$fh>));
+	 if (/^-+[-\s]*$/) {
+	    $section =~ s/\s*\(.*\)$//;
+	    $cmd = "help-" . $section;
+	    $section = quotemeta($section);
+	    $cmd =~ tr/ [A-Z]/-[a-z]/;
+	    $cmd =~ s/\"//g;
+	    $cmd =~ s/\:$//;
+	    $cmd =~ s/\.//g;
 
-                eval <<EOD;
+	    eval <<EOD;
 	       Vile::register \"$cmd\",
-		   sub {
-			 Vile::command \"help\";
-			 Vile::command \"search-forward \'^$section\'\";
-			 Vile::command \"position-window t\";
-			 Vile::update;
-		   }
+	                   sub {
+				 Vile::command \"help\";
+				 Vile::command \"search-forward \'^$section\'\";
+				 Vile::command \"position-window t\";
+				 Vile::update;
+			   }
 EOD
 
-            }
-            else {
-                $fh->setpos($lastpos);
-            }
-        }
-    }
+	 } else {
+	    $fh->setpos($lastpos);
+	 }
+      }
+   }
 
-    undef $fh;
-    return 0;
+   undef $fh;
+   return 0;
 }
 
 1;

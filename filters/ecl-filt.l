@@ -4,7 +4,7 @@
 %{
 
 /*
- * $Id: ecl-filt.l,v 1.30 2013/12/02 01:32:53 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/ecl-filt.l,v 1.26 2009/06/20 16:21:50 tom Exp $
  *
  * Filter to add vile "attribution" sequences to Prolog/ECLiPSe code
  *
@@ -14,7 +14,7 @@
 #include <filters.h>
 #include <fltstack.h>
 
-DefineFilter(ecl);
+DefineFilter("ecl");
 
 static char *Comment_attr;
 static char *Number_attr;
@@ -54,7 +54,7 @@ NUMBER		[-]?({INTEGER}|{RATIONAL}|{REAL})
 
 %%
 
-<NORMAL>{KEYWORD}	{ WriteToken(get_keyword_attr(yytext)); }
+<NORMAL>{KEYWORD}	{ WriteToken(keyword_attr(yytext)); }
 <NORMAL>{IDENT}		{ WriteToken(""); }
 
 <NORMAL>{LINECOMMENT}	{ WriteToken(Comment_attr); }
@@ -92,10 +92,10 @@ do_filter(FILE *inputs)
 {
     InitLEX(inputs);
 
-    Comment_attr = class_attr(NAME_COMMENT);
-    Number_attr = class_attr(NAME_NUMBER);
-    Preproc_attr = class_attr(NAME_PREPROC);
-    String_attr = class_attr(NAME_LITERAL);
+    Comment_attr  = class_attr(NAME_COMMENT);
+    Number_attr   = class_attr(NAME_NUMBER);
+    Preproc_attr  = class_attr(NAME_PREPROC);
+    String_attr   = class_attr(NAME_LITERAL);
 
     begin_state(NORMAL);
     RunLEX();

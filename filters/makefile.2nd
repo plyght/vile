@@ -1,4 +1,4 @@
-# $Id: makefile.2nd,v 1.31 2020/09/09 01:12:39 tom Exp $
+# $Header: /usr/build/vile/vile/filters/RCS/makefile.2nd,v 1.20 2010/05/13 21:08:46 tom Exp $
 #
 
 .SUFFIXES: .l .c .i $o
@@ -56,13 +56,11 @@ INSTALL_FILES = \
 	$(DATADIR)/filters.rc \
 	$(DATADIR)/spell.rc $(INSTALL_C) $(INSTALL_DYN_C) @MAKE_LEX@ $(INSTALL_LEX) $(INSTALL_DYN_LEX) 
 
-install-filters \
 install-full \
 install :: $(INSTALL_DIRS) $(INSTALL_FILES)
 
 installdirs: $(INSTALL_DIRS)
 
-uninstall-filters \
 uninstall-full \
 uninstall ::
 	-$(RM) $(INSTALL_FILES)
@@ -76,8 +74,7 @@ config.status: configure
 	$(SHELL) ./config.status --recheck
 
 mostlyclean:
-	-$(RM) *.[oi] *$(so) o$(TARGET) $(LEX_OUTPUT_ROOT).* $(BUILTSRCS) @LIBBUILTFLT@
-	-$(RM) core core.* *.stackdump *~ *.BAK *.bb* *.da *.gcov
+	-$(RM) *.[oi] *$(so) o$(TARGET) $(BUILTSRCS) core *~ *.BAK $(LEX_OUTPUT_ROOT).* *.bb* *.da *.gcov @LIBBUILTFLT@
 
 clean: mostlyclean
 	-$(SHELL) -c 'for L in *.l;do C=`basename $$L .l`.c;test -f $$C && rm -f $$C; done; exit 0'
@@ -109,29 +106,20 @@ dotags:
 	dotags *.[chyl]
 
 @LIB_PREFIX@vlflt.a : $(LOBJS)
-	$(AR) $(ARFLAGS) $@ $(LOBJS)
+	$(AR) $(AR_OPTS) $@ $(LOBJS)
 	$(RANLIB) $@
 
-ATR2ANSI_O = atr2ansi$o	unfilter$o
-ATR2HTML_O = atr2html$o	unfilter$o
-ATR2TEXT_O = atr2text$o	unfilter$o
-VL_CRYPT_O = ecrypt$o	encrypt$o
-
-atr2ansi$x : $(ATR2ANSI_O) ; $(LINK) -o $@ $(ATR2ANSI_O) $(CFLAGS) $(LDFLAGS) $(LIBS)
-atr2html$x : $(ATR2HTML_O) ; $(LINK) -o $@ $(ATR2HTML_O) $(CFLAGS) $(LDFLAGS) $(LIBS)
-atr2text$x : $(ATR2TEXT_O) ; $(LINK) -o $@ $(ATR2TEXT_O) $(CFLAGS) $(LDFLAGS) $(LIBS)
-vile-crypt$x :	$(VL_CRYPT_O)	; $(LINK) -o $@ $(VL_CRYPT_O) $(CFLAGS) $(LDFLAGS) $(LIBS)
+atr2ansi$x : atr2ansi$o	unfilter$o ; $(LINK) -o $@ atr2ansi$o unfilter$o $(CFLAGS) $(LDFLAGS) $(LIBS)
+atr2html$x : atr2html$o	unfilter$o ; $(LINK) -o $@ atr2html$o unfilter$o $(CFLAGS) $(LDFLAGS) $(LIBS)
+atr2text$x : atr2text$o	unfilter$o ; $(LINK) -o $@ atr2text$o unfilter$o $(CFLAGS) $(LDFLAGS) $(LIBS)
+vile-crypt$x :	ecrypt$o	; $(LINK) -o $@ ecrypt$o $(CFLAGS) $(LDFLAGS) $(LIBS)
 vile-manfilt$x : manfilt$o	; $(LINK) -o $@ manfilt$o $(CFLAGS) $(LDFLAGS) $(LIBS)
 
-encrypt$o : $(top_srcdir)/encrypt.c
-	@RULE_CC@
-	@ECHO_CC@$(CC) -c $(CPPFLAGS) $(QUOTDEFS) $(CFLAGS) $?
-
-$(FILTERS_BINDIR)/atr2ansi$x :	   atr2ansi$x		; $(INSTALL_PROGRAM) $? $@
-$(FILTERS_BINDIR)/atr2html$x :	   atr2html$x		; $(INSTALL_PROGRAM) $? $@
-$(FILTERS_BINDIR)/atr2text$x :	   atr2text$x		; $(INSTALL_PROGRAM) $? $@
-$(FILTERS_BINDIR)/vile-crypt$x :   vile-crypt$x		; $(INSTALL_PROGRAM) $? $@
-$(FILTERS_BINDIR)/vile-manfilt$x : vile-manfilt$x	; $(INSTALL_PROGRAM) $? $@
+$(FILTERS_BINDIR)/atr2ansi$x :	   atr2ansi$x		; $(INSTALL) $? $@
+$(FILTERS_BINDIR)/atr2html$x :	   atr2html$x		; $(INSTALL) $? $@
+$(FILTERS_BINDIR)/atr2text$x :	   atr2text$x		; $(INSTALL) $? $@
+$(FILTERS_BINDIR)/vile-crypt$x :   vile-crypt$x		; $(INSTALL) $? $@
+$(FILTERS_BINDIR)/vile-manfilt$x : vile-manfilt$x	; $(INSTALL) $? $@
 
 $(DATADIR)/filters.rc :		$(srcdir)/filters.rc	; $(INSTALL_DATA) $? $@
 $(DATADIR)/spell.rc :		$(srcdir)/spell.rc	; $(INSTALL_DATA) $? $@

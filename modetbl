@@ -11,7 +11,7 @@
 #
 # The modes are table entries in the BUFFER and WINDOW structures.
 #
-# $Id: modetbl,v 1.331 2023/01/15 13:31:19 tom Exp $
+# $Header: /usr/build/vile/vile/RCS/modetbl,v 1.306 2010/06/09 23:56:38 tom Exp $
 #
 #
 # Mode-table entries.  Capitalized letters are used for abbreviations.
@@ -28,20 +28,17 @@ bool							# GMD prefix
 	"echo-to-clipboard"	CBRD_ECHO	0	SYS_WINNT
 	"expand-path"	EXPAND_PATH	0		# true iff %/# don't substitute shortened-path
 	"ErrorBells"	ERRORBELLS	0		# audible/visible-bells
-	"Filename-IC"   FILENAME_IC	0		# ignore case when doing filename completion
 	"flash"		FLASH		0		OPT_FLASH # visible-bell (flash)
 	"force-console"	FORCE_CONSOLE	0		SYS_WINNT&&DISP_NTWIN
 	"glob"		GLOB		0		!OPT_GLOB_PIPE # enable/disable filename globbing
 	"HIstory"	HISTORY		0		OPT_HISTORY # command-history
 	"ImplyBuffer"	IMPLYBUFF	0		# imply-buffer (vi-like)
 	"Insert-Exec"	INSEXEC		0		# allow ^F/^B, etc., to be interpreted during insert mode
-	"Mini-Map"	MINI_MAP	0		# enable short-circuit mapping for UTF-8 to ASCII
 	"mouse"		MOUSE		chgd_mouse	SYS_OS2 # mode to control whether we allow mouse-clicking
 	"multibeep"	MULTIBEEP	0		# multiple successive identical failed motions all beep
 	"maplonger"	MAPLONGER	0		# favor longer maps
 	"pin-tagstack"	PIN_TAGSTACK	0		# tagstack push/pop ops are pinned to curwin
 	"Popup-Choices"	POPUP_CHOICES	0		OPT_POPUPCHOICE&&!OPT_ENUM_MODES # popup buffer showing file-completion choices
-	"Popup-Positions" POPUP_POSITIONS 0		OPT_POPUPPOSITIONS&&!OPT_ENUM_MODES # popup buffer placement
 	"Popup-Msgs"	POPUP_MSGS	0		OPT_POPUP_MSGS	# popup buffer when multiple messages emitted
 	"popup-menu"	POPUPMENU	chgd_popupmenu	SYS_WINNT&&DISP_NTWIN # enable popup menu (win32)
 	"ReadOnly-on-ReadOnly" RONLYRONLY	0	# set readonly mode for readonly files
@@ -70,12 +67,10 @@ enum
 	"ccolor"	CCOLOR		chgd_color	OPT_COLOR	# cursor color
 	"fcolor"	FCOLOR		chgd_color	OPT_COLOR	# foreground color
 	"For-Buffers"	FOR_BUFFERS	0		OPT_FORBUFFERS_CHOICES	# for-buffers pattern style
-	"Keep-Position"	KEEP_POS	0		OPT_KEEP_POS	# do not move after command affecting multiple lines
 	"bcolor"	BCOLOR		chgd_color	OPT_COLOR	# background color
 	"mcolor"	MCOLOR		chgd_hilite	OPT_HILITEMATCH # modeline color
 	"Mini-Hilite"   MINI_HILITE	0		# highlight minibuffer when using vi-commands
 	"Popup-Choices"	POPUP_CHOICES	0		OPT_POPUPCHOICE&&OPT_ENUM_MODES # popup buffer showing file-completion choices
-	"Popup-Positions" POPUP_POSITIONS 0		OPT_POPUPPOSITIONS&&OPT_ENUM_MODES # popup buffer placement
 	"Reader-Policy"	READER_POLICY	0		# tell whether slowreadf() should be used if we run out of memory
 	"video-attrs"	VIDEO		chgd_color	OPT_COLOR	# video attributes, especially reverse
 	"vtflash"	VTFLASH		0		VTFLASH_HOST&&(OPT_FLASH) # flash using DEC VT esc sequences
@@ -92,6 +87,7 @@ int							# VAL_ prefix
 regex							# VAL_ prefix
 	"C-SUFfixes"	CSUFFIXES	0		!OPT_MAJORMODE # match against filenames to turn on c-mode
 string							# VAL_ prefix
+	"backup-style"  BACKUPSTYLE	0		OPT_FILEBACK # file backup style
 	"expand-chars"	EXPAND_CHARS	0		# list of chars we can expand (%,#,:)
 	"find-cfg"	FINDCFG		chgd_find_cfg	OPT_FINDPATH # configuration of the "find" feature
 	"icursor"	ICURSOR		chgd_icursor	OPT_ICURSOR # specify insertion cursor
@@ -108,11 +104,12 @@ bool							# MD prefix
 	"check-modtime" CHK_MODTIME	0		!SMALLER # check buffer-modtime
 	"CIndent"	CINDENT		0		# c-style indent
 	"cmode"		CMOD		chgd_win_mode	!OPT_MAJORMODE # C indentation and fence match
-	"crypt"		CRYPT		chgd_major	OPT_ENCRYPT	# encryption mode active
+	"crypt"		CRYPT		chgd_major	OPT_ENCRYPT	# encrytion mode active
 	"dos"		DOS		chgd_dos_mode	# "dos" mode -- lines end in crlf
 	"FilterMsgs"	FILTERMSGS	0		OPT_MAJORMODE&&OPT_FILTER # Name of syntax-filter
 	"HighLight"	HILITE		chgd_filter	OPT_MAJORMODE # true if we enable syntax highlighting
 	"IgnoreCase"	IGNCASE		chgd_hilite	# Exact matching for searches
+	"Rectangle-Insert-Mode" INS_RECTS 0		# insert or overwrite when changing rectangles
 	"loading"	LOADING		0		# Are we asynchronously loading a file?
 	"locked"	LOCKED		chgd_disabled	OPT_LCKFILES # mode locked
 	"magic"		MAGIC		chgd_hilite	# regular expressions in search
@@ -120,11 +117,9 @@ bool							# MD prefix
 	"ModeLine"	MODELINE	0		OPT_MODELINE # modeline (selected :setl only) (vi-style)
 	"NewLine"	NEWLINE		chgd_buffer	# trailing newline (vi-style)
 	"ReadOnly"	READONLY	chgd_major	# allow writing the buffer
-	"Rectangle-Insert-Mode" INS_RECTS 0		# insert or overwrite when changing rectangles
 	"reuse-position" REUSE_POS	0		OPT_UPBUFF # reuse position when (re)creating scratch-buffers
 	"ShowMatch"	SHOWMAT		0		# show matching braces during insert
 	"ShowMoDe"	SHOWMODE	chgd_status	# show insert/replace/command mode
-	"SmartCaSe"	SMARTCASE	chgd_hilite	# override "ignorecase" if search contains uppercase letters
 	"Spaces-After-Sentence" SPACESENT	0	# add two spaces after a
 	"TabInsert"	TABINSERT	0		# okay to insert tab chars
 	"TagignoreCase"	TAGIGNORECASE	0		!SMALLER # ignore upper/lower case in tags
@@ -135,8 +130,8 @@ bool							# MD prefix
 	"overlap-matches"  HILITEOVERLAP	chgd_hilite	OPT_HILITEMATCH # highlight all search matches
 	"UndoAble"	UNDOABLE	chgd_undoable	# changes to buffer are undoable (or not)
 	"Undo-Dos-Trim"	UNDO_DOS_TRIM	0		# changes to buffer made when setting dosmode are undoable (or not)
-	"WrapScan"	WRAPSCAN	0		# wrap-around search mode
-	"WrapWords"	WRAPWORDS	0		# word wrap
+	"WrapScan"	SWRAP		0		# wrap-around search mode
+	"WrapWords"	WRAP		0		# word wrap
 	"YankMotion"	YANKMOTION	0		# honor vi-style motion after yanking text
 enum
 	"ByteOrder-Mark" BYTEORDER_MARK	chgd_byteorder	OPT_MULTIBYTE # byte-order-mark
@@ -165,7 +160,6 @@ int							# VAL_ prefix
 	"UndoLimit"	UNDOLIM		0		# how much undo stack is saved
 	"WrapMargin"	WRAPMARGIN	0		# width of right margin for autowrap
 string							# VAL_ prefix
-	"backup-style"  BACKUPSTYLE	0		OPT_FILEBACK # file backup style
 	"CIndent-Chars"	CINDENT_CHARS	0		# c-style indent flags
 	"FENCE-pairS"	FENCES		chgd_fences	# pairs of fences {,}; (,); etc.
 	"FilterName"	FILTERNAME	0		OPT_MAJORMODE # Name of syntax-filter
@@ -192,7 +186,6 @@ regex							# VAL_ prefix
 bool							# WMD prefix
 	"LIst"		LIST		chgd_window	# "list" mode -- show tabs and EOL
 	"HorizScroll"	HORSCROLL	0		# scroll whole screen
-	"LineBreak"	LINEBREAK	chgd_window	OPT_LINEWRAP # when line-wrapping, pad display to avoid splitting words
 	"LineWrap"	LINEWRAP	chgd_window	OPT_LINEWRAP # wrap lines wider than screen
 	"NUmber"	NUMBER		chgd_window	# line-numbers shown
 	"ruler"		RULER		chgd_status	!SMALLER # display line+col in modeline
@@ -242,18 +235,13 @@ bool
 	"disinp"	DISINP		1		"display command line input characters"
 	"end-of-cmd"	EOC		1		"true if they ended the cmd with <CR>"
 	"fchanged"	FCHANGED	!SMALLER	"true if current buffer's file is changed"
+	"filename-ic"	FILENAME_IC	1		"true if we set OPT_CASELESS"
 	"forward-search" FWD_SEARCH	1		"search-direction (true if forward)"
-	"get-at-dot"	GET_AT_DOT	1		"true if token must have DOT when getting $identifier, etc., from screen"
-	"get-it-all"	GET_IT_ALL	1		"true if full-token when getting $identifier, etc., from screen"
 	"modified"	MODIFIED	1		"is current buffer modified?"
 	"pending"	PENDING		1		"type ahead pending flag"
-	"look-in-cwd"	LOOK_IN_CWD	OPT_SHELL	"true if $cwd should be examined for startup-files"
-	"look-in-home"	LOOK_IN_HOME	OPT_SHELL	"true if $HOME should be examined for startup-files"
-	"system-crlf"	SYSTEM_CRLF	1		"system uses CRLF by default"
 	"term-resizes"	TERM_RESIZES	1		"true if terminal can be resized"
 enum
 	"cmd-encoding"	CMD_ENCODING	OPT_MULTIBYTE	"terminal's encoding support"
-	"kbd-encoding"	KBD_ENCODING	OPT_MULTIBYTE	"terminal's keyboard encoding"
 	"mode"		MODE		1		"are we inserting/overwriting/command"
 	"term-encoding" TERM_ENCODING	OPT_MULTIBYTE	"terminal's encoding support"
 	"title-encoding" TITLE_ENCODING	OPT_MULTIBYTE&&OPT_TITLE "xterm title encoding"
@@ -268,10 +256,7 @@ int
 	"curcol"	CURCOL		1		"current column pos of cursor"
 	"curline"	CURLINE		1		"current line in file"
 	"cwline"	CWLINE		1		"current screen line in window"
-	"empty-lines"	EMPTY_LINES	!SMALLER	"tabstop to use when interpreting %C"
 	"error-tabstop"	ERROR_TABSTOP	OPT_FINDERR	"tabstop to use when interpreting %C"
-	"get-length"	GET_LENGTH	1		"set as side-effect of getting $identifier, etc., from screen"
-	"get-offset"	GET_OFFSET	1		"set as side-effect of getting $identifier, etc., from screen"
 	"goal-column"	GOAL_COLUMN	OPT_TRACE	"goal-column (debug-only)"
 	"lastkey"	LASTKEY		1		"last keyboard char struck"
 	"kill-limit"	KILL_LIMIT	1		"maximum number of bytes to return in $kill"
@@ -354,7 +339,6 @@ string
 	"sres"		SRES		1		"current screen resolution"
 	"startup-file"	STARTUP_FILE	1		"the name of the startup-file (e.g., .vilerc)"
 	"startup-path"	STARTUP_PATH	1		"where to find the startup-file (e.g., .)"
-	"system-name"	SYSTEM_NAME	1		"operating system name"
 	"title"		TITLE		OPT_TITLE	"window title"
 	"title-format"	TITLEFORMAT	OPT_TITLE	"window title format"
 	"version"	VERSION		1		"current version number"
@@ -390,10 +374,6 @@ string
 "filter"	FILTER		1|STR|BRET	"check if internal filter exists"
 "ftime"		FTIME		1|STR|NRET	"file-timestamp (last-modified)"
 "geq"		GEQ		2|NUM|BRET	"logical greater than or equal"
-"get-key"	GET_KEY		0		"get 1 character"
-"get-completion" GET_COMPLETE	2|STR|SRET	"prompt for completion from given category (b/c/d/f/t)"
-"get-motion"	GET_MOTION	1|STR|SRET	"get keyboard-sequence (characters), result is motion's name"
-"get-sequence"	GET_SEQ		0		"get keyboard-sequence (characters)"
 "global"	GLOBMODE	1|STR|SRET	"retrieve global setting"
 "greater"	GREATER		2|NUM|BRET	"logical greater than"
 "gt"		GT		2|NUM|BRET	"logical greater than (greater)"
@@ -427,7 +407,6 @@ string
 "rd"		RD		1|BRET		"is a file readable?"
 "readable"	READABLE	1|BRET		"is a file readable?"
 "register"	REGISTER	1|STR|SRET	"register, e.g. 'a'"
-"regex-escape"	REGEX_ESCAPE	1|STR|SRET	"escape string as needed to use as regex constant"
 "right"		RIGHT		2|STR|SRET	"right string(string, pos)"
 "rnd"		RND		1|NUM|NRET	"get a random number"
 "sequal"	SEQUAL		2|STR|BRET	"string logical equality check"
@@ -550,19 +529,12 @@ string
 
 .table file_encoding				# see byteorder_mark
 "locale"	enc_LOCALE
-"auto"		enc_AUTO
+"auto"		ENUM_UNKNOWN
 "ascii"		enc_POSIX
 "8bit"		enc_8BIT
 "utf-8"		enc_UTF8
 "utf-16"	enc_UTF16
 "utf-32"	enc_UTF32
-
-.table kbd_encoding				# see byteorder_mark
-"locale"	enc_LOCALE
-"auto"		enc_AUTO
-"ascii"		enc_POSIX
-"8bit"		enc_8BIT
-"utf-8"		enc_UTF8
 
 .table forbuffers
 "glob"		FB_GLOB
@@ -605,11 +577,6 @@ string
 "libdir"	FL_LIBDIR
 "always"	FL_ALWAYS
 
-.table keep_pos
-"emacs"		KPOS_VILE
-"nvi"		KPOS_NVI
-"vi"		KPOS_VI
-
 .table lookup
 "readable"	FL_READABLE
 "writable"	FL_WRITEABLE
@@ -620,7 +587,6 @@ string
 "startup"	FL_STARTPATH
 "path"		FL_PATH
 "libdir"	FL_LIBDIR
-"insecure"	FL_INSECURE
 
 .table mmqualifiers		OPT_MAJORMODE
 "any"		MMQ_ANY
@@ -635,7 +601,6 @@ string
 "integer"	PT_INT
 "majormode"	PT_MAJORMODE	OPT_MAJORMODE
 "mode"		PT_MODE
-"register"	PT_REG
 "string"	PT_STR
 "variable"	PT_VAR
 
@@ -651,11 +616,6 @@ string
 "delayed"	POPUP_CHOICES_DELAYED
 "immediate"	POPUP_CHOICES_IMMED
 "off"		POPUP_CHOICES_OFF
-
-.table popuppositions
-"notdot"	POPUP_POSITIONS_NOTDOT
-"bottom"	POPUP_POSITIONS_BOTTOM
-"top"		POPUP_POSITIONS_TOP
 
 .table readerpolicy
 "both"		RP_BOTH
@@ -712,8 +672,6 @@ string
 "enum"		XCOLOR_ENUM
 "hypertext"	XCOLOR_HYPERTEXT
 "isearch"	XCOLOR_ISEARCH
-"linebreak"	XCOLOR_LINEBREAK
-"linenumber"	XCOLOR_LINENUMBER
 "modeline"	XCOLOR_MODELINE
 "number"	XCOLOR_NUMBER
 "regex"		XCOLOR_REGEX

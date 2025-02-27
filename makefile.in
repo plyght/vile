@@ -20,24 +20,22 @@
 #
 # gnu autoconf support by kevin buettner, 5/94
 #
-# $Id: makefile.in,v 1.299 2024/01/21 19:05:22 tom Exp $
+# $Header: /usr/build/vile/vile/RCS/makefile.in,v 1.244 2010/06/11 23:32:31 tom Exp $
 
-SHELL		= @SHELL@
+SHELL		= /bin/sh
 
 #### Start of system configuration section. ####
 
-top_srcdir	= @top_srcdir@
-srcdir		= @srcdir@
-srcdir_sl	= @srcdir@/
-VPATH		= @srcdir@
+srcdir = @srcdir@
+srcdir_sl = @srcdir@/
+VPATH  = @srcdir@
 @SET_MAKE@
 
 CC		= @CC@
 CPP		= @CPP@
 LINK		= @LINK_PREFIX@ $(CC) $(CFLAGS)
-INSTALL		= @INSTALL@ @INSTALL_OPT_O@
-INSTALL_OPT_S	= @INSTALL_OPT_S@
-INSTALL_PROGRAM	= @INSTALL_PROGRAM@ $(INSTALL_OPT_S)
+INSTALL		= @INSTALL@
+INSTALL_PROGRAM	= @INSTALL_PROGRAM@
 INSTALL_SCRIPT	= @INSTALL_SCRIPT@
 INSTALL_DATA	= @INSTALL_DATA@
 
@@ -46,23 +44,11 @@ CFLAGS		= @CFLAGS@ $(EXTRA_CFLAGS)
 LIBS		= @FILTER_LIBS@ @LIBICONV@ @LIBS@
 
 LINT		= @LINT@
-LINT_OPTS	= @LINT_OPTS@
-LINT_LIBS	= # @LINT_LIBS@
 CTAGS		= @CTAGS@
 ETAGS		= @ETAGS@
 
 x		= @EXEEXT@
 o		= .@OBJEXT@
-
-BUILD_CC	= @BUILD_CC@
-BUILD_CFLAGS	= @BUILD_CFLAGS@
-BUILD_CPPFLAGS	= @BUILD_CPPFLAGS@
-BUILD_LDFLAGS	= @BUILD_LDFLAGS@
-BUILD_LIBS	= @BUILD_LIBS@
-BUILD_EXEEXT	= @BUILD_EXEEXT@
-BUILD_OBJEXT	= @BUILD_OBJEXT@
-
-WINDRES		= @WINDRES@
 
 X_LIBS		= @X_LIBS@
 
@@ -75,11 +61,12 @@ PROGRAM		= $(TARGET)$x
 
 AWK		= @AWK@
 PERL		= @PERL@
-PERL_XSUBPP	= @PERL_XSUBPP@
+PERLLIB		= @PERLLIB@
+INSTALL_PL_EXE	= $(SHELL) $(srcdir)/sinstall.sh $(PERL) $(INSTALL_PROGRAM)
+INSTALL_MODULE	= $(SHELL) $(srcdir)/sinstall.sh $(PERL) $(INSTALL_DATA)
 
 prefix		= @prefix@
 exec_prefix	= @exec_prefix@
-datarootdir	= @datarootdir@
 
 manext		= 1
 libdir		= @libdir@
@@ -89,9 +76,8 @@ docdir		= $(datadir)/doc
 htmldir		= $(datadir)/html
 perldir		= $(datadir)/perl
 mandir		= @mandir@/man$(manext)
-appsdir		= @APPSDIR@
-icondir		= @ICONDIR@
-pixmapdir	= @PIXMAPDIR@
+appsdir		= @appsdir@
+icondir		= @icondir@
 
 #### End of system configuration section. ####
 
@@ -100,19 +86,17 @@ RM		= rm -f
 MAKE_RECUR	= @cf_cv_makeflags@ prefix=$(prefix) DESTDIR=$(DESTDIR)
 
 CLASS		= XVile
-ICON		= @ICON_NAME@
+ICON		= vile
 ICON_SUFFIX	= @ICON_SUFFIX@
 QUOTDEFS	= \
 		-DPROGRAM_NAME=\"$(TARGET)\" \
 		-DVILE_ICON=\"icons/$(ICON)$(ICON_SUFFIX)\" \
-		-DVILE_LIBDIR_PATH=\"@VILE_LIBDIR_PATH@\" \
-		-DVILE_STARTUP_PATH=\"@VILE_STARTUP_PATH@\"
-X_QUOTDEFS	= \
-		-DPIXMAP_ROOTDIR=\"$(pixmapdir)/\"
+		-DVILE_LIBDIR_PATH=\"'@VILE_LIBDIR_PATH@'\" \
+		-DVILE_STARTUP_PATH=\"'@VILE_STARTUP_PATH@'\"
 CPPFLAGS	= -I. -I$(srcdir) \
 		-DHAVE_CONFIG_H @CPPFLAGS@
 
-LDFLAGS		= @LDFLAGS@ @EXTRA_LDFLAGS@
+LDFLAGS		= @IMAKE_LOADFLAGS@ @LDFLAGS@ @EXTRA_LDFLAGS@
 
 BINDIR		= $(DESTDIR)$(bindir)
 DATADIR		= $(DESTDIR)$(datadir)
@@ -122,7 +106,6 @@ PERLDIR		= $(DESTDIR)$(perldir)
 MANDIR		= $(DESTDIR)$(mandir)
 APPSDIR		= $(DESTDIR)$(appsdir)
 ICONDIR		= $(DESTDIR)$(icondir)
-PIXMAPDIR	= $(DESTDIR)$(pixmapdir)
 
 INSTALL_DIRS    = $(BINDIR) $(DATADIR) $(DOCDIR) $(MANDIR) @EXTRA_INSTALL_DIRS@
 
@@ -136,7 +119,7 @@ INSTALL_DIRS    = $(BINDIR) $(DATADIR) $(DOCDIR) $(MANDIR) @EXTRA_INSTALL_DIRS@
 	@ECHO_CC@$(CC) -c $(CPPFLAGS) $(QUOTDEFS) $(CFLAGS) -DHELP_LOC=\"$(datadir)\" $<
 
 .rc.o:
-	$(WINDRES) $(QUOTDEFS) $< $@
+	windres $(QUOTDEFS) $< $@
 # All of the makefiles which should be preserved and distributed
 UNIXMAKIN = makefile.in				# for use with configure
 VMSMAK = descrip.mms vmsbuild.com		# on VMS
@@ -175,7 +158,6 @@ HDRS = \
 	tcap.h \
 	trace.h \
 	vl_alloc.h \
-	vl_crypt.h \
 	vl_ctype.h \
 	vl_regex.h \
 	vl_stdio.h
@@ -220,7 +202,6 @@ PERL_SRC = \
 
 MACRO_SRC = \
 	$(srcdir)/macros/color-ls.rc \
-	$(srcdir)/macros/complete.rc \
 	$(srcdir)/macros/dates.rc \
 	$(srcdir)/macros/digraphs.rc \
 	$(srcdir)/macros/gnugpg.rc \
@@ -257,11 +238,6 @@ PLAINDOCS = \
 	doc/visvile.doc \
 	vile.1 \
 	vile.hlp
-
-MAN_ALIAS = \
-	vile-libdir-path \
-	vile-pager \
-	vile-to-html
 
 # corresponding documentation
 HTMLDOCS =	\
@@ -308,7 +284,7 @@ DISTFILES = $(ALLTOOLS) $(ALLSRC) $(PLAINDOCS) $(HTMLDOCS) $(TEXTFILES)
 # these are the files that go to coders
 DEV_DISTFILES = $(DISTFILES) $(DEVELOPER_ONLY)
 
-MKTBLS = ./mktbls$(BUILD_EXEEXT)
+MKTBLS = ./mktbls$x
 
 # Generated header-files, e.g., nemodes.h
 BUILTHDRS = @BUILTHDRS@
@@ -349,32 +325,21 @@ SRC =	$(OBJ:.o=.c)
 
 ALL =	$(PROGRAM)
 
-@MAKE_PHONY@.PHONY: all sources install uninstall clean distclean lint tags
-
 @MAKE_FILTERS@all \
-@MAKE_FILTERS@install-filters \
-@MAKE_FILTERS@uninstall-filters \
-@MAKE_FILTERS@install-keywords \
-@MAKE_FILTERS@uninstall-keywords \
 @MAKE_FILTERS@install-full \
-@MAKE_FILTERS@uninstall-full \
 @MAKE_FILTERS@install :: $(BUILTHDRS)
-@MAKE_FILTERS@	( cd filters && $(MAKE) $(MAKE_RECUR) $@ )
+@MAKE_FILTERS@	cd filters && $(MAKE) $(MAKE_RECUR) $@
 
 all ::	$(ALL)
 
 sources : $(BUILTHDRS)
 
 filters/@LIB_PREFIX@vlflt.a : $(BUILTHDRS)
-	( cd filters && $(MAKE) $(MAKE_RECUR) @LIB_PREFIX@vlflt.a )
+	cd filters && $(MAKE) $(MAKE_RECUR) @LIB_PREFIX@vlflt.a
 
 $(PROGRAM): $(BUILTHDRS) $(OBJ) $(OBJ2) $(BUILTLIBS)
-	- $(SHELL) -c "if test -f $(PROGRAM); then mv $(PROGRAM) o$(PROGRAM); fi"
+	- mv $(PROGRAM) o$(PROGRAM)
 	@ECHO_LD@$(LINK) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJ) $(OBJ2) $(X_LIBS) $(LIBS)
-
-x11$o : $(srcdir)/x11.c
-	@SHOW_CC@
-	@ECHO_CC@$(CC) -c $(CPPFLAGS) $(X_QUOTDEFS) $(QUOTDEFS) $(CFLAGS) -DHELP_LOC=\"$(datadir)\" $(srcdir)/$*.c
 
 vile.man: vile.1
 	nroff -man vile.1 | col -b >vile.man
@@ -412,7 +377,7 @@ builtflt.h :
 	$(AWK) -f $(srcdir)/filters/mk-0th.awk <$(srcdir)/filters/genmake.mak static="@VILE_BUILT_IN_FILTERS@" dynamic="@VILE_LOADABLE_FILTERS@" >$@
 
 $(MKTBLS):  $(srcdir)/mktbls.c
-	@ECHO_LD@$(BUILD_CC) $(BUILD_CPPFLAGS) $(BUILD_CFLAGS) $(BUILD_LDFLAGS) \
+	@ECHO_LD@$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) \
 	    -o $(MKTBLS)  $(srcdir)/mktbls.c
 
 check: $(PROGRAM)
@@ -446,7 +411,6 @@ INSTALL_HTML_FILES = \
 
 INSTALL_MACRO_FILES = \
 	$(DATADIR)/color-ls.rc \
-	$(DATADIR)/complete.rc \
 	$(DATADIR)/dates.rc \
 	$(DATADIR)/digraphs.rc \
 	$(DATADIR)/gnugpg.rc \
@@ -497,29 +461,20 @@ INSTALL_X_FILES = \
 	$(BINDIR)/xshell.sh \
 	$(DATADIR)/vilemenu.rc
 
-INSTALL_HELP_FILES = \
-	$(DATADIR)/vile.hlp
-
 INSTALL_FILES = \
 	$(INSTALL_MACRO_FILES) \
-	$(INSTALL_HELP_FILES) @EXTRA_INSTALL_FILES@
+	$(DATADIR)/vile.hlp @EXTRA_INSTALL_FILES@
 
-USE_SYMLINK = test "x@VILE_SYMLINK@" != "xNONE"
+USE_SYMLINK = test @VILE_SYMLINK@ != NONE
 
 NAME_OF_ACTUAL = $(ACTUAL)$x
 NAME_OF_PAGER  = $(ACTUAL)-pager
-NAME_OF_2HTML  = $(ACTUAL)-to-html
-NAME_OF_LIBDIR = $(ACTUAL)-libdir-path
 
 LINK_TO_ACTUAL = @VILE_SYMLINK@
 LINK_TO_PAGER  = @VILE_SYMLINK@-pager
-LINK_TO_2HTML  = @VILE_SYMLINK@-to-html
-LINK_TO_LIBDIR = @VILE_SYMLINK@-libdir-path
 
 PATH_OF_ACTUAL = $(BINDIR)/$(ACTUAL)$x
 PATH_OF_PAGER  = $(BINDIR)/$(NAME_OF_PAGER)
-PATH_OF_2HTML  = $(BINDIR)/$(NAME_OF_2HTML)
-PATH_OF_LIBDIR = $(BINDIR)/$(NAME_OF_LIBDIR)
 
 install-bin \
 install-full \
@@ -527,14 +482,12 @@ install :: \
 		$(INSTALL_DIRS) \
 		$(INSTALL_FILES) \
 		$(PROGRAM) \
-		$(srcdir)/macros/vile-libdir-path \
-		$(srcdir)/macros/vile-pager \
-		$(srcdir)/macros/vile-to-html
+		$(srcdir)/macros/vile-pager
 	@echo "** installing $(NAME_OF_ACTUAL)"
 	$(INSTALL_PROGRAM) $(PROGRAM) $(PATH_OF_ACTUAL)
 	@ECHO_CC@-$(SHELL) -c "if $(USE_SYMLINK) ; then \
 		cd $(BINDIR) ; \
-		$(RM) $(LINK_TO_ACTUAL) ; \
+		rm -f $(LINK_TO_ACTUAL) ; \
 		$(LN_S) $(NAME_OF_ACTUAL) $(LINK_TO_ACTUAL) ; \
 		echo '... created symbolic link:' ; \
 		ls -l $(NAME_OF_ACTUAL) $(LINK_TO_ACTUAL) ; \
@@ -545,68 +498,19 @@ install :: \
 	@ECHO_CC@chmod 755 $(PATH_OF_PAGER)
 	@ECHO_CC@-$(SHELL) -c "if $(USE_SYMLINK) ; then \
 		cd $(BINDIR); \
-		$(RM) $(LINK_TO_PAGER) ; \
+		rm -f $(LINK_TO_PAGER) ; \
 		$(LN_S) $(NAME_OF_PAGER) $(LINK_TO_PAGER) ; \
 		echo '... created symbolic link:' ; \
 		ls -l $(NAME_OF_PAGER) $(LINK_TO_PAGER) ; \
-	fi"
-
-	@echo "** installing $(NAME_OF_2HTML)"
-	@ECHO_CC@sed -e 's/=vile$$/='$(ACTUAL)'/' $(srcdir)/macros/vile-to-html >$(PATH_OF_2HTML)
-	@ECHO_CC@chmod 755 $(PATH_OF_2HTML)
-	@ECHO_CC@-$(SHELL) -c "if $(USE_SYMLINK) ; then \
-		cd $(BINDIR); \
-		$(RM) $(LINK_TO_2HTML) ; \
-		$(LN_S) $(NAME_OF_2HTML) $(LINK_TO_2HTML) ; \
-		echo '... created symbolic link:' ; \
-		ls -l $(NAME_OF_2HTML) $(LINK_TO_2HTML) ; \
-	fi"
-
-	@echo "** installing $(NAME_OF_LIBDIR)"
-	@ECHO_CC@sed -e 's/=vile$$/='$(ACTUAL)'/' $(srcdir)/macros/vile-libdir-path >$(PATH_OF_LIBDIR)
-	@ECHO_CC@chmod 755 $(PATH_OF_LIBDIR)
-	@ECHO_CC@-$(SHELL) -c "if $(USE_SYMLINK) ; then \
-		cd $(BINDIR); \
-		$(RM) $(LINK_TO_LIBDIR) ; \
-		$(LN_S) $(NAME_OF_LIBDIR) $(LINK_TO_LIBDIR) ; \
-		echo '... created symbolic link:' ; \
-		ls -l $(NAME_OF_LIBDIR) $(LINK_TO_LIBDIR) ; \
 	fi"
 
 	@echo 'Completed install of program.'
 
 install-man \
 install :: $(MANDIR)
-	@echo "** installing $(NAME_OF_ACTUAL).$(manext)"
-	$(INSTALL_DATA)		$(srcdir)/vile.1 $(MANDIR)/$(NAME_OF_ACTUAL).$(manext)
-
-	@echo "** installing $(NAME_OF_PAGER).$(manext)"
-	@ECHO_CC@-$(SHELL) -c "\
-		cd $(MANDIR); \
-		$(RM) $(NAME_OF_PAGER).$(manext); \
-		$(LN_S) $(NAME_OF_ACTUAL).$(manext) $(NAME_OF_PAGER).$(manext); \
-		ls -l $(NAME_OF_PAGER).$(manext); \
-		"
-
-	@echo "** installing $(NAME_OF_2HTML).$(manext)"
-	@ECHO_CC@-$(SHELL) -c "\
-		cd $(MANDIR); \
-		$(RM) $(NAME_OF_2HTML).$(manext); \
-		$(LN_S) $(NAME_OF_ACTUAL).$(manext) $(NAME_OF_2HTML).$(manext); \
-		ls -l $(NAME_OF_2HTML).$(manext); \
-		"
-
-	@echo "** installing $(NAME_OF_LIBDIR).$(manext)"
-	@ECHO_CC@-$(SHELL) -c "\
-		cd $(MANDIR); \
-		$(RM) $(NAME_OF_LIBDIR).$(manext); \
-		$(LN_S) $(NAME_OF_ACTUAL).$(manext) $(NAME_OF_LIBDIR).$(manext); \
-		ls -l $(NAME_OF_LIBDIR).$(manext); \
-		"
+	$(INSTALL_DATA)		$(srcdir)/vile.1 $(MANDIR)/$(TARGET).$(manext)
 
 install-doc :		$(DOCDIR)		$(INSTALL_DOC_FILES)
-
-install-help :		$(DATADIR)		$(INSTALL_HELP_FILES)
 
 install-html :		$(HTMLDIR)		$(INSTALL_HTML_FILES)
 
@@ -618,23 +522,17 @@ installdirs:		$(INSTALL_DIRS)
 
 uninstall-bin \
 uninstall ::
-	@ECHO_CC@-$(SHELL) -c "if $(USE_SYMLINK) ; then cd $(BINDIR) && $(RM) $(LINK_TO_ACTUAL) ; fi"
-	@ECHO_CC@-$(SHELL) -c "if $(USE_SYMLINK) ; then cd $(BINDIR) && $(RM) $(LINK_TO_PAGER) ; fi"
-	@ECHO_CC@- $(RM) $(INSTALL_FILES) $(PATH_OF_ACTUAL) $(PATH_OF_PAGER) $(PATH_OF_2HTML) $(PATH_OF_LIBDIR)
+	@ECHO_CC@-$(SHELL) -c "if $(USE_SYMLINK) ; then cd $(BINDIR) && rm -f $(LINK_TO_ACTUAL) ; fi"
+	@ECHO_CC@-$(SHELL) -c "if $(USE_SYMLINK) ; then cd $(BINDIR) && rm -f $(LINK_TO_PAGER) ; fi"
+	@ECHO_CC@- $(RM) $(INSTALL_FILES) $(PATH_OF_ACTUAL) $(PATH_OF_PAGER)
 	@echo 'Completed uninstall of program.'
 
 uninstall-man \
 uninstall ::
-	- $(RM) $(MANDIR)/$(NAME_OF_PAGER).$(manext)
-	- $(RM) $(MANDIR)/$(NAME_OF_2HTML).$(manext)
-	- $(RM) $(MANDIR)/$(NAME_OF_LIBDIR).$(manext)
-	- $(RM) $(MANDIR)/$(NAME_OF_ACTUAL).$(manext)
+	- $(RM) $(MANDIR)/$(TARGET).$(manext)
 
 uninstall-doc :
 	- $(RM) $(INSTALL_DOC_FILES)
-
-uninstall-help :
-	- $(RM) $(INSTALL_HELP_FILES)
 
 uninstall-html :
 	- $(RM) $(INSTALL_HTML_FILES)
@@ -655,69 +553,33 @@ uninstall-perl :
 @no_appsdir@	@echo installing $(APPSDIR)/UXVile
 @no_appsdir@	@sed -e s/XVile/$(CLASS)/ $(srcdir)/macros/UXVile.ad >XVile.tmp
 @no_appsdir@	@$(INSTALL_DATA) XVile.tmp $(APPSDIR)/UXVile
-@no_appsdir@	@$(RM) XVile.tmp
+@no_appsdir@	@rm -f XVile.tmp
 @no_icondir@	@echo "... installed app-defaults"
 
+@no_icondir@install \
+@no_icondir@install-icon \
+@no_icondir@install-full :: $(ICONDIR)
+@no_icondir@	@$(INSTALL_DATA) $(srcdir)/icons/$(ICON)$(ICON_SUFFIX) $(ICONDIR)
+@no_icondir@	@echo "... installed icons"
+################################################################################
 @no_appsdir@uninstall \
 @no_appsdir@uninstall-app \
 @no_appsdir@uninstall-full ::
 @no_appsdir@	-$(RM) $(APPSDIR)/$(CLASS)
 @no_appsdir@	-$(RM) $(APPSDIR)/UXVile
-################################################################################
-@no_icondir@ICON_LIST = @ICON_LIST@
-@no_icondir@ICON_THEME = @ICON_THEME@
-@no_icondir@install \
-@no_icondir@install-icon \
-@no_icondir@install-full :: $(ICONDIR)
-@no_icondir@	$(SHELL) -c 'for n in $(ICON_LIST); \
-@no_icondir@		do \
-@no_icondir@		l=`echo "$$n" | cut -f1 -d:`; \
-@no_icondir@		r=`echo "$$n" | cut -f2 -d:`; \
-@no_icondir@		test -z "$$r" && continue; \
-@no_icondir@		h=$(ICONDIR)/$(ICON_THEME); \
-@no_icondir@		d=$$h/`echo "$$r" | sed -e "s,/[^/]*$$,,"`; \
-@no_icondir@		test -d "$$d" || mkdir -p "$$d"; \
-@no_icondir@		echo installing $$h/$$r; \
-@no_icondir@		$(INSTALL_DATA) $$l $$h/$$r; \
-@no_icondir@		done'
-@no_icondir@	@echo "... installed icons"
 
 @no_icondir@uninstall \
 @no_icondir@uninstall-icon \
 @no_icondir@uninstall-full ::
-@no_icondir@	-@$(SHELL) -c 'for n in $(ICON_LIST); \
-@no_icondir@		do \
-@no_icondir@		r=`echo "$$n" | cut -f2 -d:`; \
-@no_icondir@		test -z "$$r" && continue; \
-@no_icondir@		h=$(ICONDIR)/$(ICON_THEME); \
-@no_icondir@		echo removing $$h/$$r; \
-@no_icondir@		$(RM) $$h/$$r; \
-@no_icondir@		done'
-@no_icondir@	@echo "... removed icons"
-################################################################################
-@no_pixmapdir@install \
-@no_pixmapdir@install-icon \
-@no_pixmapdir@install-full :: $(PIXMAPDIR)
-@no_pixmapdir@	@$(INSTALL_DATA) $(srcdir)/icons/$(ICON)$(ICON_SUFFIX) $(PIXMAPDIR)
-@no_pixmapdir@	@echo "... installed icons"
-
-@no_pixmapdir@uninstall \
-@no_pixmapdir@uninstall-icon \
-@no_pixmapdir@uninstall-full ::
-@no_pixmapdir@	-$(RM) $(PIXMAPDIR)/$(ICON)$(ICON_SUFFIX)
-@no_pixmapdir@	@echo "... removed icons"
+@no_icondir@	-$(RM) $(ICONDIR)/$(ICON)$(ICON_SUFFIX)
 ################################################################################
 # Desktop-utils does not provide an uninstall, and is not uniformly available.
-@desktop_utils@DESKTOP_FILES = $(srcdir)/macros/lxvile.desktop $(srcdir)/macros/uxvile.desktop $(srcdir)/macros/xvile.desktop
-@desktop_utils@DESKTOP_DIR   = .
 @desktop_utils@DESKTOP_FLAGS = --vendor=dickey @DESKTOP_FLAGS@
 @desktop_utils@install-desktop \
 @desktop_utils@install-full ::
-@desktop_utils@	$(SHELL) -c 'for n in $(DESKTOP_FILES); \
-@desktop_utils@		do $(SHELL) df-install xvile $(DESKTOP_DIR) $(DESKTOP_FLAGS) $$n; \
-@desktop_utils@		done'
-@desktop_utils@distclean ::
-@desktop_utils@	- $(RM) df-install
+@desktop_utils@	desktop-file-install $(DESKTOP_FLAGS) macros/lxvile.desktop
+@desktop_utils@	desktop-file-install $(DESKTOP_FLAGS) macros/uxvile.desktop
+@desktop_utils@	desktop-file-install $(DESKTOP_FLAGS) macros/xvile.desktop
 ################################################################################
 
 # The makefile is technically dependent upon the config.status file, but
@@ -738,27 +600,26 @@ uninstall \
 mostlyclean \
 clean \
 distclean ::
-	- $(SHELL) -c "if test -f filters/makefile; then cd filters && $(MAKE) $(MAKE_RECUR) $@ ; fi"
+	- test -f filters/makefile && cd filters && $(MAKE) $(MAKE_RECUR) $@
 
 mostlyclean ::
-	-@ $(RM) -rf *.dSYM
-	- $(RM) *.[oi] o$(PROGRAM) $(BUILTHDRS) $(BUILTSRCS) $(MKTBLS)
-	- $(RM) builtflt.h core core.* *.stackdump *~ *.tmp *.BAK *.bb* *.da *.gcov
+	- $(RM) *.[oi] o$(PROGRAM) $(BUILTHDRS) $(BUILTSRCS) $(MKTBLS) \
+	    builtflt.h core core.* *~ *.tmp *.BAK *.bb* *.da *.gcov
 
 clean :: mostlyclean
 	- $(RM) $(ALL)
 
 distclean :: clean
-	- $(RM) makefile config.status config.cache config.log config.h man2html.tmp
-	- $(SHELL) -c "if test -d filters && test ! -f filters/filters.h; then rmdir filters; fi"
+	- $(RM) makefile config.status config.cache config.log config.h
+	- test -d filters && rmdir filters
 
 realclean: distclean
 	- $(RM) test_*$x
-	- $(RM) tags TAGS vile-perl-api.* pod2html*
+	- $(RM) tags TAGS vile-perl-api.* pod2html-*
 
 lint: $(BUILTHDRS)
-	$(LINT) $(LINT_OPTS) $(CPPFLAGS) $(SRC) $(LINT_LIBS)
-	$(LINT) $(LINT_OPTS) $(CPPFLAGS) mktbls.c
+	$(LINT) $(CPPFLAGS) $(SRC) $(LIBS)
+	$(LINT) $(CPPFLAGS) mktbls.c
 
 TAG_SRC = $(SRC) $(HDRS) $(BUILTSRC) $(BUILTHDRS)
 
@@ -853,7 +714,7 @@ release_warnings:
 	@echo 'or maybe date the CHANGES file?  it says:'
 	@sed -n -e '/Changes/s/^/	/p' -e '2q' CHANGES
 	@echo 'or maybe update the version info in patchlev.h?  it contains:'
-	@@FGREP@ '#define' patchlev.h | sed -e 's/^/	/'
+	@fgrep '#define' patchlev.h | sed -e 's/^/	/'
 	@echo 'how about the README?  it contains:'
 	@sed -n -e '/version/s/^/	/p' -e '3q' README
 	@echo 'or in vile.hlp?  it has:'
@@ -904,7 +765,10 @@ populate:
 	done
 
 perl.c: $(srcdir)/perl.xs $(srcdir)/ptypemap
-	$(PERL) $(PERL_XSUBPP) -typemap ptypemap $(srcdir)/perl.xs > $@
+	$(PERL) $(PERLLIB)/ExtUtils/xsubpp \
+		-typemap $(PERLLIB)/ExtUtils/typemap \
+		-typemap ptypemap \
+		$(srcdir)/perl.xs > $@
 
 $(OBJ): estruct.h proto.h edef.h $(BUILTHDRS) config.h
 
@@ -924,10 +788,8 @@ random$o :	dirstuff.h
 statevar$o :	patchlev.h
 tags$o :	btree.h
 tcap$o :	tcap.h xtermkeys.h
-ucrypt$o :	vl_crypt.h
 version$o :	patchlev.h
 x11$o :		pscreen.h
-x11$o x11plain$o xftplain$o : x11vile.h
 
 # test-drivers
 
@@ -964,7 +826,7 @@ $(BINDIR)/lxvile:		$(srcdir)/macros/lxvile
 $(BINDIR)/uxvile:		$(srcdir)/macros/uxvile
 	$(INSTALL_SCRIPT)	$(srcdir)/macros/uxvile $@
 $(BINDIR)/vileget:		$(srcdir)/perl/vileget
-	$(INSTALL_SCRIPT)	$(srcdir)/perl/vileget $@
+	$(INSTALL_PL_EXE)	$(srcdir)/perl/vileget $@
 
 $(DOCDIR)/Vileserv.doc:		$(srcdir)/doc/Vileserv.doc
 	$(INSTALL_DATA)		$(srcdir)/doc/Vileserv.doc $@
@@ -1014,8 +876,6 @@ $(HTMLDIR)/visvile.html:	$(srcdir)/doc/visvile.html
 
 $(DATADIR)/color-ls.rc:		$(srcdir)/macros/color-ls.rc
 	$(INSTALL_DATA)		$(srcdir)/macros/color-ls.rc $@
-$(DATADIR)/complete.rc:		$(srcdir)/macros/complete.rc
-	$(INSTALL_DATA)		$(srcdir)/macros/complete.rc $@
 $(DATADIR)/dates.rc:		$(srcdir)/macros/dates.rc
 	$(INSTALL_DATA)		$(srcdir)/macros/dates.rc $@
 $(DATADIR)/digraphs.rc:		$(srcdir)/macros/digraphs.rc
@@ -1066,7 +926,7 @@ $(PERLDIR)/Vile/Exporter.pm:	$(srcdir)/perl/Vile/Exporter.pm
 $(PERLDIR)/Vile/Manual.pm:	$(srcdir)/perl/Vile/Manual.pm
 	$(INSTALL_DATA)		$(srcdir)/perl/Vile/Manual.pm $@
 $(PERLDIR)/Vileserv.pm:		$(srcdir)/perl/Vileserv.pm
-	$(INSTALL_DATA)		$(srcdir)/perl/Vileserv.pm $@
+	$(INSTALL_MODULE)	$(srcdir)/perl/Vileserv.pm $@
 $(PERLDIR)/Visit.pm:		$(srcdir)/perl/Visit.pm
 	$(INSTALL_DATA)		$(srcdir)/perl/Visit.pm $@
 $(PERLDIR)/capture.pm:		$(srcdir)/perl/capture.pm

@@ -1,5 +1,5 @@
 /*
- * $Id: key-filt.c,v 1.54 2025/01/26 10:50:02 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/key-filt.c,v 1.46 2010/07/13 13:31:15 tom Exp $
  *
  * Filter to add vile "attribution" sequences to a vile keyword file.  It's
  * done best in C because the delimiters may change as a result of processing
@@ -10,7 +10,7 @@
 
 #define QUOTE '\''
 
-DefineOptFilter(key, "c");
+DefineOptFilter("key", "c");
 
 #define VERBOSE(level,params)	if (FltOptions('v') >= level) mlforce params
 
@@ -29,7 +29,7 @@ color_code(const char *s, const char **t)
 
     if (*s != 0) {
 	for (;;) {
-	    while ((*s != '\0') && strchr("RUBI", *s) != NULL)
+	    while ((*s != '\0') && strchr("RUBI", *s) != 0)
 		++s;
 	    if (*s == '\0') {
 		result = 1;
@@ -54,7 +54,7 @@ color_code(const char *s, const char **t)
 static int
 is_color(const char *s)
 {
-    const char *t = NULL;
+    const char *t = 0;
     return color_code(s, &t);
 }
 
@@ -73,10 +73,10 @@ color_of(char *s, int arg)
 
     if (is_class(s)) {
 	if (FltOptions('c')) {
-	    result = get_keyword_attr(s);
-	    if (result == NULL)
+	    result = keyword_attr(s);
+	    if (result == 0)
 		result = class_attr(s);
-	    if (result == NULL)
+	    if (result == 0)
 		result = Ident2_attr;
 	} else {
 	    result = Ident2_attr;
@@ -156,28 +156,24 @@ abbr_len(char *s)
 }
 
 static const char *
-actual_color(const char *param, int len, int arg, int *theirs)
+actual_color(const char *param, int len, int arg)
 {
     const char *result;
     char *s = strmalloc(param);
 
-    *theirs = 0;		/* set to 1 to tell caller to free result */
     if (len > 0) {		/* if not null-terminated, set it now */
 	s[len] = '\0';
     }
 
     result = color_of(s, arg);
     if (*result == 0)
-	result = get_keyword_attr(s);
-    if (result == s)
-	*theirs = 1;
+	result = keyword_attr(s);
 
-    if (result != NULL && *result != 0 && !is_color(result)) {
+    if (result != 0 && *result != 0 && !is_color(result)) {
 	result = Literal_attr;
     }
 
-    if (!*theirs)
-	free(s);
+    free(s);
     return result;
 }
 
@@ -201,32 +197,27 @@ ExecClass(char *param)
     char *t = strmalloc(param);
     char *s;
     const char *attr = "";
-    int ours = 0;
 
     parse_keyword(t, 1);
     free(t);
     t = flt_put_blanks(param);
     s = skip_ident(t);
     if (FltOptions('c')) {
-	attr = actual_color(param, (int) (s - param), 1, &ours);
+	attr = actual_color(param, (int) (s - param), 1);
     } else {
 	attr = Ident2_attr;
     }
     flt_puts(param, (int) (s - param), attr);
-    if (ours)
-	free(TYPECAST(void *, attr));
     if (parse_eqls_ch(&s)) {
 	t = s;
 	s = skip_ident(t);
 	if (FltOptions('c')) {
-	    attr = actual_color(t, (int) (s - t), 1, &ours);
+	    attr = actual_color(t, (int) (s - t), 1);
 	} else {
 	    if (*(attr = color_of(t, 0)) == '\0')
 		attr = Action_attr;
 	}
 	flt_puts(t, (int) (s - t), attr);
-	if (ours)
-	    free(TYPECAST(void *, attr));
 	if (parse_eqls_ch(&s)) {
 	    flt_puts(s, (int) strlen(s), Literal_attr);
 	} else if (*s) {
@@ -244,9 +235,8 @@ ExecDefault(char *param)
     const char *t = param;
     const char *attr = Literal_attr;
     int save = *s;
-    int ours = 0;
 
-    VERBOSE(1, ("ExecDefault(%s)", param));
+    VERBOSE(1, ("ExecDefault(%s)\n", param));
     *s = 0;
     if (!*t)
 	t = NAME_KEYWORD;
@@ -255,13 +245,11 @@ ExecDefault(char *param)
 	default_attr = strmalloc(t);
     }
     if (FltOptions('c')) {
-	attr = actual_color(t, -1, 1, &ours);
-	VERBOSE(2, ("actual_color(%s) = %s", t, attr));
+	attr = actual_color(t, -1, 1);
+	VERBOSE(2, ("actual_color(%s) = %s\n", t, attr));
     }
     *s = (char) save;
     flt_puts(param, (int) strlen(param), attr);
-    if (ours)
-	free(TYPECAST(void *, attr));
 }
 
 static void
@@ -310,7 +298,7 @@ ExecTable(char *param)
 {
     char *t;
 
-    VERBOSE(1, ("ExecTable(%s)", param));
+    VERBOSE(1, ("ExecTable(%s)\n", param));
     if (FltOptions('c')) {
 	t = skip_ident(param);
 	if (*skip_blanks(t) == '\0') {
@@ -358,13 +346,13 @@ parse_directive(char *line)
     };
     /* *INDENT-ON* */
 
-    size_t n, len;
+    unsigned n, len;
     char *s;
 
-    VERBOSE(1, ("parse_directive(%s)", line));
+    VERBOSE(1, ("parse_directive(%s)\n", line));
     if (*(s = skip_blanks(line)) == meta_ch) {
 	s = skip_blanks(s + 1);
-	if ((len = (size_t) (skip_ident(s) - s)) != 0) {
+	if ((len = (unsigned) (skip_ident(s) - s)) != 0) {
 	    for (n = 0; n < sizeof(table) / sizeof(table[0]); n++) {
 		if (!strncmp(s, table[n].name, len)) {
 		    flt_puts(line, (int) (s + len - line), Ident_attr);
@@ -387,8 +375,7 @@ parse_nondirective(char *s)
     char *t;
     const char *attr0 = Ident_attr;
     const char *attr1 = Ident2_attr;
-    int our_0 = 0;
-    int our_1 = 0;
+    char *attr2 = Literal_attr;
 
     if (FltOptions('c')) {
 	t = skip_ident(s = base);
@@ -403,31 +390,25 @@ parse_nondirective(char *s)
 	    parse_keyword(s, 0);
 
 	    *t = 0;
-	    attr0 = actual_color(s, abbr_len(s), 0, &our_0);
+	    attr0 = actual_color(s, abbr_len(s), 0);
 	    *t = (char) save;
 	}
 	if (skip_eqls_ch(&t)) {
 	    s = skip_ident(t);
 	    if (s != t) {
-		attr1 = actual_color(t, (int) (s - t), 1, &our_1);
+		attr1 = actual_color(t, (int) (s - t), 1);
 	    }
 	}
     }
 
     t = skip_ident(s = base);
     flt_puts(s, (int) (t - s), attr0);
-    if (our_0)
-	free(TYPECAST(void *, attr0));
     if (parse_eqls_ch(&t)) {
 	s = skip_ident(t);
 	if (s != t) {
 	    int save = *s;
 	    *s = 0;
 	    if (!FltOptions('c')) {
-		if (our_1) {
-		    free(TYPECAST(void *, attr1));
-		    our_1 = 0;
-		}
 		if (*(attr1 = color_of(t, 0)) == '\0')
 		    attr1 = Action_attr;
 	    }
@@ -435,15 +416,13 @@ parse_nondirective(char *s)
 	    *s = (char) save;
 	}
 	if (parse_eqls_ch(&s)) {
-	    flt_puts(s, (int) strlen(s), Literal_attr);
+	    flt_puts(s, (int) strlen(s), attr2);
 	} else if (*s) {
 	    flt_puts(s, (int) strlen(s), Error_attr);
 	}
     } else if (*t) {
 	flt_puts(t, (int) strlen(t), Error_attr);
     }
-    if (our_1)
-	free(TYPECAST(void *, attr1));
 }
 
 static void

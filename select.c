@@ -18,7 +18,8 @@
  * transferring the selection are not dealt with in this file.  Procedures
  * for dealing with the representation are maintained in this file.
  *
- * $Id: select.c,v 1.196 2025/01/26 14:38:58 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/select.c,v 1.177 2010/04/30 23:52:07 tom Exp $
+ *
  */
 
 #include	"estruct.h"
@@ -27,6 +28,11 @@
 
 #if OPT_FILTER
 #include	<filters.h>
+#endif
+
+#ifdef WIN32
+#include	"w32vile.h"	/* for VL_ELAPSED */
+#undef WIN32_LEAN_AND_MEAN
 #endif
 
 #define BTN_BEGIN   1
@@ -45,18 +51,9 @@ static void detach_attrib(BUFFER *bp, AREGION * arp);
 static int attribute_cntl_a_sequences(void);
 static void free_line_attribs(BUFFER *bp);
 static int add_line_attrib(BUFFER *bp, REGION * rp, REGIONSHAPE rs,
-			   unsigned vattr, TBUFF *hypercmd);
+			   VIDEO_ATTR vattr, TBUFF *hypercmd);
 static void purge_line_attribs(BUFFER *bp, REGION * rp, REGIONSHAPE rs,
 			       int owner);
-
-#define mark_buffers_windows(bp) \
-	{ \
-	    WINDOW *wp; \
-	    for_each_visible_window(wp) { \
-		if (wp->w_bufp == bp) \
-		    wp->w_flag |= WFHARD; \
-	    } \
-	}
 
 /*
  * startbufp and startregion are used to represent the start of a selection
@@ -129,16 +126,9 @@ free_attribs(BUFFER *bp)
 }
 
 void
-free_attrib2(BUFFER *bp, AREGION ** rpp)
+free_attrib(BUFFER *bp, AREGION * ap)
 {
-    AREGION *ap = *rpp;
-    AREGION *next = ap->ar_next;
-
-    /* The caller already has found the right value for 'rpp',
-     * so there is no need to call detach_attrib() to find it.
-     */
-    mark_buffers_windows(bp);
-    ap->ar_region.r_attr_id = 0;
+    detach_attrib(bp, ap);
 
     beginDisplay();
 #if OPT_HYPERTEXT
@@ -151,18 +141,19 @@ free_attrib2(BUFFER *bp, AREGION ** rpp)
     else
 	free((char *) ap);
     endofDisplay();
-
-    /* finally, delink the region */
-    *rpp = next;
 }
 
 static void
 detach_attrib(BUFFER *bp, AREGION * arp)
 {
-    if (find_bp(bp) != NULL) {
+    if (find_bp(bp) != 0) {
 	if (valid_buffer(bp)) {
+	    WINDOW *wp;
 	    AREGION **rpp;
-	    mark_buffers_windows(bp);
+	    for_each_visible_window(wp) {
+		if (wp->w_bufp == bp)
+		    wp->w_flag |= WFHARD;
+	    }
 	    rpp = &bp->b_attribs;
 	    while (*rpp != NULL) {
 		if (*rpp == arp) {
@@ -180,15 +171,14 @@ void
 find_release_attr(BUFFER *bp, REGION * rp)
 {
     if (valid_buffer(bp)) {
-	AREGION **rpp = &bp->b_attribs;
-	AREGION *ap;
-
-	while ((ap = *rpp) != NULL) {
-	    if (ap->ar_region.r_attr_id == rp->r_attr_id) {
-		free_attrib2(bp, rpp);
+	AREGION **rpp;
+	rpp = &bp->b_attribs;
+	while (*rpp != NULL) {
+	    if ((*rpp)->ar_region.r_attr_id == rp->r_attr_id) {
+		free_attrib(bp, *rpp);
 		break;
 	    } else
-		rpp = &ap->ar_next;
+		rpp = &(*rpp)->ar_next;
 	}
     }
 }
@@ -204,9 +194,13 @@ static void
 attach_attrib(BUFFER *bp, AREGION * arp)
 {
     if (valid_buffer(bp)) {
+	WINDOW *wp;
 	arp->ar_next = bp->b_attribs;
 	bp->b_attribs = arp;
-	mark_buffers_windows(bp);
+	for_each_visible_window(wp) {
+	    if (wp->w_bufp == bp)
+		wp->w_flag |= WFHARD;
+	}
 	arp->ar_region.r_attr_id = (USHORT) assign_attr_id();
     }
 }
@@ -219,7 +213,7 @@ attach_attrib(BUFFER *bp, AREGION * arp)
 static void
 fix_dot(void)
 {
-    if (curwp != NULL && is_header_line(DOT, curwp->w_bufp)) {
+    if (is_header_line(DOT, curwp->w_bufp)) {
 	DOT.l = lback(DOT.l);
 	DOT.o = llength(DOT.l);
     }
@@ -261,7 +255,7 @@ sel_begin(void)
     startregion.ar_vattr = 0;
     startregion.ar_shape = rgn_EXACT;
 #if OPT_HYPERTEXT
-    startregion.ar_hypercmd = NULL;
+    startregion.ar_hypercmd = 0;
 #endif
     startbufp = curwp->w_bufp;
     attach_attrib(startbufp, &startregion);
@@ -285,6 +279,7 @@ sel_extend(int wiping, int include_dot)
     BUFFER *bp = curbp;
     REGIONSHAPE save_shape = regionshape;
     REGION a, b;
+    WINDOW *wp;
     MARK saved_dot;
     MARK working_dot;
 
@@ -391,7 +386,10 @@ sel_extend(int wiping, int include_dot)
     }
 
     selregion.ar_vattr = VASEL | VOWN_SELECT;
-    mark_buffers_windows(selbufp);
+    for_each_visible_window(wp) {
+	if (wp->w_bufp == selbufp)
+	    wp->w_flag |= WFHARD;
+    }
 
     show_selection_position(FALSE);
 
@@ -667,7 +665,7 @@ selectregion(void)
 	selregion.ar_vattr = VASEL | VOWN_SELECT;
 	selregion.ar_shape = regionshape;
 #if OPT_HYPERTEXT
-	selregion.ar_hypercmd = NULL;
+	selregion.ar_hypercmd = 0;
 #endif
 	attach_attrib(selbufp, &selregion);
 	OWN_SELECTION();
@@ -690,7 +688,7 @@ static void
 sweepmsg(const char *msg)
 {
     char temp[NLINE];
-    (void) kcod2pstr(fnc2kcod(&f_multimotion), temp, (int) sizeof(temp));
+    (void) kcod2pstr(fnc2kcod(&f_multimotion), temp, sizeof(temp));
     mlforce("[%s (end with %.*s)]", msg, CharOf(*temp), temp + 1);
 }
 
@@ -833,8 +831,8 @@ on_mouse_click(int button, int y, int x)
 	pending = FALSE;
 	this_wp = row2window(y);
 	that_wp = row2window(first_y);
-	if (this_wp == NULL
-	    || that_wp == NULL
+	if (this_wp == 0
+	    || that_wp == 0
 	    || reading_msg_line) {
 	    TRACE(("MOUSE cannot move msg-line\n"));
 	    status = FALSE;
@@ -869,6 +867,10 @@ on_mouse_click(int button, int y, int x)
 			TRACE(("MOUSE setting SEL_BEGIN MK %d.%d\n",
 			       line_no(curbp, MK.l), MK.o));
 		    }
+		    break;
+		case BTN_PASTE:
+		    (void) setcursor(y, x);
+		    status = paste_selection();
 		    break;
 		default:
 		    (void) setcursor(y, x);
@@ -1181,11 +1183,11 @@ attributeregion(void)
 	    arp->ar_vattr = videoattribute;	/* include ownership */
 	    arp->ar_shape = regionshape;
 #if OPT_HYPERTEXT
-	    arp->ar_hypercmd = NULL;
+	    arp->ar_hypercmd = 0;
 	    if (tb_length(hypercmd) && *tb_values(hypercmd)) {
 #if OPT_EXTRA_COLOR
 		if (tb_length(hypercmd) > 4
-		    && !memcmp(tb_values(hypercmd), "view ", (size_t) 4)) {
+		    && !memcmp(tb_values(hypercmd), "view ", 4)) {
 		    int *newVideo = lookup_extra_color(XCOLOR_HYPERTEXT);
 		    if (!isEmpty(newVideo)) {
 			arp->ar_vattr = (VIDEO_ATTR) * newVideo;
@@ -1202,25 +1204,21 @@ attributeregion(void)
 	    L_NUM rle = line_no(bp, region.r_end.l);
 	    C_NUM ros = region.r_orig.o;
 	    C_NUM roe = region.r_end.o;
-	    AREGION **pp;
-	    AREGION **qq;
-	    AREGION *p, *n;
+	    AREGION *p, *q, *n;
 	    int owner;
 
 	    owner = VOWNER(videoattribute);
 
 	    purge_line_attribs(bp, &region, regionshape, owner);
 
-	    pp = &(bp->b_attribs);
-
-	    for (p = *pp; p != NULL; pp = qq, p = *pp) {
+	    for (p = bp->b_attribs; p != 0; p = q) {
 		L_NUM pls, ple;
 		C_NUM pos, poe;
 
 		if (interrupted())
 		    return FALSE;
 
-		qq = &(p->ar_next);
+		q = p->ar_next;
 
 		if (owner != 0 && owner != VOWNER(p->ar_vattr))
 		    continue;
@@ -1299,8 +1297,7 @@ attributeregion(void)
 		    }
 		}
 
-		free_attrib2(bp, pp);
-		qq = pp;
+		free_attrib(bp, p);
 	    }
 	}
     }
@@ -1310,7 +1307,7 @@ attributeregion(void)
 int
 attributeregion_in_region(REGION * rp,
 			  REGIONSHAPE shape,
-			  unsigned vattr,
+			  VIDEO_ATTR vattr,
 			  char *hc)
 {
     haveregion = rp;
@@ -1319,7 +1316,7 @@ attributeregion_in_region(REGION * rp,
     if (shape == rgn_FULLLINE)
 	MK.l = lback(MK.l);
     regionshape = shape;	/* Not that the following actually cares */
-    videoattribute = (VIDEO_ATTR) vattr;
+    videoattribute = vattr;
 #if OPT_HYPERTEXT
     tb_scopy(&hypercmd, hc);
 #endif /* OPT_HYPERTEXT */
@@ -1415,7 +1412,7 @@ hyperspray(int (*f) (char *))
     dlno = DOT.l->l_number;
     doff = DOT.o;
 
-    for (p = curbp->b_attribs; p != NULL; p = p->ar_next) {
+    for (p = curbp->b_attribs; p != 0; p = p->ar_next) {
 	if (p->ar_hypercmd) {
 	    int slno, elno, soff, eoff;
 
@@ -1512,14 +1509,14 @@ setup_region(void)
     if (!sameline(MK, DOT)) {
 	REGION region;
 	if (getregion(bp, &region) != TRUE)
-	    return NULL;
+	    return 0;
 	if (sameline(region.r_orig, MK))
 	    swapmark();
     }
     pastline = MK.l;
     if (pastline != win_head(curwp))
 	pastline = lforw(pastline);
-    DOT.o = b_left_margin(curbp);
+    DOT.o = 0;
     regionshape = rgn_EXACT;
 
     return pastline;
@@ -1603,28 +1600,6 @@ decode_attribute(char *text, size_t length, size_t offset, int *countp)
 		}
 		break;
 #endif
-	    case 'M':
-		if (((offset + 2) == length) && (text[offset + 1] == ':')) {
-		    /*
-		     * Work around special case in builtflt.c's flt_puts(),
-		     * which is sending only the markup code without data.
-		     */
-		    count = -1;
-		    found = TRUE;
-		} else {
-		    save_offset = offset;
-		    offset++;
-		    while (offset < length
-			   && text[offset] != EOS)
-			offset++;
-
-		    if (offset >= length) {
-			offset = save_offset;
-		    } else {
-			TRACE(("flt_meta:%s\n", text + save_offset));
-		    }
-		}
-		break;
 	    case ':':
 		found = TRUE;
 		break;
@@ -1668,7 +1643,7 @@ set_mark_after(int count, int rslen)
 	    }
 	    count -= (llength(MK.l) + rslen - offset);
 	    MK.l = lforw(MK.l);
-	    MK.o = b_left_margin(curbp);
+	    MK.o = 0;
 	} else {
 	    break;
 	}
@@ -1709,7 +1684,7 @@ attribute_cntl_a_sequences(void)
     AREGION *new_attribs;
 #endif
 
-    if ((pastline = setup_region()) == NULL)
+    if ((pastline = setup_region()) == 0)
 	return FALSE;
 
     while (DOT.l != pastline) {
@@ -1717,9 +1692,8 @@ attribute_cntl_a_sequences(void)
 	    return FALSE;
 	while (DOT.o < llength(DOT.l)) {
 	    if (CharAtDot() == CONTROL_A) {
-		offset = decode_attribute(lvalue(DOT.l),
-					  (size_t) llength(DOT.l),
-					  (size_t) DOT.o, &count);
+		offset = decode_attribute(lvalue(DOT.l), llength(DOT.l),
+					  DOT.o, &count);
 		if (offset > DOT.o) {
 #if EFFICIENCY_HACK
 		    new_attribs = bp->b_attribs;
@@ -1737,7 +1711,8 @@ attribute_cntl_a_sequences(void)
 		DOT.o += BytesAt(DOT.l, DOT.o);
 	    }
 	}
-	dot_next_bol();
+	DOT.l = lforw(DOT.l);
+	DOT.o = 0;
     }
     return TRUE;
 }
@@ -1770,7 +1745,7 @@ attribute_from_filter(void)
     int drained = FALSE;
 
     TRACE((T_CALLED "attribute_from_filter\n"));
-    if ((pastline = setup_region()) == NULL) {
+    if ((pastline = setup_region()) == 0) {
 	result = FALSE;
 
 #ifdef MDHILITE
@@ -1793,12 +1768,12 @@ attribute_from_filter(void)
 		break;
 	    }
 
-	    DOT.o = b_left_margin(curbp);
+	    DOT.o = 0;
 	    for (n = 0; n < nbytes; n++) {
 		if (fflinebuf[n] == CONTROL_A) {
 		    done = decode_attribute(fflinebuf, nbytes, n, &skip);
 		    if (done) {
-			n = ((size_t) done - 1);
+			n = (done - 1);
 			set_mark_after(skip, 1);
 			if (apply_attribute())
 			    (void) attributeregion();
@@ -1807,7 +1782,7 @@ attribute_from_filter(void)
 		    DOT.o += BytesAt(DOT.l, DOT.o);
 		}
 	    }
-	    dot_next_bol();
+	    DOT.l = lforw(DOT.l);
 	}
 
 	/* some pipes will hang if they're not drained */
@@ -1855,17 +1830,17 @@ attribute_directly(void)
 #endif
 	discard_syntax_highlighting();
 	if (b_val(bp, MDHILITE)) {
-	    char *filtername = NULL;
-	    TBUFF *token = NULL;
+	    char *filtername = 0;
+	    TBUFF *token = 0;
 
 	    if (clexec || isnamedcmd)
 		filtername = mac_unquotedarg(&token);
 
-	    if (filtername == NULL
-		&& bp->majr != NULL)
+	    if (filtername == 0
+		&& bp->majr != 0)
 		filtername = bp->majr->shortname;
 
-	    if (filtername != NULL
+	    if (filtername != 0
 		&& flt_start(filtername)) {
 		TRACE(("attribute_directly(%s) using %s\n",
 		       bp->b_bname,
@@ -1924,7 +1899,7 @@ init_line_attr_tbl(void)
    be a real problem.  But if it is, it should be possible to garbage
    collect the table.) */
 static int
-find_line_attr_idx(unsigned vattr)
+find_line_attr_idx(VIDEO_ATTR vattr)
 {
     int hash = 0;
     int start;
@@ -1936,7 +1911,7 @@ find_line_attr_idx(unsigned vattr)
     if (vattr == 0)
 	return 1;		/* Normal attributes get mapped to index 1 */
 
-    v = (VIDEO_ATTR) vattr;
+    v = vattr;
     for (i = 0; i < sizeof(VIDEO_ATTR); i++) {
 	hash ^= v & 0xff;
 	v >>= 8;
@@ -1957,7 +1932,7 @@ find_line_attr_idx(unsigned vattr)
 				   that 0 and 1 must be in use. */
     }
 
-    line_attr_tbl[hash].vattr = (VIDEO_ATTR) vattr;
+    line_attr_tbl[hash].vattr = vattr;
     line_attr_tbl[hash].in_use = TRUE;
 
     return hash;
@@ -1977,7 +1952,7 @@ lattr_shift(BUFFER *bp GCC_UNUSED, LINE *lp, int doto, int shift)
     int status = TRUE;
     UCHAR *lap;
 
-    if (lp->l_attrs != NULL) {
+    if (lp->l_attrs != 0) {
 	lap = lp->l_attrs;
 	if (shift > 0) {
 	    int f, t, len;
@@ -1990,8 +1965,7 @@ lattr_shift(BUFFER *bp GCC_UNUSED, LINE *lp, int doto, int shift)
 
 			beginDisplay();
 			newlen = len + shift - (t - f);
-			safe_castrealloc(UCHAR, lap, (size_t) newlen + 1);
-			if (lap != NULL) {
+			if ((lap = castrealloc(UCHAR, lap, newlen + 1)) != 0) {
 			    lp->l_attrs = lap;
 			    lap[newlen] = 0;
 			    t = newlen - 1;
@@ -2001,7 +1975,7 @@ lattr_shift(BUFFER *bp GCC_UNUSED, LINE *lp, int doto, int shift)
 			break;
 		    }
 		}
-		if (lap != NULL) {
+		if (lap != 0) {
 		    while (f > doto) {
 			lap[t--] = lap[f--];
 		    }
@@ -2050,21 +2024,26 @@ free_line_attribs(BUFFER *bp)
     LINE *lp;
     int do_update = 0;
     for_each_line(lp, bp) {
-	do_update |= (lp->l_attrs != NULL);
+	do_update |= (lp->l_attrs != 0);
 	FreeAndNull(lp->l_attrs);
     }
     if (do_update) {
-	mark_buffers_windows(bp);
+	WINDOW *wp;
+	for_each_visible_window(wp) {
+	    if (wp->w_bufp == bp)
+		wp->w_flag |= WFHARD;
+	}
     }
 #endif /* OPT_LINE_ATTRS */
 }
 
 static int
-add_line_attrib(BUFFER *bp, REGION * rp, REGIONSHAPE rs, unsigned vattr,
+add_line_attrib(BUFFER *bp, REGION * rp, REGIONSHAPE rs, VIDEO_ATTR vattr,
 		TBUFF *hypercmdp)
 {
 #if OPT_LINE_ATTRS
     LINE *lp;
+    WINDOW *wp;
     int vidx;
     int i;
     int overlap = FALSE;
@@ -2090,7 +2069,7 @@ add_line_attrib(BUFFER *bp, REGION * rp, REGIONSHAPE rs, unsigned vattr,
 	/* Make sure the line attribute is long enough */
 	if (len < rp->r_end.o) {
 	    last = rp->r_end.o;
-	    safe_castrealloc(UCHAR, lp->l_attrs, (size_t) last + 1);
+	    lp->l_attrs = castrealloc(UCHAR, lp->l_attrs, last + 1);
 	    if (lp->l_attrs != NULL) {
 		for (i = len; i < rp->r_end.o; i++)
 		    lp->l_attrs[i] = 1;
@@ -2110,8 +2089,7 @@ add_line_attrib(BUFFER *bp, REGION * rp, REGIONSHAPE rs, unsigned vattr,
     } else {
 	/* Must allocate and initialize memory for the line attributes */
 	beginDisplay();
-	lp->l_attrs = castalloc(UCHAR, (size_t) llength(lp) + 1);
-	if (lp->l_attrs != NULL) {
+	if ((lp->l_attrs = castalloc(UCHAR, llength(lp) + 1)) != 0) {
 	    lp->l_attrs[llength(lp)] = 0;
 	    for (i = llength(lp) - 1; i >= 0; i--)
 		lp->l_attrs[i] = 1;
@@ -2127,7 +2105,10 @@ add_line_attrib(BUFFER *bp, REGION * rp, REGIONSHAPE rs, unsigned vattr,
 	    for (i = rp->r_orig.o; i < last; i++)
 		lp->l_attrs[i] = (UCHAR) vidx;
 
-	    mark_buffers_windows(bp);
+	    for_each_visible_window(wp) {
+		if (wp->w_bufp == bp)
+		    wp->w_flag |= WFHARD;
+	    }
 	    return TRUE;
 	}
     }
@@ -2148,7 +2129,7 @@ purge_line_attribs(BUFFER *bp, REGION * rp, REGIONSHAPE rs, int owner)
     int do_update = 0;
 
     for (lp = ls; lp != buf_head(curbp); lp = lforw(lp)) {
-	if (lp->l_attrs != NULL) {
+	if (lp->l_attrs != 0) {
 	    for (i = 0; i < llength(lp); i++) {
 		if (lp->l_attrs[i] == 0)
 		    break;	/* at end of attrs */
@@ -2172,7 +2153,11 @@ purge_line_attribs(BUFFER *bp, REGION * rp, REGIONSHAPE rs, int owner)
 	    break;
     }
     if (do_update) {
-	mark_buffers_windows(bp);
+	WINDOW *wp;
+	for_each_visible_window(wp) {
+	    if (wp->w_bufp == bp)
+		wp->w_flag |= WFHARD;
+	}
     }
 #endif /* OPT_LINE_ATTRS */
 }

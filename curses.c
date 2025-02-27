@@ -1,7 +1,7 @@
 /*
  * A terminal driver using the curses library
  *
- * $Id: curses.c,v 1.60 2024/01/21 17:53:39 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/curses.c,v 1.48 2010/02/24 23:51:30 tom Exp $
  */
 
 #include "estruct.h"
@@ -25,12 +25,6 @@
 
 #define is_default(color) (color < 0 || color == 255)
 
-#if defined(SIGWINCH) && defined(HAVE_RESIZETERM)
-#define USE_WINCH_CODE 1
-#else
-#define USE_WINCH_CODE 0
-#endif
-
 #if USE_TERMCAP
 #  define TCAPSLEN 1024
 static char tc_parsed[TCAPSLEN];
@@ -51,7 +45,7 @@ static const char ANSI_palette[] =
 #define DEFAULT_BG        COLOR_BLACK
 #endif
 
-#define	Num2Color(n,dft)  ((n >= 0) ? (short)ctrans[(n) & (ncolors-1)] : DefaultColor(dft))
+#define	Num2Color(n,dft)  ((n >= 0) ? ctrans[(n) & (ncolors-1)] : DefaultColor(dft))
 #define Num2Fore(n)       Num2Color(n, DEFAULT_FG)
 #define Num2Back(n)       Num2Color(n, DEFAULT_BG)
 #endif /* OPT_COLOR */
@@ -86,9 +80,9 @@ static int used_bcolor = -999;
 static int
 compute_pair(int fg, int bg, int updateit)
 {
-    short pair;
-    short map_fg = DEFAULT_FG;
-    short map_bg = DEFAULT_BG;
+    int pair;
+    int map_fg = DEFAULT_FG;
+    int map_bg = DEFAULT_BG;
 
     if (is_default(fg) && is_default(bg)) {
 	pair = 0;
@@ -104,7 +98,7 @@ compute_pair(int fg, int bg, int updateit)
 	else
 	    map_bg = Num2Back(bg);
 	map_fg = Num2Fore(fg);
-	pair = (short) (2 + fg);
+	pair = 2 + fg;
     }
 
     if (updateit) {
@@ -133,33 +127,6 @@ reinitialize_colors(void)
     returnVoid();
 }
 #endif /* OPT_COLOR */
-
-#if USE_WINCH_CODE
-static int catching_sigwinch;
-static SIG_ATOMIC_T caught_sigwinch;
-
-static SIGT
-begin_sigwinch(int ACTUAL_SIG_ARGS GCC_UNUSED)
-{
-    caught_sigwinch = 1;
-    SIGRET;
-}
-
-static void
-finish_sigwinch(void)
-{
-    if (caught_sigwinch) {
-	int w, h;
-	caught_sigwinch = 0;
-	getscreensize(&w, &h);
-	resizeterm(h, w);
-	newscreensize(h, w);
-    }
-}
-
-#else
-#define finish_sigwinch()	/* nothing */
-#endif /* USE_WINCH_CODE */
 
 static void
 curs_set_encoding(ENC_CHOICES code)
@@ -200,7 +167,7 @@ curs_initialize(void)
 #endif
     unsigned i;
 
-    TRACE((T_CALLED "curs_initialize()\n"));
+    TRACE((T_CALLED "curs_open()\n"));
 
     if (already_open) {
 	if (i_was_closed) {
@@ -219,7 +186,7 @@ curs_initialize(void)
 	returnVoid();
     }
 
-    TRACE((T_CALLED "curs_initialize - not opened\n"));
+    TRACE((T_CALLED "curs_initialize\n"));
 #if OPT_LOCALE
     if (okCTYPE2(vl_wide_enc)) {
 	TRACE(("setting locale to %s\n", vl_wide_enc.locale));
@@ -235,23 +202,6 @@ curs_initialize(void)
     nonl();
     nodelay(stdscr, TRUE);
     idlok(stdscr, TRUE);
-
-#if USE_WINCH_CODE
-    /*
-     * ncurses should set up a handler for SIGWINCH, but some developers chose
-     * to differ.  Check for that problem, and work around by starting out
-     */
-    {
-	SIGNAL_HANDLER old_handler = original_sighandler(SIGWINCH);
-
-	if (old_handler == SIG_ERR
-	    || old_handler == SIG_DFL
-	    || old_handler == SIG_IGN) {
-	    catching_sigwinch = TRUE;
-	    old_handler = setup_handler(SIGWINCH, begin_sigwinch);
-	}
-    }
-#endif /* USE_WINCH_CODE */
 
     /*
      * Note: we do not set the locale to vl_real_enc since that would confuse
@@ -372,54 +322,26 @@ curs_getc(void)
 	fflush(stdout);
 	result = getchar();
     } else if (result == -1) {
-      resized:
-	{
 #ifdef VAL_AUTOCOLOR
-	    int acmilli = global_b_val(VAL_AUTOCOLOR);
+	int acmilli = global_b_val(VAL_AUTOCOLOR);
 
-	    if (acmilli != 0) {
-		timeout(acmilli);
-		for_ever {
-		    result = getch();
-		    if (result < 0) {
-			finish_sigwinch();
-			autocolor();
-		    } else {
-			break;
-		    }
-		}
-	    } else
-#endif
-#if USE_WINCH_CODE
-	    if (catching_sigwinch) {
-		timeout(100);
-		for_ever {
-		    result = getch();
-		    if (result < 0) {
-			finish_sigwinch();
-		    } else {
-			break;
-		    }
-		}
-	    } else
-#endif /* USE_WINCH_CODE */
-	    {
-		nodelay(stdscr, FALSE);
+	if (acmilli != 0) {
+	    timeout(acmilli);
+	    for_ever {
 		result = getch();
+		if (result < 0) {
+		    autocolor();
+		} else {
+		    break;
+		}
 	    }
+	} else {
+	    nodelay(stdscr, FALSE);
+	    result = getch();
 	}
-#ifdef KEY_RESIZE
-	/*
-	 * If ncurses returns KEY_RESIZE, it has updated the LINES/COLS
-	 * values and we need only update our copy of those and repaint
-	 * the screen.
-	 */
-	if (result == KEY_RESIZE) {
-	    if ((LINES > 1 && LINES != term.rows)
-		|| (COLS > 1 && COLS != term.cols))
-		newscreensize(LINES, COLS);
-	    goto resized;
-	}
+#else
+	nodelay(stdscr, FALSE);
+	result = getch();
 #endif
     }
     last_key = -1;
@@ -546,15 +468,13 @@ curs_bcol(int color)
     set_bkgd_colors(fg, color);
 }
 
-static int
+static void
 curs_spal(const char *thePalette)
 {				/* reset the palette registers */
-    int rc;
-    if ((rc = set_ctrans(thePalette))) {
+    if (set_ctrans(thePalette)) {
 	TRACE(("palette changed\n"));
 	reinitialize_colors();
     }
-    return rc;
 }
 #endif /* OPT_COLOR */
 
@@ -570,10 +490,6 @@ curs_attr(UINT attr)
 	result |= A_UNDERLINE;
     if (attr & (VAREV | VASEL))
 	result |= A_REVERSE;
-#ifdef A_ITALIC
-    if (attr & VAITAL)
-	result |= A_ITALIC;
-#endif
 #if OPT_COLOR
     if (can_color) {
 	int fg;
@@ -584,7 +500,7 @@ curs_attr(UINT attr)
 	}
     }
 #endif
-    attrset((int) result);
+    attrset(result);
 }
 
 #else /* highlighting is a minimum attribute */
@@ -684,17 +600,5 @@ TERM term =
     nullterm_mclose,
     nullterm_mevent,
 };
-
-#if NO_LEAKS
-void
-curses_leaks(void)
-{
-#if defined(HAVE_EXIT_CURSES)
-    exit_curses(0);
-#elif defined(HAVE__NC_FREEALL)
-    _nc_freeall();
-#endif
-}
-#endif
 
 #endif /* DISP_CURSES */

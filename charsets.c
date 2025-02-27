@@ -1,5 +1,5 @@
 /*
- * $Id: charsets.c,v 1.82 2025/01/26 14:39:37 tom Exp $
+ * $Id: charsets.c,v 1.68 2010/04/30 23:51:24 tom Exp $
  *
  * see
  http://msdn.microsoft.com/library/default.asp?url=/library/en-us/intl/unicode_42jv.asp
@@ -29,7 +29,7 @@ static const UCHAR mark_UTF32BE[] = { 0x00, 0x00, 0xfe, 0xff };
 typedef struct {
     BOM_CODES code;
     const UCHAR *mark;
-    size_t size;
+    unsigned size;
 } BOM_TABLE;
 
 #define DATA(name) { bom_##name, mark_##name, sizeof(mark_##name) }
@@ -46,24 +46,26 @@ static const BOM_TABLE bom_table[] = {
 
 /******************************************************************************/
 
-static int
-allow_decoder(BUFFER *bp, size_t need)
+static void
+allow_decoder(BUFFER *bp, unsigned need)
 {
     if (need > bp->decode_utf_len) {
 	bp->decode_utf_len = (need + 1) * 2;
-	safe_typereallocn(UINT, bp->decode_utf_buf, bp->decode_utf_len);
+	bp->decode_utf_buf = typereallocn(UINT,
+					  bp->decode_utf_buf,
+					  bp->decode_utf_len);
     }
-    return (bp->decode_utf_buf != NULL);
 }
 
-static int
-allow_encoder(BUFFER *bp, size_t need)
+static void
+allow_encoder(BUFFER *bp, unsigned need)
 {
     if (need > bp->encode_utf_len) {
 	bp->encode_utf_len = (need + 1) * 2;
-	safe_typereallocn(char, bp->encode_utf_buf, bp->encode_utf_len);
+	bp->encode_utf_buf = typereallocn(char,
+					  bp->encode_utf_buf,
+					  bp->encode_utf_len);
     }
-    return (bp->encode_utf_buf != NULL);
 }
 
 int
@@ -91,7 +93,7 @@ vl_conv_to_utf8(UCHAR * target, UINT source, B_COUNT limit)
 	rc = 0;
     }
 
-    if (target != NULL) {
+    if (target != 0) {
 	switch (rc) {
 	case 1:
 	    target[0] = (UCHAR) CH(0);
@@ -145,90 +147,58 @@ vl_conv_to_utf8(UCHAR * target, UINT source, B_COUNT limit)
 }
 
 int
-vl_check_utf8(const char *source, B_COUNT limit)
+vl_conv_to_utf32(UINT * target, const char *source, B_COUNT limit)
 {
+#define CH(n) (UCHAR)((*target) >> ((n) * 8))
     int rc = 0;
     int j;
+    UINT mask = 0;
 
     /*
      * Find the number of bytes we will need from the source.
      */
     if ((*source & 0x80) == 0) {
 	rc = 1;
+	mask = (UINT) * source;
     } else if ((*source & 0xe0) == 0xc0) {
 	rc = 2;
+	mask = (UINT) (*source & 0x1f);
     } else if ((*source & 0xf0) == 0xe0) {
 	rc = 3;
+	mask = (UINT) (*source & 0x0f);
     } else if ((*source & 0xf8) == 0xf0) {
 	rc = 4;
+	mask = (UINT) (*source & 0x07);
     } else if ((*source & 0xfc) == 0xf8) {
 	rc = 5;
+	mask = (UINT) (*source & 0x03);
     } else if ((*source & 0xfe) == 0xfc) {
 	rc = 6;
+	mask = (UINT) (*source & 0x01);
     }
-
-    /*
-     * sanity-check.
-     */
-    if (rc > 1) {
-	int have = rc;
-
-	if ((int) limit < have)
-	    have = (int) limit;
-
-	for (j = 1; j < have; j++) {
-	    if ((source[j] & 0xc0) != 0x80)
-		break;
-	}
-	if (j != have) {
-	    TRACE2(("check failed %d/%d in vl_check_utf8\n", j, rc));
-	    rc = 0;
-	}
-    }
-    return rc;
-}
-
-int
-vl_conv_to_utf32(UINT * target, const char *source, B_COUNT limit)
-{
-#define CH(n) (UCHAR)((*target) >> ((n) * 8))
-    int rc = vl_check_utf8(source, limit);
 
     if ((B_COUNT) rc > limit) {	/* whatever it is, we cannot decode it */
 	TRACE2(("limit failed %d/%ld in vl_conv_to_utf32\n", rc, limit));
 	rc = 0;
     }
 
-    if (target != NULL) {
-	UINT mask = 0;
-	int j;
+    /*
+     * sanity-check.
+     */
+    if (rc > 1) {
+	for (j = 1; j < rc; j++) {
+	    if ((source[j] & 0xc0) != 0x80)
+		break;
+	}
+	if (j != rc) {
+	    TRACE2(("check failed %d/%d in vl_conv_to_utf32\n", j, rc));
+	    rc = 0;
+	}
+    }
+
+    if (target != 0) {
 	int shift = 0;
 	*target = 0;
-
-	switch (rc) {
-	case 1:
-	    mask = (UINT) * source;
-	    break;
-	case 2:
-	    mask = (UINT) (*source & 0x1f);
-	    break;
-	case 3:
-	    mask = (UINT) (*source & 0x0f);
-	    break;
-	case 4:
-	    mask = (UINT) (*source & 0x07);
-	    break;
-	case 5:
-	    mask = (UINT) (*source & 0x03);
-	    break;
-	case 6:
-	    mask = (UINT) (*source & 0x01);
-	    break;
-	default:
-	    mask = 0;
-	    break;
-	}
-
 	for (j = 1; j < rc; j++) {
 	    *target |= (UINT) (source[rc - j] & 0x3f) << shift;
 	    shift += 6;
@@ -245,14 +215,14 @@ vl_conv_to_utf32(UINT * target, const char *source, B_COUNT limit)
 }
 
 static const BOM_TABLE *
-find_mark_info(BOM_CODES code)
+find_mark_info(int code)
 {
-    const BOM_TABLE *result = NULL;
+    const BOM_TABLE *result = 0;
     unsigned n;
 
     for (n = 0; n < TABLESIZE(bom_table); ++n) {
 	const BOM_TABLE *mp = bom_table + n;
-	if (mp->code == code) {
+	if (mp->code == (BOM_CODES) code) {
 	    result = mp;
 	    break;
 	}
@@ -350,11 +320,11 @@ find_mark_info2(BUFFER *bp)
 {
     const BOM_TABLE *mp = find_mark_info(get_bom(bp));
 
-    if ((mp != NULL) &&
+    if ((mp != 0) &&
 	(mp->size == 0) &&
 	(b_val(bp, VAL_FILE_ENCODING) > enc_UTF8)) {
 	mp = find_mark_info(inferred_bom(bp, mp));
-    } else if (mp == NULL &&
+    } else if (mp == 0 &&
 	       (b_val(bp, VAL_FILE_ENCODING) > enc_UTF8)) {
 	mp = find_mark_info(inferred_bom2(bp, (BOM_CODES) b_val(bp, VAL_BYTEORDER_MARK)));
     }
@@ -381,21 +351,18 @@ dump_as_utfXX(BUFFER *bp, const char *buf, int nbuf, const char *ending)
     int rc = 0;
     const BOM_TABLE *mp = find_mark_info2(bp);
 
-    if (mp != NULL && mp->size > 1) {
-	size_t j = 0;
-	size_t k = 0;
-	size_t need = (size_t) nbuf + strlen(ending);
-	size_t lend = strlen(ending);
+    if (mp != 0 && mp->size > 1) {
+	unsigned j = 0;
+	unsigned k = 0;
+	unsigned need = (UINT) nbuf + strlen(ending);
+	unsigned lend = strlen(ending);
 
-	if (!allow_encoder(bp, need * mp->size))
-	    goto finish;
-	if (!allow_decoder(bp, need))
-	    goto finish;
-
+	allow_encoder(bp, need * mp->size);
+	allow_decoder(bp, need);
 	while (j < (unsigned) nbuf) {
 	    int skip = vl_conv_to_utf32(bp->decode_utf_buf + k++,
 					buf + j,
-					(B_COUNT) ((UINT) nbuf - j));
+					(UINT) nbuf - j);
 	    if (skip == 0)
 		goto finish;
 	    j += (UINT) skip;
@@ -403,7 +370,7 @@ dump_as_utfXX(BUFFER *bp, const char *buf, int nbuf, const char *ending)
 	while (*ending != 0) {
 	    int skip = vl_conv_to_utf32(bp->decode_utf_buf + k++,
 					ending++,
-					(B_COUNT) (lend--));
+					lend--);
 	    if (skip == 0)
 		goto finish;
 	}
@@ -454,7 +421,8 @@ set_byteorder_mark(BUFFER *bp, int value)
 {
     if (value != ENUM_UNKNOWN
 	&& value != global_b_val(VAL_BYTEORDER_MARK)) {
-	set_local_b_val(bp, VAL_BYTEORDER_MARK, value);
+	make_local_b_val(bp, VAL_BYTEORDER_MARK);
+	set_b_val(bp, VAL_BYTEORDER_MARK, value);
 
 	TRACE(("set_byteorder_mark for '%s' to %s\n",
 	       bp->b_bname,
@@ -467,7 +435,8 @@ set_encoding(BUFFER *bp, int value)
 {
     if (value != ENUM_UNKNOWN
 	&& value != global_b_val(VAL_FILE_ENCODING)) {
-	set_local_b_val(bp, VAL_FILE_ENCODING, value);
+	make_local_b_val(bp, VAL_FILE_ENCODING);
+	set_b_val(bp, VAL_FILE_ENCODING, value);
 
 	TRACE(("set_encoding for '%s' to %s\n",
 	       bp->b_bname,
@@ -482,14 +451,15 @@ load_as_utf8(BUFFER *bp, LINE *lp)
     int rc = FALSE;
     const BOM_TABLE *mp = find_mark_info2(bp);
 
-    if (mp != NULL && mp->size > 1) {
+    if (mp != 0 && mp->size > 1) {
 	int pass;
-	size_t j, k;
-	size_t need = (size_t) llength(lp);
-	size_t used;
+	unsigned j, k;
+	unsigned need = (UINT) llength(lp);
+	unsigned used;
 
-	TRACE2(("load_as_utf8:%lu:%s\n", (unsigned long) need, lp_visible(lp)));
-	if (allow_decoder(bp, need)) {
+	TRACE2(("load_as_utf8:%d:%s\n", need, lp_visible(lp)));
+	allow_decoder(bp, need);
+	if (bp->decode_utf_buf != 0) {
 	    rc = TRUE;
 	    if (need) {
 		for (j = k = 0; j < need; ++k) {
@@ -530,24 +500,22 @@ load_as_utf8(BUFFER *bp, LINE *lp)
 						 + (UINT) (CH(j + 0) << 24));
 			break;
 		    }
-		    j += (UINT) mp->size;
+		    j += mp->size;
 		}
 		used = k;
 
 		for (pass = 1; pass <= 2; ++pass) {
-		    UCHAR *buffer = (pass == 1) ? NULL : (UCHAR *) lvalue(lp);
+		    UCHAR *buffer = (pass == 1) ? 0 : (UCHAR *) lvalue(lp);
 		    for (j = k = 0; j < used; ++j) {
 			int nn = vl_conv_to_utf8(buffer,
 						 bp->decode_utf_buf[j],
-						 (B_COUNT) (used + 1 - j));
-			if (buffer != NULL)
+						 used + 1 - j);
+			if (buffer != 0)
 			    buffer += nn;
 			k += (UINT) nn;
 		    }
 		    if (pass == 1) {
-			TRACE2(("need %lu, have %lu\n",
-				(unsigned long) k,
-				(unsigned long) lp->l_size));
+			TRACE2(("need %d, have %d\n", k, lp->l_size));
 			if ((int) k > llength(lp)) {
 			    char *ntext;
 
@@ -556,7 +524,7 @@ load_as_utf8(BUFFER *bp, LINE *lp)
 			     * of the buffer, do not want to allow undo.  Just
 			     * go ahead and reallocate the line's text buffer.
 			     */
-			    if ((ntext = castalloc(char, (k + 1))) == NULL) {
+			    if ((ntext = castalloc(char, k)) == NULL) {
 				rc = FALSE;
 				break;
 			    }
@@ -589,9 +557,9 @@ remove_crlf_nulls(BUFFER *bp, UCHAR * buffer, B_COUNT * length)
     const BOM_TABLE *mp = find_mark_info2(bp);
     UCHAR mark_cr[4];
     UCHAR mark_lf[4];
-    size_t marklen = 0;
+    unsigned marklen = 0;
 
-    if (mp != NULL) {
+    if (mp != 0) {
 	memset(mark_cr, 0, sizeof(mark_cr));
 	memset(mark_lf, 0, sizeof(mark_lf));
 
@@ -640,9 +608,9 @@ remove_crlf_nulls(BUFFER *bp, UCHAR * buffer, B_COUNT * length)
 		    skip = 0;
 		} else {
 		    memcpy(buffer + dst, buffer + src, marklen);
-		    dst += (B_COUNT) marklen;
+		    dst += marklen;
 		}
-		src += (B_COUNT) marklen;
+		src += marklen;
 	    }
 	    *length = dst;
 	}
@@ -660,21 +628,19 @@ riddled_buffer(const BOM_TABLE * mp, UCHAR * buffer, B_COUNT length)
 {
     int result = 0;
     B_COUNT total = 0;
-    size_t offset = 0;
-    size_t j, k;
+    unsigned offset = 0;
+    unsigned j, k;
 
     if (mp->size && !(mp->size % 2)) {
-	TRACE(("checking if %s / %u-byte\n",
+	TRACE(("checking if %s / %d-byte\n",
 	       byteorder2s(mp->code),
-	       (UINT) mp->size));
+	       mp->size));
 
 	/* Check the line-length.  If it is not a multiple of the pattern
 	 * size, just give up.
 	 */
 	if ((length + offset) % mp->size) {
-	    TRACE(("length %ld vs pattern %u - give up\n",
-		   length,
-		   (UINT) mp->size));
+	    TRACE(("length %ld vs pattern %d - give up\n", length, mp->size));
 	} else {
 	    /*
 	     * Now walk through the line and measure the pattern against it.
@@ -690,13 +656,11 @@ riddled_buffer(const BOM_TABLE * mp, UCHAR * buffer, B_COUNT length)
 		    }
 		}
 		if (found) {
-		    total += (B_COUNT) mp->size;
+		    total += mp->size;
 		}
 	    }
 	}
-	result = (int) (length
-			? (((100.0 * (double) total) / (double) length))
-			: 0);
+	result = (int) (length ? (((100.0 * total) / length)) : 0);
 
 	TRACE(("...%ld/%ld ->%d%%\n", total, length, result));
     }
@@ -704,13 +668,13 @@ riddled_buffer(const BOM_TABLE * mp, UCHAR * buffer, B_COUNT length)
 }
 
 static void
-set_encoding_from_bom(BUFFER *bp, BOM_CODES bom_value)
+set_encoding_from_bom(BUFFER *bp, int bom_value)
 {
     const BOM_TABLE *mp;
     int result;
 
     if (bom_value > bom_NONE
-	&& (mp = find_mark_info(bom_value)) != NULL) {
+	&& (mp = find_mark_info(bom_value)) != 0) {
 
 	switch (mp->code) {
 	case bom_UTF8:
@@ -749,7 +713,8 @@ set_bom_from_encoding(BUFFER *bp, int enc_value)
 	default:
 	    if (result != ENUM_UNKNOWN
 		&& result != global_b_val(VAL_BYTEORDER_MARK)) {
-		set_local_b_val(bp, VAL_BYTEORDER_MARK, bom_NONE);
+		make_local_b_val(bp, VAL_BYTEORDER_MARK);
+		set_b_val(bp, VAL_BYTEORDER_MARK, bom_NONE);
 	    }
 	    break;
 	}
@@ -765,7 +730,7 @@ aligned_charset(BUFFER *bp, UCHAR * buffer, B_COUNT * length)
     const BOM_TABLE *mp = find_mark_info(get_bom(bp));
 
     (void) buffer;
-    if (mp != NULL && mp->size > 1) {
+    if (mp != 0 && mp->size > 1) {
 	rc = !(*length % mp->size);
     }
     return rc;
@@ -813,8 +778,7 @@ decode_bom(BUFFER *bp, UCHAR * buffer, B_COUNT * length)
     }
 
     if (b_val(bp, VAL_BYTEORDER_MARK) > bom_NONE
-	&& (mp = find_mark_info((BOM_CODES) b_val(bp,
-						  VAL_BYTEORDER_MARK))) != NULL
+	&& (mp = find_mark_info(b_val(bp, VAL_BYTEORDER_MARK))) != 0
 	&& line_has_mark(mp, buffer, *length)) {
 	for (n = 0; n < *length - mp->size; ++n) {
 	    buffer[n] = buffer[n + mp->size];
@@ -822,9 +786,9 @@ decode_bom(BUFFER *bp, UCHAR * buffer, B_COUNT * length)
 	while (n < *length) {
 	    buffer[n++] = 0;
 	}
-	*length -= (B_COUNT) mp->size;
+	*length -= mp->size;
 
-	set_encoding_from_bom(bp, (BOM_CODES) b_val(bp, VAL_BYTEORDER_MARK));
+	set_encoding_from_bom(bp, b_val(bp, VAL_BYTEORDER_MARK));
 	code = TRUE;
     }
     returnCode(code);
@@ -965,7 +929,7 @@ write_bom(BUFFER *bp)
     const BOM_TABLE *mp;
     int status = FIOSUC;
 
-    if ((mp = find_mark_info((BOM_CODES) b_val(bp, VAL_BYTEORDER_MARK))) != NULL) {
+    if ((mp = find_mark_info(b_val(bp, VAL_BYTEORDER_MARK))) != 0) {
 	status = ffputline((const char *) mp->mark, (int) mp->size, NULL);
     }
     return status;
@@ -997,7 +961,7 @@ chgd_byteorder(BUFFER *bp,
 	       int testing)
 {
     if (!testing && !glob_vals) {
-	set_encoding_from_bom(bp, (BOM_CODES) args->local->vp->i);
+	set_encoding_from_bom(bp, args->local->vp->i);
     }
     return TRUE;
 }

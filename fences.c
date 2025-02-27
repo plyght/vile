@@ -9,7 +9,8 @@
  * Extensions for vile by Paul Fox
  * Rewrote to use regular expressions - T.Dickey
  *
- * $Id: fences.c,v 1.99 2025/01/26 11:43:27 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/fences.c,v 1.90 2010/02/06 00:14:36 tom Exp $
+ *
  */
 
 #include	"estruct.h"
@@ -105,12 +106,10 @@ static long iterations;
 static int
 next_line(int sdir)
 {
-    DOT.o = b_left_margin(curbp);
-    if (sdir == REVERSE) {
+    if (sdir == REVERSE)
 	DOT.l = lback(DOT.l);
-    } else {
+    else
 	DOT.l = lforw(DOT.l);
-    }
 
     if (is_header_line(DOT, curbp)) {
 	return FALSE;
@@ -149,7 +148,7 @@ typeof_complex(int code)
 
 static int
 match_complex(TRACEARG(int group)
-	      LINE *lp, struct VAL *vals, int ic)
+	      LINE *lp, struct VAL *vals)
 {
     static int modes[] =
     {CPP_IF, CPP_ELIF, CPP_ELSE, CPP_ENDIF};
@@ -176,7 +175,7 @@ match_complex(TRACEARG(int group)
 	default:
 	    continue;
 	}
-	if (lregexec(any_rexp(vals, k)->reg, lp, 0, llength(lp), ic)) {
+	if (lregexec(any_rexp(vals, k)->reg, lp, 0, llength(lp))) {
 	    code = modes[j];
 	    TRACE(("match_complex(%d) %s\n", group, typeof_complex(code)));
 	    break;
@@ -198,7 +197,7 @@ match_simple(void)
 
     TRACE(("match_simple %d:%s\n", line_no(curbp, DOT.l), lp_visible(DOT.l)));
     for (first = 0; first < last; first = S_COL(BlkBegin) + 1) {
-	if (!lregexec(BlkBegin, DOT.l, first, last, FALSE))
+	if (!lregexec(BlkBegin, DOT.l, first, last))
 	    break;
 	if ((S_COL(BlkBegin) <= DOT.o)
 	    && (E_COL(BlkBegin) > DOT.o)) {
@@ -208,7 +207,7 @@ match_simple(void)
     }
 
     for (first = 0; first < last && DOT.o <= last; last = E_COL(BlkEnd) - 1) {
-	if (!lregexec(BlkEnd, DOT.l, first, last, FALSE))
+	if (!lregexec(BlkEnd, DOT.l, first, last))
 	    break;
 	if ((S_COL(BlkEnd) <= DOT.o)
 	    && (E_COL(BlkEnd) > DOT.o)) {
@@ -232,10 +231,6 @@ complex_fence(int sdir, int key, int group, int level, int *newkey)
     int that = CPP_UNKNOWN;
     int result = -1;
     struct VAL *vals;
-
-    (void) group;
-    (void) level;
-    (void) newkey;
 
     TRACE(("ComplexFence(%d:%d) %d: %s %s\n",
 	   level,
@@ -276,8 +271,7 @@ complex_fence(int sdir, int key, int group, int level, int *newkey)
 	for_each_modegroup(curbp, result, group, vals) {
 	    DOT = savedot;
 	    count = savecount;
-	    if (((that = match_complex(TRACEARG(result) DOT.l, vals, FALSE))
-		 != CPP_UNKNOWN)) {
+	    if (((that = match_complex(TRACEARG(result) DOT.l, vals)) != CPP_UNKNOWN)) {
 		int done = FALSE;
 
 		TRACE(("for_each_modegroup:%d:%d (line %d, count %d)\n",
@@ -337,8 +331,6 @@ complex_fence(int sdir, int key, int group, int level, int *newkey)
 		    continue;
 		}
 		*newkey = that;
-#else
-		(void) result;
 #endif
 		TRACE(("...before %s, count=%d, done=%d\n",
 		       typeof_complex(that),
@@ -403,6 +395,7 @@ find_complex(int sdir, int *newkey)
     int rc = FALSE;
     int key;
     int group = -1;
+    int save_ic = ignorecase;
     MARK oldpos, oldpre;
     struct VAL *vals;
 
@@ -412,8 +405,8 @@ find_complex(int sdir, int *newkey)
     TRACE(("find_complex %4d:%s\n", line_no(curbp, DOT.l), lp_visible(DOT.l)));
     limit_iterations();
     for_each_modegroup(curbp, group, 0, vals) {
-	int ic = any_mode(vals, MDIGNCASE);
-	if ((key = match_complex(TRACEARG(group) DOT.l, vals, ic)) != CPP_UNKNOWN) {
+	ignorecase = any_mode(vals, MDIGNCASE);
+	if ((key = match_complex(TRACEARG(group) DOT.l, vals)) != CPP_UNKNOWN) {
 	    start_fence_op2(sdir, oldpos, oldpre);
 	    sdir = ((key == CPP_ENDIF)
 		    ? REVERSE
@@ -429,6 +422,7 @@ find_complex(int sdir, int *newkey)
 #endif
 	}
     }
+    ignorecase = save_ic;
 #if OPT_MAJORMODE
     TRACE(("...find_complex %d (iterations %ld)\n", rc, iterations));
 #endif
@@ -452,7 +446,7 @@ find_one_complex(int sdir, int level, int group, int *newkey)
      * Iterate over the complex fence groups
      */
     TRACE(("find_one_complex %4d:%s\n", line_no(curbp, DOT.l), lp_visible(DOT.l)));
-    if ((key = match_complex(TRACEARG(group) DOT.l, vals, FALSE)) != CPP_UNKNOWN) {
+    if ((key = match_complex(TRACEARG(group) DOT.l, vals)) != CPP_UNKNOWN) {
 	start_fence_op2(sdir, oldpos, oldpre);
 	if (level == 0)
 	    sdir = ((key == CPP_ENDIF)
@@ -486,7 +480,7 @@ is_user_fence(int ch, int *sdirp)
     char *chp, och;
     if (!ch)
 	return 0;
-    chp = vl_index(fences, ch);
+    chp = strchr(fences, ch);
     if (!chp)
 	return 0;
     if ((chp - fences) & 1) {
@@ -537,14 +531,14 @@ comment_fence(int sdir)
 {
     /* avoid overlapping match between begin/end patterns */
     if (sdir == FORWARD) {
-	size_t off = (size_t) DOT.o - (size_t) S_COL(BlkBegin);
+	size_t off = (size_t) (DOT.o - S_COL(BlkBegin));
 	if (BlkEnd->mlen > off)
 	    forwchar(TRUE, (int) (BlkEnd->mlen - off));
     }
 
     scanboundry(FALSE, DOT, sdir);
     if (scanner((sdir == FORWARD) ? BlkEnd : BlkBegin,
-		sdir, (DOT.o == 0), FALSE, FALSE, (int *) 0)) {
+		sdir, FALSE, (int *) 0)) {
 	if (!doingopcmd || doingsweep) {
 	    sweephack = TRUE;
 	    if (sdir == FORWARD && (BlkEnd->mlen > 1))
@@ -735,7 +729,7 @@ fmatch(int rch)
 	     */
 	    (void) winvile_cursor_state(TRUE, FALSE);
 #endif
-	    /*
+	    /* 
 	     * The idea is to leave the cursor there for about a
 	     * quarter of a second.
 	     */

@@ -1,28 +1,20 @@
 /*
- * $Id: rubyfilt.c,v 1.87 2025/01/26 10:56:05 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/rubyfilt.c,v 1.51 2010/07/13 13:37:15 tom Exp $
  *
- * Filter to add vile "attribution" sequences to ruby scripts.  This began as a
+ * Filter to add vile "attribution" sequences to ruby scripts.  This is a
  * translation into C of an earlier version written for LEX/FLEX.
  *
  * Although the documentation says it has simpler syntax, Ruby borrows from
  * Perl the worst of its syntax, i.e., regular expressions which can be split
  * across lines, have embedded comments.
- *
- * TODO: %x is equivalent of back-quoted string
- * TODO: %r is equivalent of regular expression
- * TODO: %-quoting may accept a space as delimiter
- * TODO: embed quotes using backslashes
- * TODO: embed quotes by using double-quotes inside single
- * TODO: embed quotes by using single-quotes inside double
- * TODO: make var_embedded() display nested expressions
  */
 
 #include <filters.h>
 
 #ifdef DEBUG
-DefineOptFilter(ruby, "de");
+DefineOptFilter("ruby", "d");
 #else
-DefineOptFilter(ruby, "e");
+DefineFilter("ruby");
 #endif
 
 #define isIdent(c)   (isalnum(CharOf(c)) || c == '_')
@@ -47,7 +39,6 @@ typedef enum {
     ,eDEF
     ,eHERE
     ,ePOD
-    ,eEND
 } States;
 
 typedef enum {
@@ -55,7 +46,6 @@ typedef enum {
     ,tBLANK
     ,tCHAR
     ,tCOMMENT
-    ,tERB
     ,tHERE
     ,tKEYWORD
     ,tNUMBER
@@ -65,7 +55,6 @@ typedef enum {
     ,tVARIABLE
 } TType;
 
-static char *Action_attr;
 static char *Comment_attr;
 static char *Error_attr;
 static char *Ident_attr;
@@ -75,7 +64,6 @@ static char *String_attr;
 static char *Number_attr;
 static char *Type_attr;
 
-static int line_size(char *);
 static int var_embedded(char *);
 
 /*
@@ -123,9 +111,6 @@ stateName(States state)
     case ePOD:
 	result = "POD";
 	break;
-    case eEND:
-	result = "END";
-	break;
     }
     return result;
 }
@@ -147,9 +132,6 @@ tokenType(TType type)
 	break;
     case tCOMMENT:
 	result = "COMMENT";
-	break;
-    case tERB:
-	result = "ERB";
 	break;
     case tHERE:
 	result = "HERE";
@@ -260,7 +242,6 @@ is_QIDENT(char *s)
 {
     char *base = s;
     int ch;
-    int delim = 0;
     int leading = 1;
 
     while (MORE(s)) {
@@ -274,16 +255,8 @@ is_QIDENT(char *s)
 		   || ch == SQUOTE
 		   || ch == DQUOTE) {
 	    s++;
-	    if (delim) {
-		if (delim == ch)
-		    break;
-	    } else {
-		delim = ch;
-	    }
-	} else if (!delim) {
-	    break;
 	} else {
-	    ++s;
+	    break;
 	}
     }
     return (int) (s - base);
@@ -390,7 +363,7 @@ is_VARIABLE(char *s)
 }
 
 /*
- * pattern: \?(\\M-a)?(\\C-a)?
+ * pattern: \?(\\M-)?(\\C-)?.
  */
 static int
 is_CHAR(char *s, int *err)
@@ -398,34 +371,16 @@ is_CHAR(char *s, int *err)
     int found = 0;
 
     if (*s == '?' && ATLEAST(s, 5)) {
-	if (*++s == BACKSLASH) {
-	    ++s;
-	    if (((*s == 'M') || (*s == 'C'))
-		&& (s[1] == '-')) {
-		*err = 0;
-		found = 5;
-		if (*s == 'M' && ATLEAST(s, 5)
-		    && s[2] == BACKSLASH
-		    && s[3] == 'C'
-		    && s[4] == '-'
-		    && isgraph(CharOf(s[5]))) {
-		    s += 5;
-		    found += 3;
-		} else if (*s == 'C') {
-		    s += 2;
-		}
-	    } else {
-		found = 3;
-	    }
-	} else {
-	    found = 2;
-	}
-	if (found) {
-	    /* s now points to the character, but it may be escaped */
-	    if (!isgraph(CharOf(*s))) {
-		found = 0;
-	    } else if (*s == BACKSLASH) {
-		++found;
+	if ((*++s == BACKSLASH)
+	    && ((*++s == 'M') || (*s == 'C'))
+	    && (s[1] == '-')) {
+	    *err = 0;
+	    found = 5;
+	    if (*s == 'M' && ATLEAST(s, 5)
+		&& s[2] == BACKSLASH
+		&& s[3] == 'C'
+		&& s[4] == '-') {
+		found += 3;
 	    }
 	}
     }
@@ -505,16 +460,14 @@ is_NUMBER(char *s, int *err)
 	    } else {
 		break;
 	    }
-	} else if (ch == 'e' || ch == 'E') {
-	    if ((state > 1 && radix < 16) || !value) {
+	} else if (dot && (ch == 'e' || ch == 'E')) {
+	    if (state != 1 || !value)
 		*err = 1;
-	    }
 	    state = 2;
 	} else {
 	    if (((state || (radix == 10)) && isdigit(ch))
 		|| ((radix == 16) && isxdigit(ch))
-		|| ((radix == 8) && (ch >= '0' && ch < '8'))
-		|| ((radix == 2) && (ch >= '0' && ch < '2'))) {
+		|| ((radix == 8) && (ch >= '0' && ch < '8'))) {
 		value = 1;
 	    } else {
 		if (value) {
@@ -577,7 +530,7 @@ end_marker(char *s, const char *marker, int only)
     return (ATLEAST(s, len)
 	    && !strncmp(s, marker, (size_t) len)
 	    && isspace(CharOf(s[len]))
-	    && (!only || isreturn(s[len])));
+	    && (!only || (s[len] == '\n')));
 }
 
 /*
@@ -606,17 +559,17 @@ static void
 make_here_tag(char *value, int quote, int strip)
 {
     size_t size = 0;
-    HERE_TAGS *data = type_alloc(HERE_TAGS, (char *) 0, (size_t) 1, &size);
+    HERE_TAGS *data = type_alloc(HERE_TAGS, (char *) 0, 1, &size);
 
-    if (data != NULL) {
+    if (data != 0) {
 	HERE_TAGS *p = here_tags;
-	HERE_TAGS *q = NULL;
+	HERE_TAGS *q = 0;
 
-	while (p != NULL) {
+	while (p != 0) {
 	    q = p;
 	    p = p->next;
 	}
-	if (q != NULL)
+	if (q != 0)
 	    q->next = data;
 	else
 	    here_tags = data;
@@ -624,9 +577,6 @@ make_here_tag(char *value, int quote, int strip)
 	data->value = value;
 	data->quote = quote;
 	data->strip = strip;
-	DPRINTF(("make_here_tag(%s) %squoted %sstripped\n", value,
-		 quote ? "" : "un",
-		 strip ? "" : "un"));
     }
 }
 
@@ -634,7 +584,7 @@ static char *
 free_here_tag(void)
 {
     HERE_TAGS *next = here_tags->next;
-    char *result = next ? next->value : NULL;
+    char *result = next ? next->value : 0;
 
     free(here_tags->value);
     free(here_tags);
@@ -644,53 +594,16 @@ free_here_tag(void)
 }
 
 /*
- * Workaround for ruby bug: ignoring their documentation, which notes that you
- * must separate a string from the "<<" operator to distinguish it from a here
- * document tag, some of the source code happens to use " " or "\n" without an
- * intervening space.
- */
-static int
-valid_HERE(char *s)
-{
-    int ok = is_QIDENT(s);
-    int delim;
-    if (ok) {
-	switch (*s) {
-	default:
-	    delim = 0;
-	    break;
-	case DQUOTE:
-	    /* FALLTHRU */
-	case SQUOTE:
-	    delim = *s;
-	    break;
-	}
-	if (delim) {
-	    switch (ok) {
-	    case 3:
-		if (s[0] == s[2] && s[1] == ' ')
-		    ok = 0;
-		break;
-	    case 4:
-		if (s[0] == s[3] && s[1] == '\\' && s[2] == 'n')
-		    ok = 0;
-		break;
-	    }
-	}
-    }
-    return ok;
-}
-
-/*
- * Mark the beginning of a here-document.
+ * FIXME: we don't check for unbalanced quotes.
  */
 static int
 begin_HERE(char *s)
 {
     char *base = s;
     char *first;
-    char *marker = NULL;
+    char *marker = 0;
     int ok;
+    int quote = 1;
     int strip = 0;
 
     if (ATLEAST(s, 3)
@@ -698,32 +611,24 @@ begin_HERE(char *s)
 	&& s[1] == '<'
 	&& !isBlank(s[2])) {
 	s += 2;
+	first = s;
 	if (*s == '-') {
 	    strip = 1;
 	    ++s;
 	}
-	first = s;
-	if ((ok = valid_HERE(s)) != 0) {
+	if ((ok = is_QIDENT(s)) != 0) {
 	    size_t temp = 0;
-	    int delim = (*s == SQUOTE || *s == DQUOTE) ? *s : 0;
-	    int quote = (*s == SQUOTE);
 
 	    s += ok;
+	    quote = 0;
 
-	    if ((marker = do_alloc((char *) 0, (size_t) (ok + 1), &temp)) != NULL) {
+	    if ((marker = do_alloc((char *) 0, (size_t) (ok + 1), &temp)) != 0) {
 		char *d = marker;
-		if (delim) {
-		    ++first;
-		}
 		while (first != s) {
-		    if (delim) {
-			if (*first == delim)
-			    break;
+		    if (isIdent(*first))
 			*d++ = *first;
-		    } else {
-			if (isIdent(*first))
-			    *d++ = *first;
-		    }
+		    else
+			quote = (*first != DQUOTE);
 		    first++;
 		}
 		*d = 0;
@@ -749,55 +654,6 @@ skip_BLANKS(char *s)
 	flt_puts(base, (int) (s - base), "");
     }
     return s;
-}
-
-/*
- * Check for ERB (embedded ruby).  Ruby on Rails uses templates which fit into
- * the special case of ruby embedded in ruby.
- */
-static int
-is_ERB(char *s)
-{
-    int found = 0;
-#define OPS(s) { s, sizeof(s) - 1 }
-    static const struct {
-	const char *ops;
-	int len;
-    } table[] = {
-	/* 3 */
-	OPS("<%="),
-	    OPS("<%#"),
-	    OPS("<%-"),
-	    OPS("-%>"),
-	/* 2 */
-	    OPS("<%"),
-	    OPS("%>"),
-    };
-
-    if (FltOptions('e') && ispunct(CharOf(*s))) {
-	unsigned n;
-	for (n = 0; n < TABLESIZE(table); ++n) {
-	    if (ATLEAST(s, table[n].len)
-		&& table[n].ops[0] == *s
-		&& !memcmp(s, table[n].ops, (size_t) table[n].len)) {
-		found = table[n].len;
-		break;
-	    }
-	}
-	/* special-case comments */
-	if (found == 3 && s[2] == '#') {
-	    s += found;
-	    while (ATLEAST(s, 2)) {
-		if (!memcmp(s, "%>", 2)) {
-		    found += 2;
-		    break;
-		}
-		s++;
-		found++;
-	    }
-	}
-    }
-    return found;
 }
 
 /*
@@ -892,7 +748,6 @@ is_REGEXP(char *s, int left_delim, int right_delim)
     int len;
     int level = 0;
     int range = 0;
-    int block = (left_delim != L_BLOCK);
 
     while (MORE(s)) {
 	if (left_delim != right_delim) {
@@ -908,10 +763,10 @@ is_REGEXP(char *s, int left_delim, int right_delim)
 	}
 	if ((len = is_ESCAPED(s)) != 0) {
 	    s += len;
-	} else if (block && (*s == R_BLOCK) && range) {
+	} else if (*s == R_BLOCK && range) {
 	    range = 0;
 	    ++s;
-	} else if (block && (*s == L_BLOCK) && !range) {
+	} else if (*s == L_BLOCK && !range) {
 	    range = 1;
 	    ++s;
 	} else if ((len = var_embedded(s)) != 0) {
@@ -932,8 +787,6 @@ is_REGEXP(char *s, int left_delim, int right_delim)
     return found;
 }
 
-#define valid_delimiter(c) (isgraph(CharOf(c)) && !isalnum(CharOf(c)))
-
 static int
 balanced_delimiter(char *s)
 {
@@ -953,43 +806,10 @@ balanced_delimiter(char *s)
 	result = R_ANGLE;
 	break;
     default:
-	if (valid_delimiter(*s))
-	    result = *s;
-	else
-	    result = 0;
+	result = *s;
 	break;
     }
     return result;
-}
-
-static int
-is_Balanced(char *s, int length, int *left, int *right)
-{
-    int delim;
-    int n;
-
-    *left = 0;
-    *right = 0;
-    if (*s == '%') {
-	for (n = 1; n < length; ++n) {
-	    if (isalnum(CharOf(s[n])))
-		continue;
-	    delim = balanced_delimiter(s + n);
-	    if (delim == 0) {
-		*left = n;
-		break;
-	    } else if (delim == s[n]) {
-		*left = n + 1;
-		*right = 1;
-		break;
-	    } else {
-		*left = n + 1;
-		*right = 1;
-		break;
-	    }
-	}
-    }
-    return *left;
 }
 
 /*
@@ -1006,7 +826,7 @@ is_Regexp(char *s, int *delim)
     } else if (ATLEAST(s, 4)
 	       && s[0] == '%'
 	       && s[1] == 'r'
-	       && valid_delimiter(s[2])) {
+	       && !isalnum(CharOf(s[2]))) {
 
 	*delim = balanced_delimiter(s + 2);
 	found = 2 + is_REGEXP(s + 2, s[2], *delim);
@@ -1034,12 +854,8 @@ is_Symbol(char *s, int *delim, int *err)
 	    if ((found = is_STRINGS(s, err, *s, *s, 0)) != 0)
 		*delim = DQUOTE;
 	    break;
-	case BQUOTE:
-	    found = 1;
-	    break;
 	default:
 	    found = is_MKEYWORD(s, 0);
-	    break;
 	}
     }
 
@@ -1062,39 +878,31 @@ is_String(char *s, int *delim, int *err)
 	switch (*s) {
 	case '%':
 	    if (ATLEAST(s, 4)) {
-		int modifier = 0;
-		int single = 0;
-		char *base = s;
-
-		++s;
-		if (isalpha(CharOf(*s))) {
-		    modifier = *s++;
-		    switch (modifier) {
-		    case 'q':
-		    case 'w':	/* FIXME - sword */
-			single = 1;
-			break;
-		    case 'x':
-		    case 'Q':
-		    case 'W':	/* FIXME - dword */
-			break;
-		    case 'I':	/* FIXME - dword */
-		    case 'i':	/* FIXME - sword */
-		    case 'r':	/* FIXME - regexp */
-		    case 's':	/* FIXME - symbol */
-			break;
-		    }
-		}
-		if (valid_delimiter(*s)) {
-		    found = is_STRINGS(s,
+		switch (s[1]) {
+		case 'q':
+		case 'w':
+		    found = is_STRINGS(s + 2,
 				       err,
-				       *s,
-				       balanced_delimiter(s),
+				       s[2],
+				       balanced_delimiter(s + 2),
 				       1);
-		}
-		if (found != 0) {
-		    found += (int) (s - 1 - base);
-		    *delim = single ? SQUOTE : DQUOTE;
+		    if (found != 0) {
+			found += 2;
+			*delim = SQUOTE;
+		    }
+		    break;
+		case 'x':
+		case 'Q':
+		    found = is_STRINGS(s + 2,
+				       err,
+				       s[2],
+				       balanced_delimiter(s + 2),
+				       0);
+		    if (found != 0) {
+			found += 2;
+			*delim = DQUOTE;
+		    }
+		    break;
 		}
 	    }
 	    break;
@@ -1138,68 +946,32 @@ put_newline(char *s)
 }
 
 /*
- * pattern: #\{{EXPR}*\}
+ * pattern: #(\{[^}]*\}|{IDENT})
  * returns: length of the token
  */
 static int
 var_embedded(char *s)
 {
-    char *base = s;
+    int found = 0;
     int delim;
-    int level = 0;
-    int had_op = 1;
-    int ignore;
-    int ok;
 
     if (*s == '#' && MORE(++s)) {
 	if (*s == L_CURLY) {
-	    ++level;
-	    ++s;
-	    while (MORE(s)) {
-		if ((*s == '%' || had_op)
-		    && (ok = is_Regexp(s, &delim)) != 0) {
-		    had_op = 0;
-		    s += ok;
-		} else if ((ok = is_String(s, &delim, &ignore)) != 0) {
-		    had_op = 0;
-		    s += ok;
-		} else if ((ok = is_CHAR(s, &ignore)) != 0
-			   && (ok != 2 || (s[1] != L_CURLY && s[1] != R_CURLY))) {
-		    had_op = 0;
-		    s += ok;
-		} else if ((ok = is_NUMBER(s, &ignore)) != 0) {
-		    had_op = 0;
-		    s += ok;
-		} else if ((ok = is_KEYWORD(s)) != 0) {
-		    had_op = 0;
-		    s += ok;
-		} else if ((ok = is_VARIABLE(s)) != 0) {
-		    had_op = 0;
-		    s += ok;
-		} else if ((ok = is_OPERATOR(s)) != 0) {
-		    had_op = 1;
-		    if (*s == L_CURLY) {
-			++level;
-		    } else if (*s == R_CURLY) {
-			if (--level <= 0) {
-			    ++s;
-			    break;
-			}
-		    }
-		    s += ok;
-		} else {
-		    ++s;
+	    for (found = 1; ATLEAST(s, found); ++found) {
+		/* FIXME: this check for %q{xxx} is too naive... */
+		if (s[found] == '%' && (strchr("wqQ", s[found + 1]) != 0)) {
+		    int ignore;
+		    found += is_String(s + found, &delim, &ignore);
+		} else if (s[found] == R_CURLY) {
+		    ++found;
+		    break;
 		}
 	    }
 	} else {
-	    if ((ok = is_VARIABLE(s)) != 0) {
-		++ok;
-	    } else {
-		s = base;
-	    }
+	    found = is_VARIABLE(s);
 	}
     }
-    return (int) (s - base);
+    return found ? found + 1 : 0;
 }
 
 /*
@@ -1258,25 +1030,13 @@ put_COMMENT(char *s, int ok)
 }
 
 static char *
-put_ERB(char *s, int ok, int *had_op)
-{
-    if (ok > 3) {
-	flt_puts(s, ok, Comment_attr);
-    } else {
-	flt_puts(s, ok, Action_attr);
-    }
-    *had_op = 1;
-    return s + ok;
-}
-
-static char *
 put_KEYWORD(char *s, int ok, int *had_op)
 {
-    const char *attr = NULL;
+    const char *attr = 0;
     char save = s[ok];
 
     s[ok] = '\0';
-    attr = get_keyword_attr(s);
+    attr = keyword_attr(s);
     s[ok] = save;
     if (isEmpty(attr) && isupper(CharOf(s[0])))
 	attr = Type_attr;
@@ -1289,7 +1049,7 @@ static char *
 put_OPERATOR(char *s, int ok, int *had_op)
 {
     flt_puts(s, ok, "");
-    if (strchr("[(|&=~!,;", *s) != NULL)
+    if (strchr("(|&=~!,;", *s) != 0)
 	*had_op = 1;
     return s + ok;
 }
@@ -1297,13 +1057,13 @@ put_OPERATOR(char *s, int ok, int *had_op)
 static char *
 put_VARIABLE(char *s, int ok)
 {
-    const char *attr = NULL;
+    const char *attr = 0;
     char save = s[ok];
 
     s[ok] = '\0';
-    attr = get_keyword_attr(s);
+    attr = keyword_attr(s);
     s[ok] = save;
-    flt_puts(s, ok, (attr != NULL && *attr != '\0') ? attr : Ident2_attr);
+    flt_puts(s, ok, (attr != 0 && *attr != '\0') ? attr : Ident2_attr);
     return s + ok;
 }
 
@@ -1315,32 +1075,21 @@ put_REGEXP(char *s, int length, int delim)
     char *last;
     int len;
     int range = 0;
-    int on_end = 0;
-    int block = (delim != R_BLOCK);
-    int level = 0;
-    int extended = 0;
 
-    for (last = s + length - 1; last != s && isalpha(CharOf(*last)); --last) {
-	if (*last == 'x') {
-	    extended = 1;
-	    break;
-	}
-    }
     if (*s == '%') {
-	flt_puts(s, 3, Keyword_attr);
-	s += 3;
+	flt_puts(s, 2, Keyword_attr);
+	s += 2;
 	first = s;
-	on_end = 1;
     }
     flt_bfr_begin(String_attr);
     while (s < base + length) {
 	if ((len = is_ESCAPED(s)) != 0) {
 	    flt_bfr_append(s, len);
 	    s += len;
-	} else if (block && (*s == R_BLOCK) && range) {
+	} else if (*s == R_BLOCK && range) {
 	    range = 0;
 	    flt_bfr_append(s++, 1);
-	} else if (block && (*s == L_BLOCK) && !range) {
+	} else if (*s == L_BLOCK && !range) {
 	    range = 1;
 	    flt_bfr_append(s++, 1);
 	} else if ((len = var_embedded(s)) != 0) {
@@ -1348,28 +1097,9 @@ put_REGEXP(char *s, int length, int delim)
 	    s += len;
 	} else if (range) {
 	    flt_bfr_append(s++, 1);
-	} else if (*s == L_PAREN && delim != R_PAREN) {
-	    ++level;
-	    flt_bfr_append(s++, 1);
-	} else if (*s == R_PAREN && delim != R_PAREN) {
-	    --level;
-	    flt_bfr_append(s++, 1);
-	} else if (extended && (len = is_BLANK(s)) != 0) {
-	    last = s;
-	    flt_bfr_embed(last, len, "");
-	    s += len;
-	} else if (extended && (*s == '#')) {
-	    last = s;
-	    while (MORE(s) && !isreturn(CharOf(*s))) {
-		++s;
-	    }
-	    flt_bfr_embed(last, (int) (s - last), Comment_attr);
-	} else if (s != first && level == 0 && *s == delim) {
-	    if (!on_end)
-		flt_bfr_append(s++, 1);
-	    last = s;
-	    if (on_end)
-		++s;
+	} else if (s != first && *s == delim) {
+	    flt_bfr_append(s, 1);
+	    last = ++s;
 	    while (MORE(s) && isalpha(CharOf(*s))) {
 		++s;
 	    }
@@ -1381,42 +1111,6 @@ put_REGEXP(char *s, int length, int delim)
 	}
     }
     flt_bfr_finish();
-    return s;
-}
-
-static char *
-put_String(char *s, int ok, int delim, int err, int *had_op)
-{
-    int on_left = 0;
-    int on_end = 0;
-    int embed = (delim == DQUOTE);
-
-    *had_op = 0;
-    if (is_Balanced(s, ok, &on_left, &on_end)) {
-	flt_puts(s, on_left, Keyword_attr);
-	s += on_left;
-	ok -= on_left;
-    }
-    if (embed) {
-	if (err) {
-	    flt_error("unexpected quote");
-	    s = put_embedded(s, ok, Error_attr);
-	} else {
-	    s = put_embedded(s, ok, String_attr);
-	}
-    } else {
-	if (err) {
-	    flt_error("unterminated string");
-	    flt_puts(s, ok, Error_attr);
-	} else {
-	    flt_puts(s, ok, String_attr);
-	}
-	s += ok;
-    }
-    if (on_end) {
-	flt_puts(s, 1, Keyword_attr);
-	++s;
-    }
     return s;
 }
 
@@ -1441,7 +1135,7 @@ do_filter(FILE *input GCC_UNUSED)
     TType this_tok = tNULL;
     TType last_tok = tNULL;
     char *s;
-    char *marker = NULL;
+    char *marker = 0;
     int in_line = -1;
     int ok;
     int err;
@@ -1450,7 +1144,6 @@ do_filter(FILE *input GCC_UNUSED)
 
     (void) input;
 
-    Action_attr = class_attr(NAME_ACTION);
     Comment_attr = class_attr(NAME_COMMENT);
     Error_attr = class_attr(NAME_ERROR);
     Ident_attr = class_attr(NAME_IDENT);
@@ -1463,30 +1156,30 @@ do_filter(FILE *input GCC_UNUSED)
     /*
      * Read the whole file into a single string, in-memory.  Rather than
      * spend time working around the various continuation-line types _and_
-     * the regular expression "syntax", let's just concentrate on the latter.
+     * the regular expresion "syntax", let's just concentrate on the latter.
      */
     the_size = 0;
-    the_file = NULL;
+    the_file = 0;
     while (flt_gets(&line, &used) != NULL) {
 	size_t len = strlen(line);	/* FIXME: nulls? */
 	if (len != 0 && line[len - 1] == '\r')	/* FIXME: move this to readline */
-	    line[--len] = '\0';
-	if ((request = the_size + len + 1) > actual)
+	    len--;
+	if ((request = the_size + len) > actual)
 	    request = 1024 + (request * 2);
 	the_file = do_alloc(the_file, request, &actual);
-	if (the_file == NULL)
+	if (the_file == 0)
 	    break;
-	memcpy(the_file + the_size, line, len + 1);
+	memcpy(the_file + the_size, line, len);
 	the_size += len;
     }
 
-    if (the_file != NULL) {
+    if (the_file != 0) {
 	the_last = the_file + the_size;
 
 	s = the_file;
 	while (MORE(s)) {
 	    if (*s == '\n') {
-		if (marker != NULL)
+		if (marker != 0)
 		    state = eHERE;
 		in_line = -1;
 		if (state == eCODE)
@@ -1513,10 +1206,6 @@ do_filter(FILE *input GCC_UNUSED)
 		} else if ((ok = is_MKEYWORD(s, 0)) != 0) {
 		    Parsed(this_tok, tKEYWORD);
 		    s = put_KEYWORD(s, ok, &had_op);
-		    state = eCODE;
-		} else if ((ok = is_ERB(s)) != 0) {
-		    Parsed(this_tok, tERB);
-		    s = put_ERB(s, ok, &had_op);
 		    state = eCODE;
 		} else if ((ok = is_OPERATOR(s)) != 0) {
 		    Parsed(this_tok, tOPERATOR);
@@ -1548,10 +1237,6 @@ do_filter(FILE *input GCC_UNUSED)
 		    Parsed(this_tok, tKEYWORD);
 		    s = put_KEYWORD(s, ok, &had_op);
 		    state = eCODE;
-		} else if ((ok = is_ERB(s)) != 0) {
-		    Parsed(this_tok, tERB);
-		    s = put_ERB(s, ok, &had_op);
-		    state = eCODE;
 		} else if ((ok = is_OPERATOR(s)) != 0) {
 		    Parsed(this_tok, tOPERATOR);
 		    s = put_OPERATOR(s, ok, &had_op);
@@ -1582,15 +1267,14 @@ do_filter(FILE *input GCC_UNUSED)
 		    Parsed(this_tok, tBLANK);
 		    flt_puts(s, ok, "");
 		    s += ok;
-		} else if ((*s == '%' || had_op)
-			   && (ok = is_Regexp(s, &delim)) != 0) {
+		} else if (had_op && (ok = is_Regexp(s, &delim)) != 0) {
 		    Parsed(this_tok, tREGEXP);
 		    s = put_REGEXP(s, ok, delim);
 		} else if ((ok = is_CHAR(s, &err)) != 0) {
 		    Parsed(this_tok, tCHAR);
 		    had_op = 0;
 		    if (err) {
-			flt_error("not a number: %.*s", ok, s);
+			flt_error("not a number");
 			flt_puts(s, ok, Error_attr);
 		    } else {
 			flt_puts(s, ok, Number_attr);
@@ -1600,7 +1284,7 @@ do_filter(FILE *input GCC_UNUSED)
 		    Parsed(this_tok, tNUMBER);
 		    had_op = 0;
 		    if (err) {
-			flt_error("not a number: %.*s", ok, s);
+			flt_error("not a number");
 			flt_puts(s, ok, Error_attr);
 		    } else {
 			flt_puts(s, ok, Number_attr);
@@ -1614,8 +1298,6 @@ do_filter(FILE *input GCC_UNUSED)
 			state = eCLASS;
 		    else if (ok == 3 && !strncmp(s, "def", (size_t) ok))
 			state = eDEF;
-		    else if (ok == 7 && !strncmp(s, "__END__", (size_t) ok))
-			state = eEND;
 		    s = put_KEYWORD(s, ok, &had_op);
 		} else if ((ok = is_VARIABLE(s)) != 0) {
 		    Parsed(this_tok, tVARIABLE);
@@ -1626,13 +1308,30 @@ do_filter(FILE *input GCC_UNUSED)
 		    Parsed(this_tok, tVARIABLE);
 		    s = put_VARIABLE(s, ok);	/* csv.rb uses it, undocumented */
 		    had_op = 0;
-		} else if ((ok = is_ERB(s)) != 0) {
-		    Parsed(this_tok, tERB);
-		    s = put_ERB(s, ok, &had_op);
-		    state = eCODE;
 		} else if ((ok = is_String(s, &delim, &err)) != 0) {
 		    Parsed(this_tok, tSTRING);
-		    s = put_String(s, ok, delim, err, &had_op);
+		    had_op = 0;
+		    if (*s == '%') {
+			flt_puts(s, 2, Keyword_attr);
+			s += 2;
+			ok -= 2;
+		    }
+		    if (delim == DQUOTE) {
+			if (err) {
+			    flt_error("unexpected quote");
+			    s = put_embedded(s, ok, Error_attr);
+			} else {
+			    s = put_embedded(s, ok, String_attr);
+			}
+		    } else {
+			if (err) {
+			    flt_error("unterminated string");
+			    flt_puts(s, ok, Error_attr);
+			} else {
+			    flt_puts(s, ok, String_attr);
+			}
+			s += ok;
+		    }
 		} else if ((ok = is_OPERATOR(s)) != 0) {
 		    Parsed(this_tok, tOPERATOR);
 		    s = put_OPERATOR(s, ok, &had_op);
@@ -1643,13 +1342,13 @@ do_filter(FILE *input GCC_UNUSED)
 		}
 		break;
 	    case eHERE:
-		if (here_tags == NULL) {
+		if (here_tags == 0) {
 		    state = eCODE;
 		} else if (end_marker(s + (here_tags->strip
 					   ? is_BLANK(s)
 					   : 0),
 				      marker, 1)) {
-		    if ((marker = free_here_tag()) == NULL)
+		    if ((marker = free_here_tag()) == 0)
 			state = eCODE;
 		}
 		s = put_remainder(s, String_attr,
@@ -1662,9 +1361,6 @@ do_filter(FILE *input GCC_UNUSED)
 		    state = eCODE;
 		s = put_remainder(s, Comment_attr, 1);
 		break;
-	    case eEND:
-		s = put_remainder(s, Comment_attr, 1);
-		break;
 	    }
 
 	    switch (this_tok) {
@@ -1673,7 +1369,6 @@ do_filter(FILE *input GCC_UNUSED)
 	    case tCOMMENT:
 		continue;
 	    case tCHAR:
-	    case tERB:
 	    case tHERE:
 	    case tNUMBER:
 	    case tREGEXP:
@@ -1693,7 +1388,7 @@ do_filter(FILE *input GCC_UNUSED)
 	}
 	free(the_file);
     }
-    while (here_tags != NULL) {
+    while (here_tags != 0) {
 	flt_error("expected tag:%s", here_tags->value);
 	(void) free_here_tag();
     }

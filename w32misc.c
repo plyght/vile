@@ -2,7 +2,7 @@
  * w32misc:  collection of unrelated, common win32 functions used by both
  *           the console and GUI flavors of the editor.
  *
- * $Id: w32misc.c,v 1.66 2024/07/06 22:32:20 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/w32misc.c,v 1.58 2010/02/10 11:59:06 tom Exp $
  */
 
 #include "estruct.h"
@@ -87,7 +87,6 @@ set_host(void)
     OSVERSIONINFO info;
 
     info.dwOSVersionInfoSize = sizeof(info);
-#pragma warning(suppress: 28159)
     GetVersionEx(&info);
     host_type = (info.dwPlatformId == VER_PLATFORM_WIN32_NT) ?
 	HOST_NT : HOST_95;
@@ -134,7 +133,7 @@ is_win95(void)
  *     argv[4] = NULL
  *
  *   Put another way, a true execlp() does not exist in the win32 world and,
- *   therefore, cannot be called to effect sh -c "cmdstr".  Consequently,
+ *   therefore, cannnot be called to effect sh -c "cmdstr".  Consequently,
  *   when a unix shell (executing under win32) receives a "raw" command line,
  *   the shell splits the raw command into words, performs its normal
  *   expansions (file globbing, variable substitution, etc.) and then
@@ -330,7 +329,8 @@ w32_CreateProcess(char *cmd, int no_wait)
 	    /* Success */
 	    if (!no_wait) {
 		/* wait for shell process to exit */
-		rc = w32_wait_handle(pi.hProcess);
+
+		(void) cwait(&rc, (CWAIT_PARAM_TYPE) pi.hProcess, 0);
 	    }
 	    (void) CloseHandle(pi.hProcess);
 	    (void) CloseHandle(pi.hThread);
@@ -662,7 +662,7 @@ w32_system_winvile(const char *cmd, int *pressret)
 	    }
 	}
 	if (!no_shell) {
-	    rc = w32_wait_handle(pi.hProcess);
+	    (void) cwait(&rc, (CWAIT_PARAM_TYPE) pi.hProcess, 0);
 	    restore_signals();
 	    if (*pressret) {
 		if (!WriteFile(si.hStdOutput,
@@ -759,8 +759,6 @@ w32_keybrd_reopen(int pressret)
     }
     term.kopen();
     kbd_erase_to_end(0);
-#else
-    (void) pressret;
 #endif
 }
 
@@ -784,7 +782,6 @@ w32_set_console_title(const char *title)
 void
 set_console_title(const char *title)
 {
-    (void) title;
 #if !DISP_NTWIN
     GetConsoleTitle(saved_title, sizeof(saved_title));
     w32_set_console_title(title);
@@ -831,20 +828,18 @@ fmt_win32_error(ULONG errcode, char **buf, ULONG buflen)
     } else {
 	flags |= FORMAT_MESSAGE_ALLOCATE_BUFFER;
     }
-    if (buffer != NULL) {
-	FormatMessage(flags,
-		      NULL,
-		      errcode == W32_SYS_ERROR ? GetLastError() : errcode,
-		      MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),	/* dflt language */
-		      buffer,
-		      buflen,
-		      NULL);
-	if (*buf) {
-	    char *formatted = asc_charstring(buffer);
-	    vl_strncpy(*buf, formatted, buflen);
-	    free(formatted);
-	    free(buffer);
-	}
+    FormatMessage(flags,
+		  NULL,
+		  errcode == W32_SYS_ERROR ? GetLastError() : errcode,
+		  MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),	/* dflt language */
+		  buffer,
+		  buflen,
+		  NULL);
+    if (*buf) {
+	char *formatted = asc_charstring(buffer);
+	vl_strncpy(*buf, formatted, buflen);
+	free(formatted);
+	free(buffer);
     }
     return (*buf);
 }
@@ -1003,7 +998,7 @@ parse_font_str(const char *fontstr, FONTSTR_OPTIONS * results)
 	    return (FALSE);
     }
     results->size = size;
-    TRACE(("parse_font_str(face=\"%s\", size=%ld, style=\"%s%s\")\n",
+    TRACE(("parse_font_str(face=\"%s\", size=%d, style=\"%s%s\")\n",
 	   results->face,
 	   results->size,
 	   results->bold ? "Bold" : "",
@@ -1024,7 +1019,7 @@ w32_wdw_title(void)
 
     if (!buf) {
 	bufsize = 128;
-	buf = typeallocn(W32_CHAR, bufsize);
+	buf = castalloc(W32_CHAR, bufsize);
     }
     while (buf != 0) {
 #if DISP_NTWIN
@@ -1036,7 +1031,7 @@ w32_wdw_title(void)
 	    /* Enlarge buffer and try again. */
 
 	    bufsize *= 2;
-	    safe_typereallocn(W32_CHAR, buf, bufsize);
+	    buf = castrealloc(W32_CHAR, buf, bufsize);
 	} else {
 	    break;
 	}
@@ -1247,10 +1242,7 @@ add_remove_write_acl(const char *filename, int add_acl, DWORD * prev_access_mask
     ACCESS_ALLOWED_ACE *pAllowed;
     BYTE *pSecDescriptorBuf = 0;
 
-    SID_IDENTIFIER_AUTHORITY SIDAuthWorld =
-    {
-	SECURITY_WORLD_SID_AUTHORITY
-    };
+    SID_IDENTIFIER_AUTHORITY SIDAuthWorld = SECURITY_WORLD_SID_AUTHORITY;
 
     /* does the file exist? */
     bslfn = sl_to_bsl(filename);
@@ -1482,17 +1474,4 @@ binmalloc(void *source, int length)
     if (target != 0)
 	memcpy(target, source, length);
     return target;
-}
-
-/* replaces
- * (void) cwait(&rc, (CWAIT_PARAM_TYPE) handle, 0);
- */
-int
-w32_wait_handle(HANDLE handle)
-{
-    DWORD exitcode = (DWORD) (-1);	/* if GetExitCodeProcess() fails */
-
-    (void) WaitForSingleObject(handle, INFINITE);
-    (void) GetExitCodeProcess(handle, &exitcode);
-    return (int) exitcode;
 }

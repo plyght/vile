@@ -6,7 +6,7 @@
 %{
 
 /*
- * $Id: infofilt.l,v 1.14 2013/12/02 01:32:53 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/infofilt.l,v 1.11 2008/11/19 23:11:46 tom Exp $
  *
  * Filter to add vile "attribution" sequences to an info file.
  * (An extension of "text" mode).
@@ -14,7 +14,7 @@
 
 #include <filters.h>
 
-DefineFilter(info);
+DefineFilter("info");
 
 static char *Action_attr;
 static char *Comment_attr;
@@ -103,12 +103,12 @@ do_filter(FILE *inputs)
 {
     InitLEX(inputs);
 
-    Action_attr = class_attr(NAME_ACTION);
+    Action_attr  = class_attr(NAME_ACTION);
     Comment_attr = class_attr(NAME_COMMENT);
-    Ident2_attr = class_attr(NAME_IDENT2);
+    Ident2_attr  = class_attr(NAME_IDENT2);
     Keyword_attr = class_attr(NAME_KEYWORD);
-    Number_attr = class_attr(NAME_NUMBER);
-    String_attr = class_attr(NAME_LITERAL);
+    Number_attr  = class_attr(NAME_NUMBER);
+    String_attr  = class_attr(NAME_LITERAL);
 
     BEGIN(NORMAL);
     RunLEX();

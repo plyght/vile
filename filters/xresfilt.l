@@ -1,17 +1,17 @@
 %pointer
-%s NORMAL RESNAME RESVALUE COMMENT
+%s NORMAL RESNAME RESVALUE
 
 %{
 
 /*
- * $Id: xresfilt.l,v 1.32 2025/01/26 11:40:03 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/xresfilt.l,v 1.26 2009/10/07 09:20:02 tom Exp $
  *
  * Filter to add vile "attribution" sequences to an X resource file.
  */
 
 #include <filters.h>
 
-DefineFilter(xres);
+DefineFilter("xres");
 
 static char *Comment_attr;
 static char *Error_attr;
@@ -21,7 +21,6 @@ static char *Number_attr;
 static char *Preproc_attr;
 static char *String_attr;
 
-static int escaped_nl(const char *, int);
 static int isClass(char *name);
 static int preprocessor(char *text, int size);
 static void quoted_name(char *text, int length);
@@ -30,7 +29,7 @@ static void quoted_name(char *text, int length);
 
 SPACE		[ \t]
 
-COMMENT		![^\r\n]*
+COMMENT		![^\r\n]*\n
 
 SIGN		[-+]
 DECIMAL		[[:digit:]]+
@@ -59,16 +58,7 @@ KEYWORD		({NAME}|[<]{NAME}[>])
 <RESVALUE>({ESCAPED}|.)	{ flt_bfr_append(yytext, yyleng); }
 <RESVALUE>\n		{ flt_bfr_finish(); ECHO; BEGIN(NORMAL); }
 
-<NORMAL>{COMMENT}	{ WriteToken(Comment_attr);
-			  if (escaped_nl(yytext, yyleng)) {
-			      BEGIN(COMMENT);
-			  }
-			}
-<COMMENT>[^\r\n]*	{ WriteToken(Comment_attr);
-                          if (!escaped_nl(yytext, yyleng)) {
-			      BEGIN(NORMAL);
-			  }
-		        }
+<NORMAL>{COMMENT}	{ WriteToken(Comment_attr); }
 
 <NORMAL>^{SPACE}*#{SPACE}*{NAME} {
 			    if (!preprocessor(yytext, yyleng)) {
@@ -78,12 +68,6 @@ KEYWORD		({NAME}|[<]{NAME}[>])
 			}
 
 %%
-
-static int
-escaped_nl(const char *text, int size)
-{
-    return (size > 0 && text[size - 1] == '\\');
-}
 
 static char *
 skip_name(char *text)
@@ -98,7 +82,7 @@ preprocessor(char *text, int size)
 {
     char *s = skip_blanks(text);
     char *t;
-    const char *attr = NULL;
+    const char *attr = 0;
     int save;
 
     if (set_symbol_table("cpre")) {
@@ -106,11 +90,11 @@ preprocessor(char *text, int size)
 	t = skip_name(s);
 	save = *t;
 	*t = 0;
-	attr = get_keyword_attr(s);
+	attr = keyword_attr(s);
 	*t = (char) save;
 	set_symbol_table(default_table);
     }
-    if (attr != NULL) {
+    if (attr != 0) {
 	flt_puts(text, size, Preproc_attr);
 	return 1;
     }
@@ -129,8 +113,8 @@ isClass(char *name)
 static void
 quoted_name(char *text, int length)
 {
-    const char *attr = get_keyword_attr(lowercase_of(text));
-    if (attr != NULL)
+    const char *attr = keyword_attr(lowercase_of(text));
+    if (attr != 0)
 	flt_bfr_embed(text, length, attr);
     else
 	flt_bfr_append(text, length);
@@ -148,12 +132,12 @@ do_filter(FILE *inputs)
     InitLEX(inputs);
 
     Comment_attr = class_attr(NAME_COMMENT);
-    Error_attr = class_attr(NAME_ERROR);
-    Ident2_attr = class_attr(NAME_IDENT2);
+    Error_attr   = class_attr(NAME_ERROR);
+    Ident2_attr  = class_attr(NAME_IDENT2);
     Keyword_attr = class_attr(NAME_KEYWORD);
-    Number_attr = class_attr(NAME_NUMBER);
+    Number_attr  = class_attr(NAME_NUMBER);
     Preproc_attr = class_attr(NAME_PREPROC);
-    String_attr = class_attr(NAME_LITERAL);
+    String_attr  = class_attr(NAME_LITERAL);
 
     BEGIN(NORMAL);
     RunLEX();

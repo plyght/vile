@@ -5,9 +5,10 @@
  *	the cursor.
  *	written for vile.
  *
- * Copyright (c) 1990, 1995-2019,2025 by Paul Fox and Thomas E. Dickey
+ * Copyright (c) 1990, 1995-2007 by Paul Fox and Thomas E. Dickey
  *
- * $Id: tags.c,v 1.156 2025/01/26 14:48:55 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/tags.c,v 1.142 2010/05/18 23:10:27 tom Exp $
+ *
  */
 #include "estruct.h"
 #include "edef.h"
@@ -45,8 +46,8 @@ TAGHITS {
     LINE *hit;			/* points to corresponding line in source-file */
 };
 
-static TAGHITS *tag_hits = NULL;
-static UNTAG *untaghead = NULL;
+static TAGHITS *tag_hits;
+static UNTAG *untaghead;
 static char tagname[NFILEN + 2];	/* +2 since we may add a tab later */
 
 #if OPT_SHOW_TAGS
@@ -117,26 +118,25 @@ gettagsfile(int n, int *endofpathflagp, int *did_read)
 	    zotbuf(tagbp);
 	    return NULL;
 	}
-	set_tagsmode(tagbp);
 	*did_read = TRUE;
     }
 #ifdef MDCHK_MODTIME
     /*
-     * Re-read the tags buffer if we are checking modification-times and find
-     * that the tags file's been changed.
+     * Re-read the tags buffer if we are checking modification-times and
+     * find that the tags file's been changed. We check the global mode
+     * value because it's too awkward to set the local mode value for a
+     * scratch buffer.
      */
-    if (b_val(tagbp, MDCHK_MODTIME)
+    if (global_b_val(MDCHK_MODTIME)
 	&& get_modtime(tagbp, &current)
 	&& tagbp->b_modtime != current) {
-	if (!*did_read) {
-	    if (readin(tagbp->b_fname, FALSE, tagbp, FALSE) != TRUE) {
-		zotbuf(tagbp);
-		return NULL;
-	    }
-	    set_tagsmode(tagbp);
-	    *did_read = TRUE;
+	if (!*did_read
+	    && readin(tagbp->b_fname, FALSE, tagbp, FALSE) != TRUE) {
+	    zotbuf(tagbp);
+	    return NULL;
 	}
 	set_modtime(tagbp, tagbp->b_fname);
+	*did_read = TRUE;
     }
 #endif
     b_set_invisible(tagbp);
@@ -160,11 +160,11 @@ new_tags(BI_DATA * a)
     BI_NODE *p;
 
     beginDisplay();
-    if ((p = typecalloc(BI_NODE)) != NULL) {
+    if ((p = typecalloc(BI_NODE)) != 0) {
 	p->value = *a;
-	if ((BI_KEY(p) = strmalloc(a->bi_key)) == NULL) {
+	if ((BI_KEY(p) = strmalloc(a->bi_key)) == 0) {
 	    old_tags(p);
-	    p = NULL;
+	    p = 0;
 	}
     }
     endofDisplay();
@@ -191,7 +191,7 @@ xcg_tags(BI_NODE * a, BI_NODE * b)
     b->value = temp;
 }
 
-#define BI_DATA0 {{NULL}, 0, {NULL}}
+#define BI_DATA0 {{0}, 0, {0}}
 #define BI_TREE0 0, 0, BI_DATA0
 static BI_TREE tags_tree =
 {new_tags, old_tags, dpy_tags, xcg_tags, BI_TREE0};
@@ -211,7 +211,7 @@ store_tag(LINE *lp)
 		return;		/* ignore super-long identifiers */
 	    }
 	    c = lgetc(lp, got);
-	    if (!isGraph(c))
+	    if (!isqident(c))
 		break;
 	    my_name[got] = (char) c;
 	}
@@ -259,9 +259,9 @@ init_tags_cmpl(char *buf, size_t cpos)
     if (!obsolete) {
 	for (tf_num = 0;; tf_num++) {
 	    bp = gettagsfile(tf_num, &done, &flag);
-	    if (!done && bp == NULL)
+	    if (!done && bp == 0)
 		continue;	/* More tag files to examine */
-	    if (done || bp == NULL)
+	    if (done || bp == 0)
 		break;
 	    (void) bsizes(bp);
 	    obsolete = flag || (bp->b_linecount != 0);
@@ -275,9 +275,9 @@ init_tags_cmpl(char *buf, size_t cpos)
 
 	for (tf_num = 0;; tf_num++) {
 	    bp = gettagsfile(tf_num, &done, &flag);
-	    if (!done && bp == NULL)
+	    if (!done && bp == 0)
 		continue;	/* More tag files to examine */
-	    if (done || bp == NULL)
+	    if (done || bp == 0)
 		break;
 	    for_each_line(lp, bp)
 		store_tag(lp);
@@ -289,7 +289,7 @@ init_tags_cmpl(char *buf, size_t cpos)
     return btree_parray(&tags_tree, buf, cpos);
 }
 
-int
+static int
 tags_completion(DONE_ARGS)
 {
     size_t cpos = *pos;
@@ -300,7 +300,7 @@ tags_completion(DONE_ARGS)
     buf[cpos] = EOS;		/* terminate it for us */
 
     beginDisplay();
-    if ((nptr = init_tags_cmpl(buf, cpos)) != NULL) {
+    if ((nptr = init_tags_cmpl(buf, cpos)) != 0) {
 	status = kbd_complete(PASS_DONE_ARGS, (const char *) nptr, sizeof(*nptr));
 	free(TYPECAST(char *, nptr));
     }
@@ -322,7 +322,7 @@ mark_tag_hit(LINE *tag, LINE *hit)
     TAGHITS *p;
 
     TRACE(("mark_tag_hit %s:%d\n", curbp->b_bname, line_no(curbp, hit)));
-    for (p = tag_hits; p != NULL; p = p->link) {
+    for (p = tag_hits; p != 0; p = p->link) {
 	if (p->hit == hit) {
 	    TRACE(("... mark_tag_hit TRUE\n"));
 	    return (p->tag == tag) ? ABORT : TRUE;
@@ -330,7 +330,7 @@ mark_tag_hit(LINE *tag, LINE *hit)
     }
 
     beginDisplay();
-    if ((p = typecalloc(TAGHITS)) != NULL) {
+    if ((p = typecalloc(TAGHITS)) != 0) {
 	p->link = tag_hits;
 	p->tag = tag;
 	p->hit = hit;
@@ -351,7 +351,7 @@ free_tag_hits(void)
     TAGHITS *p;
 
     beginDisplay();
-    while ((p = tag_hits) != NULL) {
+    while ((p = tag_hits) != 0) {
 	tag_hits = p->link;
 	free(p);
     }
@@ -361,15 +361,13 @@ free_tag_hits(void)
 static void
 free_untag(UNTAG * utp)
 {
-    if (utp != NULL) {
-	beginDisplay();
-	FreeIfNeeded(utp->u_fname);
+    beginDisplay();
+    FreeIfNeeded(utp->u_fname);
 #if OPT_SHOW_TAGS
-	FreeIfNeeded(utp->u_templ);
+    FreeIfNeeded(utp->u_templ);
 #endif
-	free(utp);
-	endofDisplay();
-    }
+    free(utp);
+    endofDisplay();
 }
 
 /* discard without returning anything */
@@ -378,7 +376,7 @@ tossuntag(void)
 {
     UNTAG *utp;
 
-    if (untaghead != NULL) {
+    if (untaghead) {
 	utp = untaghead;
 	untaghead = utp->u_stklink;
 	free_untag(utp);
@@ -392,14 +390,12 @@ pushuntag(char *fname, L_NUM lineno, C_NUM colno, char *tag)
 {
     UNTAG *utp;
 
-    (void) tag;
-
     beginDisplay();
-    if ((utp = typecalloc(UNTAG)) != NULL) {
+    if ((utp = typealloc(UNTAG)) != 0) {
 
-	if ((utp->u_fname = strmalloc(fname)) == NULL
+	if ((utp->u_fname = strmalloc(fname)) == 0
 #if OPT_SHOW_TAGS
-	    || (utp->u_templ = strmalloc(tag)) == NULL
+	    || (utp->u_templ = strmalloc(tag)) == 0
 #endif
 	    ) {
 	    free_untag(utp);
@@ -426,7 +422,7 @@ popuntag(char *fname, L_NUM * linenop, C_NUM * colnop)
     if (untaghead) {
 	utp = untaghead;
 	untaghead = utp->u_stklink;
-	(void) vl_strncpy(fname, utp->u_fname, NFILEN);
+	(void) strcpy(fname, utp->u_fname);
 	*linenop = utp->u_lineno;
 	*colnop = utp->u_colno;
 	free_untag(utp);
@@ -602,13 +598,14 @@ static LINE *
 cheap_buffer_scan(BUFFER *bp, char *patrn, int dir)
 {
     LINE *lp;
-    LINE *result = NULL;
+    LINE *result = 0;
     regexp *exp;
-    int ic = FALSE;
 
-    if ((exp = regcomp(patrn, strlen(patrn), FALSE)) != NULL) {
+    if ((exp = regcomp(patrn, strlen(patrn), FALSE)) != 0) {
 #ifdef MDTAGIGNORECASE
-	ic = b_val(bp, MDTAGIGNORECASE);
+	int savecase = ignorecase;
+	if (b_val(bp, MDTAGIGNORECASE))
+	    ignorecase = TRUE;
 #endif
 
 	TRACE(("cheap_buffer_scan '%s' %s\n",
@@ -618,7 +615,7 @@ cheap_buffer_scan(BUFFER *bp, char *patrn, int dir)
 	for (lp = dir == FORWARD ? lforw(buf_head(bp)) : lback(buf_head(bp));
 	     lp != buf_head(bp);
 	     lp = dir == FORWARD ? lforw(lp) : lback(lp)) {
-	    if (lregexec(exp, lp, 0, llength(lp), ic)) {
+	    if (lregexec(exp, lp, 0, llength(lp))) {
 		result = lp;
 		break;
 	    }
@@ -627,6 +624,10 @@ cheap_buffer_scan(BUFFER *bp, char *patrn, int dir)
 	beginDisplay();
 	free(TYPECAST(char, exp));
 	endofDisplay();
+
+#ifdef MDTAGIGNORECASE
+	ignorecase = savecase;
+#endif
     }
     return (result);
 }
@@ -672,7 +673,7 @@ tag_search(char *tag, int taglen, int initial)
 
     do {
 	tagbp = gettagsfile(tf_num, &nomore, &flag);
-	lp = NULL;
+	lp = 0;
 	if (nomore) {
 	    if (gotafile) {
 		if (initial || retried) {
@@ -702,7 +703,7 @@ tag_search(char *tag, int taglen, int initial)
 
     /* Save the position in the tags-file so "next-tag" will work */
     tf_num--;
-    (void) vl_strncpy(last_bname, tagbp->b_bname, sizeof(last_bname));
+    (void) strcpy(last_bname, tagbp->b_bname);
     tagbp->b_dot.l = lp;
     tagbp->b_dot.o = 0;
 #ifdef MDCHK_MODTIME
@@ -730,7 +731,7 @@ tag_search(char *tag, int taglen, int initial)
 	while (lastsl != first)
 	    tfname[i++] = *first++;
     }
-    while (i < (sizeof(tfname) - 2) && tfp < lplim && *tfp != '\t') {
+    while (i < sizeof(tfname) && tfp < lplim && *tfp != '\t') {
 	tfname[i++] = *tfp++;
     }
     tfname[i] = EOS;
@@ -808,9 +809,9 @@ tag_search(char *tag, int taglen, int initial)
 	    return FALSE;
 	}
 
-	if ((srchpat = tb_init(&srchpat, EOS)) == NULL
-	    || (srchpat = tb_bappend(&srchpat, tfp, (size_t) (p - tfp))) == NULL
-	    || (srchpat = tb_append(&srchpat, EOS)) == NULL)
+	if ((srchpat = tb_init(&srchpat, EOS)) == 0
+	    || (srchpat = tb_bappend(&srchpat, tfp, (size_t) (p - tfp))) == 0
+	    || (srchpat = tb_append(&srchpat, EOS)) == 0)
 	    return no_memory("tags");
 
 	lp = cheap_buffer_scan(curbp, tb_values(srchpat), dir);
@@ -841,8 +842,8 @@ tag_search(char *tag, int taglen, int initial)
 	 * original position.
 	 */
 	if (!initial
-	    && untaghead != NULL
-	    && untaghead->u_stklink != NULL) {
+	    && untaghead != 0
+	    && untaghead->u_stklink != 0) {
 	    UNTAG *p;
 	    p = untaghead;
 	    untaghead = p->u_stklink;
@@ -861,21 +862,6 @@ tag_search(char *tag, int taglen, int initial)
     return status;
 }
 
-KBD_OPTIONS
-tags_kbd_options(void)
-{
-    KBD_OPTIONS mode = KBD_NORMAL
-#if OPT_TAGS_CMPL
-    | KBD_MAYBEC
-#endif
-     ;
-#ifdef MDTAGIGNORECASE
-    if (b_val(curbp, MDTAGIGNORECASE))
-	mode |= KBD_LOWERC;
-#endif
-    return mode;
-}
-
 /* ARGSUSED */
 int
 gototag(int f GCC_UNUSED, int n GCC_UNUSED)
@@ -884,9 +870,18 @@ gototag(int f GCC_UNUSED, int n GCC_UNUSED)
     int taglen;
 
     if (clexec || isnamedcmd) {
+	KBD_OPTIONS mode = KBD_NORMAL
+#if OPT_TAGS_CMPL
+	| KBD_MAYBEC
+#endif
+	 ;
+#ifdef MDTAGIGNORECASE
+	if (b_val(curbp, MDTAGIGNORECASE))
+	    mode |= KBD_LOWERC;
+#endif
 	if ((s = kbd_string("Tag name: ",
 			    tagname, sizeof(tagname),
-			    '\n', tags_kbd_options(), tags_completion)) != TRUE)
+			    '\n', mode, tags_completion)) != TRUE)
 	    return (s);
 	taglen = b_val(curbp, VAL_TAGLEN);
     } else {
@@ -957,7 +952,7 @@ maketagslist(int value GCC_UNUSED, void *dummy GCC_UNUSED)
     char temp[NFILEN];
 
     if (taglen == 0) {
-	for (utp = untaghead; utp != NULL; utp = utp->u_stklink) {
+	for (utp = untaghead; utp != 0; utp = utp->u_stklink) {
 	    n = (int) strlen(utp->u_templ);
 	    if (n > taglen)
 		taglen = n;
@@ -972,13 +967,12 @@ maketagslist(int value GCC_UNUSED, void *dummy GCC_UNUSED)
     bprintf(" --------- ");
     bpadc('-', 30);
 
-    for (utp = untaghead, n = 0; utp != NULL; utp = utp->u_stklink)
+    for (utp = untaghead, n = 0; utp != 0; utp = utp->u_stklink)
 	bprintf("\n %2d %*s %8d  %s",
 		++n,
 		taglen, utp->u_templ,
 		utp->u_lineno,
-		shorten_path(vl_strncpy(temp, utp->u_fname, sizeof(temp)),
-			     TRUE));
+		shorten_path(strcpy(temp, utp->u_fname), TRUE));
 }
 
 #if OPT_UPBUFF

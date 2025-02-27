@@ -7,7 +7,7 @@
 %{
 
 /*
- * $Id: imakeflt.l,v 1.28 2025/01/26 11:05:40 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/imakeflt.l,v 1.23 2010/07/13 13:42:15 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of Imakefile
  *
@@ -16,7 +16,7 @@
 
 #include <filters.h>
 
-DefineFilter(imake);
+DefineFilter("imake");
 
 static char *Comment_attr;
 static char *Error_attr;
@@ -59,9 +59,8 @@ OPER		[+:?]?=
 
 <NORMAL>{MACRO}			{ WriteToken(Ident2_attr); }
 
-<NORMAL>^{SPACE}\@		{ if (yyleng) {
-				      flt_puts(yytext, yyleng-1, "");
-				  }
+<NORMAL>^{SPACE}\@		{ if (yyleng)
+				    flt_puts(yytext, yyleng-1, "");
 				  flt_puts("@", 1, String_attr); }
 <NORMAL>\\{SPACE}+\n		{ flt_error("trailing whitespace");
 				  WriteToken(Error_attr); continued = 1; }
@@ -112,7 +111,7 @@ preprocessor(char *text, int size)
 {
     char *s = skip_blanks(text);
     char *t;
-    const char *attr = NULL;
+    const char *attr = 0;
     int save;
 
     if (set_symbol_table("cpre")) {
@@ -124,7 +123,7 @@ preprocessor(char *text, int size)
 	*t = (char) save;
 	set_symbol_table(default_table);
     }
-    if (attr != NULL) {
+    if (attr != 0) {
 	flt_puts(text, size, Preproc_attr);
 	return 1;
     }
@@ -147,11 +146,11 @@ want_tabs(char *text, int size)
 	for (n = 0; n < size; ++n) {
 	    if (text[n] == ' ') {
 		if (!tabs)
-		    result = !continued;
+			result = !continued;
 		++spcs;
 	    } else if (text[n] == '\t') {
 		if (spcs)
-		    result = !continued;
+			result = !continued;
 		++tabs;
 	    }
 	}
@@ -159,7 +158,7 @@ want_tabs(char *text, int size)
 	if ((spcs == FltOptions('t')) && !tabs)
 	    result = 1;
     } else {
-	result = 1;		/* should not happen */
+	result = 1;	/* should not happen */
     }
     return result;
 }
@@ -190,28 +189,28 @@ write_keyword(char *text, int size, int prepro, int caseless)
 	before++;
     }
 
-    while (isspace(CharOf(text[size - 1]))) {
+    while (isspace(CharOf(text[size-1]))) {
 	size--;
 	after++;
     }
 
     save = text[size];
     text[size] = 0;
-    attr = (caseless
-	    ? ci_keyword_attr(text)
-	    : keyword_attr(text));
+    attr = caseless
+	 ? ci_keyword_attr(text)
+    	 : keyword_attr(text);
     /*
      * Some symbols cannot be preceded by tabs - we put those in the "premake"
      * table.
      */
-    if ((attr == NULL) && !continued && prepro) {
+    if ((attr == 0) && !continued && prepro) {
 	set_symbol_table("premake");
-	attr = (caseless
-		? ci_keyword_attr(text)
-		: keyword_attr(text));
+	attr = caseless
+	     ? ci_keyword_attr(text)
+	     : keyword_attr(text);
 	set_symbol_table(flt_name());
-	notabs = (attr != NULL);
-	if (attr == NULL)
+	notabs = (attr != 0);
+	if (attr == 0)
 	    nospcs = want_tabs(base, before);
     } else {
 	nospcs = want_tabs(base, before);
@@ -259,12 +258,12 @@ write_delimited_unit(char *text, char **attr, const char **gaps)
     if (pwhite > panchor)
 	flt_puts(panchor, (int) (pwhite - panchor), *gaps);
     panchor = ptoken = pwhite;
-    while (*ptoken && (!isspace(CharOf(*ptoken))))
+    while (*ptoken && (! isspace(CharOf(*ptoken))))
 	ptoken++;
     flt_puts(panchor, (int) (ptoken - panchor), *attr);
     if (isspace(CharOf(*ptoken))) {
 	panchor = ptoken;
-	pwhite = ptoken + 1;	/* advance beyond initial white space byte */
+	pwhite	= ptoken + 1;  /* advance beyond initial white space byte */
 	while (isspace(CharOf(*pwhite)))
 	    pwhite++;
 	flt_puts(panchor, (int) (pwhite - panchor), *gaps);
@@ -307,14 +306,17 @@ write_delimited(char *text, int size, char *attr, int first)
 	}
     }
 
-    delim[0] = text[size - 1];	/* save the trailing delimiter */
-    delim[1] = text[size - 1] = '\0';	/* chop the trailing delimiter */
-    cp = text;
-    do {
-	if (*cp == '\\' && cp[1] == '\n') {
+    delim[0] = text[size - 1];         /* save the trailing delimiter */
+    delim[1] = text[size - 1] = '\0';  /* chop the trailing delimiter */
+    cp       = text;
+    do
+    {
+	if (*cp == '\\' && cp[1] == '\n')
+	{
 	    flt_puts(cp, 2, gaps);
 	    cp += 2;
-	} else
+	}
+	else
 	    cp = write_delimited_unit(cp, &attr, &gaps);
     }
     while (*cp);
@@ -346,11 +348,11 @@ do_filter(FILE *inputs)
     InitLEX(inputs);
 
     Comment_attr = class_attr(NAME_COMMENT);
-    Error_attr = class_attr(NAME_ERROR);
-    Ident2_attr = class_attr(NAME_IDENT2);
+    Error_attr   = class_attr(NAME_ERROR);
+    Ident2_attr  = class_attr(NAME_IDENT2);
     Keyword_attr = class_attr(NAME_KEYWORD);
     Preproc_attr = class_attr(NAME_PREPROC);
-    String_attr = class_attr(NAME_LITERAL);
+    String_attr  = class_attr(NAME_LITERAL);
 
     continued = 0;
 

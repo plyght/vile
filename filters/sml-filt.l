@@ -2,9 +2,8 @@
 %x COMMENT STRING STRSKIP
 
 %{
-
 /*
- * $Id: sml-filt.l,v 1.15 2013/12/02 01:32:53 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/sml-filt.l,v 1.9 2008/11/19 23:11:46 tom Exp $
 
     Filter to add vile "attribution" sequences to selected bits of SML
     input text.
@@ -20,7 +19,7 @@
 
 #include <filters.h>
 
-DefineFilter(sml);
+DefineFilter("sml");
 
 static char *Keyword_attr;
 static char *Comment_attr;
@@ -31,12 +30,12 @@ static char *String_attr;
 /*  We accumulate strings into this buffer.
 */
 #define	STRBUF	1024
-static char strbuf[STRBUF];
-static int strpos;
+static char	strbuf[STRBUF];
+static int	strpos;
 
 #define ADD_STRING add_string(yytext, yyleng)
 
-static void add_string(char *str, int len);
+static void add_string(char* str, int len);
 static void flush_string(void);
 static void start_string(void);
 
@@ -53,8 +52,8 @@ NUMBER		{DECIMAL}|{HEX}|{WORD}|{WORDHEX}|{REAL}
 
 %%
 
-{IDENT}			{ WriteToken(get_keyword_attr(yytext)); }
-"_"			{ WriteToken(get_keyword_attr(yytext)); }
+{IDENT}			{ WriteToken(keyword_attr(yytext)); }
+"_"			{ WriteToken(keyword_attr(yytext)); }
 
 {NUMBER}		{ WriteToken(Number_attr); }
 
@@ -97,8 +96,8 @@ flush_string(void)
 {
     if (strpos > 0) {
 	flt_puts(strbuf, strpos, String_attr);
+	strpos = 0;
     }
-    strpos = 0;
 }
 
 static void
@@ -108,10 +107,10 @@ start_string(void)
 }
 
 static void
-add_string(char *str, int len)
+add_string(char* str, int len)
 {
     while (len-- > 0) {
-	if (strpos >= (STRBUF - 1)) {
+	if (strpos >= STRBUF) {
 	    flush_string();
 	}
 	strbuf[strpos++] = *(str++);
@@ -133,9 +132,9 @@ do_filter(FILE *inputs)
 
     Keyword_attr = class_attr(NAME_KEYWORD);
     Comment_attr = class_attr(NAME_COMMENT);
-    Ident2_attr = class_attr(NAME_IDENT2);
-    Number_attr = class_attr(NAME_NUMBER);
-    String_attr = class_attr(NAME_LITERAL);
+    Ident2_attr  = class_attr(NAME_IDENT2);
+    Number_attr  = class_attr(NAME_NUMBER);
+    String_attr  = class_attr(NAME_LITERAL);
 
     BEGIN(INITIAL);
     RunLEX();

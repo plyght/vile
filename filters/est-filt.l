@@ -2,9 +2,8 @@
 %s CODE NOTE EXP1 EXP2
 
 %{
-
 /*
- * $Id: est-filt.l,v 1.13 2013/12/02 01:32:53 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/est-filt.l,v 1.9 2008/11/19 23:11:46 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of enscript
  * syntax-description files.
@@ -12,7 +11,7 @@
 
 #include <filters.h>
 
-DefineFilter(est);
+DefineFilter("est");
 
 static char *Comment_attr;
 static char *Ident_attr;
@@ -42,7 +41,7 @@ RANGE		"["(\\.|.)+"]"
 <NOTE>[^*\r\n]			{ flt_bfr_append(yytext, yyleng); }
 <NOTE>"*/"			{ FinishQuote(CODE); }
 
-<CODE>{KEYWORD}			{ WriteToken(get_keyword_attr(yytext)); }
+<CODE>{KEYWORD}			{ WriteToken(keyword_attr(yytext)); }
 
 <CODE>{INTEGER}	|
 <CODE>{REAL}			{ WriteToken(Number_attr); }
@@ -75,10 +74,10 @@ do_filter(FILE *inputs)
     InitLEX(inputs);
 
     Comment_attr = class_attr(NAME_COMMENT);
-    Ident_attr = class_attr(NAME_IDENT);
+    Ident_attr   = class_attr(NAME_IDENT);
     Keyword_attr = class_attr(NAME_KEYWORD);
-    Number_attr = class_attr(NAME_NUMBER);
-    String_attr = class_attr(NAME_LITERAL);
+    Number_attr  = class_attr(NAME_NUMBER);
+    String_attr  = class_attr(NAME_LITERAL);
 
     BEGIN(CODE);
 

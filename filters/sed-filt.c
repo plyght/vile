@@ -1,12 +1,12 @@
 /*
- * $Id: sed-filt.c,v 1.29 2013/12/02 01:32:53 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/sed-filt.c,v 1.26 2010/07/13 13:38:09 tom Exp $
  *
  * Filter to add vile "attribution" sequences to sed scripts.
  */
 
 #include <filters.h>
 
-DefineFilter(sed);
+DefineFilter("sed");
 
 #define isSlash(c) ((c) == '/' || (c) == BACKSLASH)
 #define isComma(c) ((c) == ',' || (c) == ';')
@@ -172,10 +172,10 @@ SkipPattern(char *s, int *done, int join)
 	    if (!join)
 		flt_puts(base, 1, Action_attr);
 	    base++;
-	    if (*done)
+	    if (done)
 		s--;
 	    flt_puts(base, (int) (s - base), Literal_attr);
-	    if (*done)
+	    if (done)
 		flt_puts(s++, 1, Action_attr);
 	}
     }

@@ -1,9 +1,8 @@
 %pointer
 
 %{
-
 /*
- * $Id: rtf-filt.l,v 1.12 2025/01/26 11:36:23 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/rtf-filt.l,v 1.7 2009/04/25 16:28:25 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of RTF (rich text format)
  * input text.
@@ -11,7 +10,7 @@
 
 #include <filters.h>
 
-DefineFilter(rtf);
+DefineFilter("rtf");
 
 static char *Comment_attr;
 static char *Error_attr;
@@ -39,19 +38,19 @@ NUMBER		{INTEGER}
 static const char *
 control_attr(char *text, int length)
 {
-    const char *attr = NULL;
+    const char *attr = 0;
 
     if (length > 1) {
 	char save = 0;
 
-	if (isBlank(CharOf(text[length - 1]))) {
+	if (isBlank(CharOf(text[length-1]))) {
 	    save = text[--length];
 	    text[length] = '\0';
 	}
-	attr = get_keyword_attr(text + 1);
+	attr = keyword_attr(text + 1);
 	text[length] = save;
     }
-    if (attr == NULL) {
+    if (attr == 0) {
 	attr = Error_attr;
 	flt_error("Unknown control word: %s", text);
     }
@@ -69,10 +68,10 @@ do_filter(FILE *inputs)
 {
     InitLEX(inputs);
 
-    Error_attr = class_attr(NAME_ERROR);
+    Error_attr   = class_attr(NAME_ERROR);
     Comment_attr = class_attr(NAME_COMMENT);
-    Number_attr = class_attr(NAME_NUMBER);
-    String_attr = class_attr(NAME_LITERAL);
+    Number_attr  = class_attr(NAME_NUMBER);
+    String_attr  = class_attr(NAME_LITERAL);
 
     RunLEX();
 }

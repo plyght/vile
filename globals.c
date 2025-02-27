@@ -2,7 +2,8 @@
  *	matching lines, then for each such line, an action is performed.
  *	written for vile.  Copyright (c) 1990-1999 by Paul Fox
  *
- * $Id: globals.c,v 1.52 2025/01/26 14:13:25 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/globals.c,v 1.49 2006/11/06 21:00:51 tom Exp $
+ *
  */
 
 #include	"estruct.h"
@@ -50,12 +51,12 @@ globber(int f GCC_UNUSED, int n GCC_UNUSED, int g_or_v)
        searching delay is too long, and unexpected in the
        middle of a command.  */
 
-    fnp = kbd_engl("action to perform on each matching line: ", cmd, GLOBOK);
+    fnp = kbd_engl("action to perform on each matching line: ", cmd);
     /* get the name of, and then the function to execute */
     if (!fnp) {
 	mlforce("[No function]");
 	return FALSE;
-    } else if ((cfp = engl2fnc(fnp)) == NULL) {
+    } else if ((cfp = engl2fnc(fnp)) == 0) {
 	return no_such_function(fnp);
     } else if ((cfp->c_flags & GLOBOK) == 0) {
 	mlforce("[Function not allowed]");
@@ -81,7 +82,7 @@ globber(int f GCC_UNUSED, int n GCC_UNUSED, int g_or_v)
     foundone = FALSE;
     before = vl_line_count(curbp);
     save_report = global_g_val(GVAL_REPORT);
-    while (lp != NULL) {
+    for_ever {
 	if (lp == win_head(wp)) {
 	    /* at the end -- only quit if we found no
 	       marks on the last pass through. otherwise,

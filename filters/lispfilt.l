@@ -2,9 +2,8 @@
 %x NORMAL QUOTED COMMENT
 
 %{
-
 /*
- * $Id: lispfilt.l,v 1.27 2013/12/02 01:32:53 tom Exp $
+ * $Id: lispfilt.l,v 1.24 2009/04/04 00:45:57 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of lisp code.
  *
@@ -24,7 +23,7 @@
 #define FLTSTACK_EXTRA_PUSH FLTSTACK_THIS.quoted = 0;
 #include <fltstack.h>
 
-DefineFilter(lisp);
+DefineFilter("lisp");
 
 static char *Action_attr;
 static char *Comment_attr;
@@ -108,7 +107,7 @@ RPAREN		\)
 
 <NORMAL>{NUMBER}	{ WriteToken(Number_attr); }
 
-<NORMAL>{IDENT}		{ WriteToken(get_keyword_attr(yytext)); }
+<NORMAL>{IDENT}		{ WriteToken(ci_keyword_attr(yytext)); }
 
 <NORMAL>\"		{ BeginQuote(QUOTED, Literal_attr); }
 <QUOTED>\\.		{ flt_bfr_append(yytext, yyleng); }
@@ -136,13 +135,13 @@ do_filter(FILE *inputs)
 {
     InitLEX(inputs);
 
-    Action_attr = class_attr(NAME_ACTION);
+    Action_attr  = class_attr(NAME_ACTION);
     Comment_attr = class_attr(NAME_COMMENT);
-    Error_attr = class_attr(NAME_ERROR);
-    Ident_attr = class_attr(NAME_IDENT2);
+    Error_attr   = class_attr(NAME_ERROR);
+    Ident_attr   = class_attr(NAME_IDENT2);
     Keyword_attr = class_attr(NAME_KEYWORD);
-    Number_attr = class_attr(NAME_NUMBER);
-    Literal_attr = class_attr(NAME_LITERAL);
+    Number_attr  = class_attr(NAME_NUMBER);
+    Literal_attr  = class_attr(NAME_LITERAL);
 
     begin_state(NORMAL);
     RunLEX();

@@ -1,13 +1,7 @@
--- $Id: AUTHORS,v 1.5 2013/05/26 10:53:01 tom Exp $
+-- $Id: AUTHORS,v 1.2 2009/10/04 15:11:34 tom Exp $
 -- vile:txtmode
--- This file is used by a script that collects contributor information from the
--- "CHANGES*" files and/or checkin comments and resolves nicknames vs
--- fullnames.  For a complete list of authors, see the "CHANGES*" files, using
--- this key for abbreviated names.
-bod	Brendan O'Dea
-cmorgan	Clark O Morgan
-garyj	Gary Jennejohn
-jrs	J Richard Sladkey
+-- This file is used by a script that collects contributor information and
+-- resolves nicknames vs fullnames.
 kev	Kevin Buettner
 pgf	Paul G Fox
-tom	Thomas E Dickey
+tom	Tom Dickey

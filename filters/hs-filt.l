@@ -2,9 +2,8 @@
 %x NORMAL COMMENT PREPRO PREPMORE PREPNOTE
 
 %{
-
 /*
- * $Id: hs-filt.l,v 1.30 2025/01/26 11:05:40 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/hs-filt.l,v 1.24 2009/05/23 01:08:03 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of Haskell
  * input text.
@@ -16,7 +15,7 @@
 #include <filters.h>
 #include <fltstack.h>
 
-DefineFilter(hs);
+DefineFilter("hs");
 
 static char *Action_attr;
 static char *Comment_attr;
@@ -56,39 +55,34 @@ NUMBER		{OCTAL}|{HEXADECIMAL}|{INTEGER}|{REAL}
 <COMMENT>[^-\r\n]+	{ flt_bfr_append(yytext, yyleng); }
 <COMMENT>[-]+$		{ flt_bfr_append(yytext, yyleng); }
 <COMMENT>[-]+[^}-]	{ flt_bfr_append(yytext, yyleng); }
-<COMMENT>.		{ flt_bfr_append(yytext, yyleng); }
 
 <NORMAL>"`"{IDENT}"`"	{ WriteToken(Action_attr); }
-<NORMAL>{IDENT}		{ WriteToken(get_keyword_attr(yytext)); }
+<NORMAL>{IDENT}		{ WriteToken(keyword_attr(yytext)); }
 <NORMAL>{QUOTECHAR}	|
 <NORMAL>{STRING}	{ WriteToken(String_attr); }
 <NORMAL>{NUMBER}	{ WriteToken(Number_attr); }
 <NORMAL>"--"[^\r\n]*	{ WriteToken(Comment_attr); }
 
 <NORMAL>^{BLANK}*[#]+	{ PushQuote(PREPRO, Preproc_attr); }
-<NORMAL>.		{ ECHO; }
-
 <PREPRO>{BLANK}+	{ flt_bfr_append(yytext, yyleng); }
 <PREPRO>{IDENT}		{ const char *attr;
 			  set_symbol_table("cpre");
-			  attr = get_keyword_attr(yytext);
-			  if (attr == NULL)
+			  attr = keyword_attr(yytext);
+			  if (attr == 0)
 			      attr = Error_attr;
 			  flt_bfr_embed(yytext, yyleng, attr);
 			  set_symbol_table(default_table);
 			  new_state(PREPMORE);
 			 }
-<PREPRO>.		{ flt_bfr_append(yytext, yyleng); }
 <PREPMORE>[\r\n]	{
 			  flt_bfr_append(yytext, yyleng);
 			  flt_bfr_finish();
 			  pop_state();
 			}
 <PREPMORE>\\.		{ flt_bfr_embed(yytext, yyleng, String_attr); }
-<PREPMORE>{IDENT}	{ flt_bfr_embed(yytext, yyleng, get_keyword_attr(yytext)); }
+<PREPMORE>{IDENT}	{ flt_bfr_embed(yytext, yyleng, keyword_attr(yytext)); }
 <PREPMORE>[^\\\r\n]	{ flt_bfr_embed(yytext, yyleng, ""); }
 <PREPMORE>{STRING}	{ flt_bfr_embed(yytext, yyleng, String_attr); }
-
 <PREPMORE>"/*"		{ PushQuote(PREPNOTE, Comment_attr); }
 <PREPNOTE>[^*]*		{ flt_bfr_append(yytext, yyleng); }
 <PREPNOTE>"*"+[^*/]*	{ flt_bfr_append(yytext, yyleng); }
@@ -109,17 +103,16 @@ do_filter(FILE *inputs)
 {
     InitLEX(inputs);
 
-    Action_attr = class_attr(NAME_ACTION);
+    Action_attr  = class_attr(NAME_ACTION);
     Comment_attr = class_attr(NAME_COMMENT);
-    Error_attr = class_attr(NAME_ERROR);
-    Ident2_attr = class_attr(NAME_IDENT2);
-    Number_attr = class_attr(NAME_NUMBER);
+    Error_attr   = class_attr(NAME_ERROR);
+    Ident2_attr  = class_attr(NAME_IDENT2);
+    Number_attr  = class_attr(NAME_NUMBER);
     Preproc_attr = class_attr(NAME_PREPROC);
-    String_attr = class_attr(NAME_LITERAL);
+    String_attr  = class_attr(NAME_LITERAL);
 
     begin_state(NORMAL);
     RunLEX();
-    flt_bfr_error();
     end_state();
 }
 

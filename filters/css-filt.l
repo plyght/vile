@@ -5,9 +5,8 @@
 %k 2000
 
 %{
-
 /*
- * $Id: css-filt.l,v 1.31 2025/01/26 11:05:40 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/css-filt.l,v 1.26 2009/08/19 09:02:41 tom Exp $
  *
  * Filter to add vile "attribution" sequences to Cascading Style Sheets.
  *
@@ -17,7 +16,7 @@
 
 #include <filters.h>
 
-DefineFilter(css);
+DefineFilter("css");
 
 static const char *css_keyword_attr(char *);
 static void css_hash(char *, int);
@@ -89,7 +88,7 @@ URL		[[:alpha:]]+"://"[[:alnum:]#%&+\,.\/?;@_=~-]+
 static const char *
 css_keyword_attr(char *text)
 {
-    const char *attr = get_keyword_attr(text);
+    const char *attr = ci_keyword_attr(text);
     if (isEmpty(attr))
 	attr = Ident_attr;
     return attr;
@@ -124,7 +123,7 @@ css_number_units(char *text, int length)
 	    flt_puts(text + digits, length - digits, "");
 	} else {
 	    set_symbol_table("cssUnits");
-	    if ((attr = get_keyword_attr(text + digits)) == NULL)
+	    if ((attr = ci_keyword_attr(text + digits)) == 0)
 		attr = Error_attr;
 	    flt_puts(text + digits, length - digits, attr);
 	    set_symbol_table(default_table);
@@ -185,11 +184,11 @@ do_filter(FILE *inputs)
     InitLEX(inputs);
 
     Comment_attr = class_attr(NAME_COMMENT);
-    Error_attr = class_attr(NAME_ERROR);
-    Ident_attr = class_attr(NAME_IDENT);
-    Ident2_attr = class_attr(NAME_IDENT2);
-    Number_attr = class_attr(NAME_NUMBER);
-    String_attr = class_attr(NAME_LITERAL);
+    Error_attr   = class_attr(NAME_ERROR);
+    Ident_attr   = class_attr(NAME_IDENT);
+    Ident2_attr  = class_attr(NAME_IDENT2);
+    Number_attr  = class_attr(NAME_NUMBER);
+    String_attr  = class_attr(NAME_LITERAL);
 
     css_state = -1;
     BEGIN(CSS_CODE);

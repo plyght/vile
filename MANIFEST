@@ -1,4 +1,4 @@
-MANIFEST for vile, version v9_8za
+MANIFEST for vile, version v9_8
 --------------------------------------------------------------------------------
 MANIFEST                        this file
 AUTHORS                         list of authors, with nicknames in CHANGES
@@ -39,14 +39,12 @@ configure.in                    used by 'autoconf' to generate 'configure'
 csrch.c                         current-line character-scanning commands
 curses.c                        terminal driver using curses
 descrip.mms                     VAX/VMS MMS build-script
-df-install.in                   desktop-file installer, adapted from xterm
 dirstuff.h                      interfaces for UNIX-like directory functions
 display.c                       message & screen formatting & display
 djhandl.c                       CTL/C & interrupt handling for DJGCC
 dumbterm.c                      DUMB terminal driver
 edef.h                          global variable definitions
 eightbit.c                      character translation for "8bit" mode
-encrypt.c                       Jochen Obalek's unix-style crypt function
 estruct.h                       master include/struct definitions
 eval.c                          expression-evaluation
 exec.c                          command (':', macros) execution
@@ -58,7 +56,6 @@ fileio.c                        low-level file I/O functions
 finderr.c                       error-finder
 glob.c                          globbing (wildcard & environment-variable substitution)
 globals.c                       ed/vi/ex style global commands
-gnreight.h                      generated data for single-byte encodings
 gppconio.c                      patched console I/O support for DJGCC
 history.c                       command-history
 input.c                         various input-routines
@@ -76,7 +73,6 @@ makefile.djg                    makefile for DJGCC
 makefile.icc                    makefile for C Set++ 2.x (OS/2)
 makefile.in                     used by 'configure' to generate a makefile
 makefile.wnt                    makefile for Win32 with Microsoft Visual C++
-makeflag.wnt                    replacement for win32.mak, for newer Visual Studio C++
 map.c                           map and map! commands
 menu.c                          menu-support for xvile
 mkprlenv.wnt                    vile-7.4h
@@ -96,7 +92,6 @@ os2vio.c                        OS/2 video terminal driver
 patchlev.h                      patch-level
 path.c                          functions that manipulate pathnames
 perl.xs                         Perl/C interface wrapper
-plink.sh                        script to trim unneeded libraries from a link-command.
 plugin.c                        command interface to plugins
 plugin.h                        interface of plugin.c
 proto.h                         function prototypes
@@ -108,6 +103,7 @@ region.c                        region-manipulation
 revlist                         revision-list for VILE
 search.c                        functions for search-commands
 select.c                        selection-handling functions
+sinstall.sh                     wrapper for installing perl-scripts
 spawn.c                         functions for spawning subprocesses
 statevar.c                      functions to set/get state-variables
 tags.c                          support for vi-style "tags"
@@ -126,7 +122,6 @@ vile.1                          man-page for VILE
 vile.hlp                        help-file
 vile.wmconfig                   windowmaker config file for vile
 vl_alloc.h                      malloc-macros for vile
-vl_crypt.h                      interface to Unix crypt(1)
 vl_ctype.c                      vile's ctype functions
 vl_ctype.h                      character-set tests for vile
 vl_regex.h                      interface for vile's regexp.c
@@ -137,7 +132,6 @@ vmspipe.c                       pipe-filter support for VMS
 vmsvt.c                         VMS terminal driver
 w32cbrd.c                       Win32 clipboard support
 w32cmd.c                        win32 command-specific code
-w32info.rc                      win32 version info
 w32misc.c                       vile-7.4h
 w32ole.cpp                      interface for Winvile OLE
 w32ole.h                        interface of w32ole.cpp
@@ -157,11 +151,8 @@ winvile.rc                      resource definitions for winvile
 word.c                          commands that operate upon words or paragraphs
 wordmov.c                       cursor-movement commands (e.g., word, spaces)
 wvwrap.cpp                      wrapper for winvile, e.g., from NT Explorer
-x11.c                           X11 (Xaw, Xt or Motif) terminal driver
+x11.c                           X11 (Xt, Motif or Openlook) terminal driver
 x11menu.c                       X11-specific part of menu support
-x11plain.c                      draw text for xvile using X11, no fontsets
-x11vile.h                       common definitions for xvile modules
-xftplain.c                      draw text for xvile, using Xft
 xshell.sh                       wrapper/sample script for xvile
 xterm.c                         xterm-specific I/O driver support
 xtermkeys.h                     generate bindings for xterm key-modifiers
@@ -186,12 +177,14 @@ doc/menus.doc                   description of xvile (Xm and Xaw) menus
 doc/menus.html                  description of xvile (Xm and Xaw) menus
 doc/modes.doc                   overview of modes/majormodes
 doc/modes.html                  description of vile's majormodes
+doc/ncu-indent                  copy of ncu-indent
 doc/oleauto.doc                 document Winvile OLE
 doc/oleauto.html                description of winvile's OLE automation support
 doc/perl.doc                    notes about perl interface to vile
 doc/perl.html                   notes about perl interface to vile
 doc/vile-hlp.html               html version of help-file
 doc/vile-man.html               html formatted manpage
+doc/vile-man.sed                script to fixup id's for vile-toc.html
 doc/vile-toc.html               generated table-of-contents
 doc/visvile.doc                 document visvile.dll
 doc/visvile.html                description of VisVile
@@ -212,7 +205,6 @@ filters/au3.key                 keywords for AutoIt version 3
 filters/awk-filt.l              awk syntax highlighter for vile
 filters/awk.key                 keywords for awk syntax highlighting
 filters/bas-filt.l              syntax filter for BASIC
-filters/bash.key                bash keywords
 filters/basic.key               keywords for basic syntax filter
 filters/bat-filt.l              dos batchfile syntax filter for vile
 filters/bat.key                 dos batchfile keywords
@@ -234,15 +226,12 @@ filters/dcl-filt.l              VAX dcl syntax highlighting filter for vile
 filters/dcl.key                 dcl keywords
 filters/def-filt.l              syntax filter for Windows ".def" files
 filters/def.key                 keywords for Windows ".def" files
-filters/delphi.key              keywords for delphi
 filters/diff.key                keywords for 'diff' syntax filter
 filters/difffilt.l              syntax filter for 'diff' output
 filters/docbook.key             keywords for docbook
 filters/ecl-filt.l              syntax filter for ECLiPSe
 filters/ecl.key                 keywords for ecl-filt.l
 filters/ecrypt.c                uemacs-derived encryption
-filters/erl-filt.l              erlang syntax filter
-filters/erl.key                 erlang keywords
 filters/esql.key                keywords for embedded SQL with C/C++
 filters/esqlfilt.l              syntax filter for embedded SQL with C/C++
 filters/est-filt.l              syntax-highlighter for enscript syntax descriptions
@@ -258,7 +247,6 @@ filters/fltstack.h              simple state-stack for lex filters
 filters/genmake.c               parse/substitute from genmake.mak
 filters/genmake.mak             makefile template-data for genmake.awk
 filters/genmake.sh              script to generate genmake.mak
-filters/go.key                  keywords for "go"
 filters/hs-filt.l               syntax filter for Haskell
 filters/hs.key                  Haskell keywords
 filters/html.key                keywords for vile-html-filt
@@ -272,10 +260,7 @@ filters/iss-filt.l              syntax filter for Inno Setup
 filters/iss.key                 keywords for Inno Setup
 filters/java.key                java keywords
 filters/js.key                  javascript keywords
-filters/json.key                JSON keywords
-filters/jsonfilt.l              syntax highlighter for JSON
 filters/key-filt.c              syntax filter for vile keyword files
-filters/ksh.key                 keywords for ksh
 filters/latex.key               latex keywords
 filters/latexflt.l              LaTeX syntax filter for vile
 filters/lex-filt.l              lex syntax filter for vile
@@ -302,8 +287,6 @@ filters/manfilt.c               manpage-filter
 filters/mc-filt.l               mailcap syntax filter
 filters/mcrl.key                filters for mCRL/mCRL2
 filters/mcrlfilt.l              filters for mCRL/mCRL2
-filters/md-filt.l               syntax filter for markdown files
-filters/md.key                  keywords for markdown files
 filters/midl.key                keywords for MIDL
 filters/midlfilt.l              syntax filter for MIDL
 filters/mk-0th.awk              construct builtflt.h
@@ -315,8 +298,6 @@ filters/mk-2nd.bat              generate rules for makefile.wnt
 filters/mk-key.awk              generate install/uninstall rules for keyword files
 filters/mms-filt.l              mms syntax filter for vile
 filters/mvn.key                 keywords for mvn (maven) mode
-filters/nmake.key               keywords for nmake
-filters/nmakeflt.l              syntax filter for nmake
 filters/noclass.sh              script to support lex's w/o character-classes
 filters/nr-filt.l               nroff syntax highlighting filter for vile
 filters/nr.key                  keywords for nroff filter
@@ -334,12 +315,8 @@ filters/pot.key                 keywords for pot (gettext) mode
 filters/prolog.key              keywords for prolog
 filters/ps-filt.l               syntax filter for PostScript files
 filters/ps.key                  keywords for PostScript syntax filter
-filters/ps1-filt.l              syntax highlighter for powershell
-filters/ps1.key                 keywords for powershell mode
 filters/py-filt.l               syntax filter for Python
 filters/py.key                  keywords for Python syntax filter
-filters/raku.key                syntax keywords for raku (originally perl6)
-filters/rakufilt.c              syntax filter for raku (originally perl6)
 filters/rb.key                  keywords for Ruby syntax filter
 filters/rc-filt.l               syntax filter for Windows ".rc" files
 filters/rc.key                  keywords for Windows ".rc" files
@@ -351,10 +328,7 @@ filters/rpm-filt.l              syntax highlighter for rpm spec-files
 filters/rpm.key                 keywords for rpm spec files
 filters/rtf-filt.l              syntax filter for RTF files
 filters/rtf.key                 control keywords for RTF
-filters/ruby.key                alias for rb.key
 filters/rubyfilt.c              syntax filter for Ruby
-filters/rust.key                keywords for rust
-filters/rustfilt.l              syntax filter for rust
 filters/sccs.key                keywords for SCCS syntax filter
 filters/sccsfilt.l              syntax filter for SCCS files.
 filters/scheme.key              keywords for scheme
@@ -382,17 +356,12 @@ filters/texi.key                keywords for texinfo syntax filter
 filters/texifilt.l              syntax filter for texinfo
 filters/ti-filt.l               terminfo syntax highlighting filter for vile
 filters/ti.key                  terminfo keywords
-filters/tpu-filt.l              syntax filter for TPU (DEC text-processing utility)
-filters/tpu.key                 TPU keywords
-filters/ts.key                  keywords for typescript mode
 filters/txt-filt.l              syntax filter for ordinary text
 filters/unfilter.c              main program, parsing for un-filters
 filters/unfilter.h              common definitions for un-filters
 filters/vb.key                  keywords for Visual Basic .Net
 filters/vb6.key                 keywords for Visual Basic 6
 filters/vbs.key                 keywords for vbsmode
-filters/vcproj.key              keywords for older Visual Studio project-files
-filters/vcxproj.key             keywords for Visual C++ project-files
 filters/vile.key                fallback template for highlighting colors
 filters/vilefilt.l              syntax filter for vile macros
 filters/vim.key                 keywords for vim syntax files
@@ -411,41 +380,20 @@ filters/xs.key                  keywords for Perl-extension syntax filter
 filters/xsl.key                 keywords for xsl files
 filters/yacc.key                yacc keywords
 filters/yaccfilt.l              yacc syntax highlighting filter for vile
-filters/yaml.key                yaml keywords
-filters/yamlfilt.l              syntax filter for yaml
-filters/zsh.key                 zsh keywords
 icons                           subdirectory
 icons/pumpkin.ico               V-eyes pumpkin icon
 icons/pumpkin.xbm               X bitmap, for vile icon
-icons/pumpkin.xcf               Gimp-formatted pumpkin-icon
 icons/pumpkin.xpm               pumpkin icon, in Xpm form
-icons/pumpkin_48x48.png         png-formatted pumpkin-icon 48x48
-icons/pumpkin_48x48.svg         svg-formatted pumpkin-icon on 48x48 grid
-icons/pumpkin_48x48.xcf         Gimp-formatted pumpkin-icon scaled to 48x48
 icons/sink.ico                  kitchen-sink icon (J.R.Sladkey)
 icons/sink.xbm                  X bitmap, for vile icon
-icons/sink.xcf                  Gimp-formatted sink-icon
 icons/sink.xpm                  X bitmap for vile icon
-icons/sink_48x48.png            png-formatted sink-icon 48x48
-icons/sink_48x48.svg            svg-formatted sink-icon on 48x48 grid
-icons/sink_48x48.xcf            Gimp-formatted sink-icon scaled to 48x48
-icons/vile-mini.ico             Windows icon, for vile
-icons/vile-mini.svg             just the tildes from vile_48x48.svg, resized.
-icons/vile-mini_16x16.xpm       16x16 pixmap from vile-mini.svg
-icons/vile-mini_32x32.xpm       32x32 pixmap from vile-mini.svg
-icons/vile-mini_48x48.xpm       48x48 pixmap from vile-mini.svg
 icons/vile.ico                  Windows icon, for vile
 icons/vile.xbm                  sample icon, for X bitmap
-icons/vile.xcf                  Gimp-formatted vile-icon
 icons/vile.xpm                  sample icon, for xpm library
-icons/vile_48x48.png            png-formatted vile-icon 48x48
-icons/vile_48x48.svg            svg-formatted vile-icon on 48x48 grid
-icons/vile_48x48.xcf            Gimp-formatted vile-icon scaled to 48x48
 macros                          subdirectory
 macros/UXVile.ad                X resources for uxvile
 macros/XVile.ad                 sample X resource file for vile
 macros/color-ls.rc              sample macro: read output of "color ls"
-macros/complete.rc              example for insert-mode completion
 macros/dates.rc                 demo of &date function
 macros/digraphs.rc              macros for inserting digraphs
 macros/gnugpg.rc                GNU gpg macros
@@ -462,33 +410,28 @@ macros/shifts.rc                macros to shift words left/right
 macros/showeach.rc              show-each-buffer
 macros/uxvile                   wrapper script to run xvile in UTF-8 locale
 macros/uxvile.desktop           desktop file for uxvile
-macros/vile-libdir-path         utility to print PATH updated to include vile's helpers.
 macros/vile-pager               use vile as a pager
-macros/vile-to-html             convert files to html
 macros/vileinit.rc              sample initialization file
 macros/vilemenu.rc              sample menu for xvile
 macros/vileperl.rc              sample initialization for perl scripts
 macros/which.rc                 script to show which keyword file is found by filters
 macros/xvile.desktop            desktop-file for xvile
-package                         subdirectory
-package/convile.nsi             NSIS package for convile
 package/debian                  subdirectory
+package/debian/README.Debian    debian build script
 package/debian/changelog        debian build script
+package/debian/compat           debian build script
 package/debian/control          debian build script
 package/debian/copyright        debian build script
 package/debian/overrides        subdirectory
 package/debian/overrides/vile   debian build script
 package/debian                  subdirectory
 package/debian/rules            debian build script
-package/debian/source           subdirectory
-package/debian/source/format    build-script
-package/debian                            subdirectory
-package/debian/vile-common.README.Debian  Debian build-script
 package/debian/vile-common.docs debian build script
-package/debian/vile-common.examples  debian build script
-package/debian/vile-common.files  debian build script
-package/debian/vile-filters.files  debian build script
-package/debian/vile-filters.links  debian build script
+package/debian/vile-common.examples                             debian build script
+package/debian/vile-common.files                                debian build script
+package/debian/vile-common.manpages                             debian build script
+package/debian/vile-filters.files                               debian build script
+package/debian/vile-filters.links                               debian build script
 package/debian/vile.files       debian build script
 package/debian/vile.links       debian build script
 package/debian/vile.menu        debian build script
@@ -498,44 +441,11 @@ package/debian/vile.prerm       debian build script
 package/debian/xvile.files      debian build script
 package/debian/xvile.links      debian build script
 package/debian/xvile.menu       debian build script
-package/freebsd/vile            subdirectory
-package/freebsd/vile/Makefile   build-script
-package/freebsd/vile/distinfo   build-script
-package/freebsd/vile/pkg-descr  build-script
-package/freebsd/vile/pkg-plist  build-script
-package/freebsd/xvile           subdirectory
-package/freebsd/xvile/Makefile  build-script
-package/freebsd/xvile/distinfo  build-script
-package/freebsd/xvile/pkg-descr build-script
-package/freebsd/xvile/pkg-plist build-script
-package                         subdirectory
-package/minvile.nsi             NSIS package for minvile
-package/openbsd                 subdirectory
-package/openbsd/Makefile        build-script
-package/openbsd/distinfo        build-script
-package/openbsd/patches              subdirectory
-package/openbsd/patches/patch-crypt  build-script
-package/openbsd/pkg             subdirectory
-package/openbsd/pkg/DESCR       build-script
-package/openbsd/pkg/PLIST       build-script
-package/pkgsrc/vile               subdirectory
-package/pkgsrc/vile/ALTERNATIVES  build-script
-package/pkgsrc/vile/DESCR       build-script
-package/pkgsrc/vile/Makefile    build-script
-package/pkgsrc/vile/PLIST       build-script
-package/pkgsrc/vile/distinfo    build-script
-package/pkgsrc/vile/options.mk  build-script
-package/pkgsrc/xvile            subdirectory
-package/pkgsrc/xvile/DESCR      build-script
-package/pkgsrc/xvile/Makefile   build-script
-package/pkgsrc/xvile/PLIST      build-script
 package                         subdirectory
 package/vile.spec               sample RPM spec file for vile
 package/winvile-wide.iss        Inno Setup script for winvile-wide
 package/winvile.iss             Inno Setup script for winvile
 package/winvile.nsi             NSIS package for winvile
-package/winvile64-wide.iss      build-script
-package/winvile64.iss           build-script
 perl                            subdirectory
 perl/Breadcrumbs.pm             manages bookmarks for a set of files
 perl/CaptHook.pm                manage various types of hooks from perl

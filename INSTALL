@@ -3,7 +3,7 @@ This is a generic document provided with most packages which use
 the GNU autoconf/configure system to achieve system portability.
 For vile-specific build/installation information, see doc/config.doc.
 
-$Id: INSTALL,v 1.7 1998/05/22 00:55:14 tom Exp $
+$Header: /usr/build/vile/vile/RCS/INSTALL,v 1.6 1998/05/22 00:55:14 tom Exp $
 --------------------------------
 
    This is a generic INSTALL file for utilities distributions.

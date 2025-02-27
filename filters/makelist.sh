@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: makelist.sh,v 1.6 2004/04/11 23:27:58 tom Exp $
+# $Header: /usr/build/vile/vile/filters/RCS/makelist.sh,v 1.5 2004/04/11 23:27:58 tom Exp $
 #
 # Make a list of the names for the specified syntax filters, for the configure
 # script, etc.

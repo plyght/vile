@@ -10,7 +10,8 @@
  * editing must be being displayed, which means that "b_nwnd" is non zero,
  * which means that the dot and mark values in the buffer headers are nonsense.
  *
- * $Id: line.c,v 1.241 2025/01/26 14:25:36 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/line.c,v 1.213 2010/05/02 22:01:46 tom Exp $
+ *
  */
 
 /* #define POISON */
@@ -25,7 +26,7 @@
 
 #include <assert.h>
 
-#define roundlenup(n) (((size_t) (n) + NBLOCK - 1) & (size_t)~(NBLOCK-1))
+#define roundlenup(n) ((n+NBLOCK-1) & (UINT)~(NBLOCK-1))
 
 static int doput(int f, int n, int after, REGIONSHAPE shape);
 static int ldelnewline(void);
@@ -33,12 +34,7 @@ static int PutChar(int n, REGIONSHAPE shape);
 
 #if OPT_SHOW_REGS && OPT_UPBUFF
 static int will_relist_regs;
-static int show_Registers(BUFFER *);
-#define relist_registers() \
-    if (!will_relist_regs) { \
-	will_relist_regs = TRUE; \
-	update_scratch(REGISTERS_BufName, show_Registers); \
-    }
+static void relist_registers(void);
 #else
 #define relist_registers()
 #endif
@@ -91,7 +87,7 @@ lalloc(int used, BUFFER *bp)
     } else {
 	size = roundlenup(used);
     }
-    if ((lp = alloc_LINE(bp)) != NULL) {
+    if ((lp = alloc_LINE(bp)) != 0) {
 	lvalue(lp) = NULL;
 	if (size && (lvalue(lp) = castalloc(char, size)) == NULL) {
 	    (void) no_memory("LINE text");
@@ -104,7 +100,7 @@ lalloc(int used, BUFFER *bp)
 #endif
 	    llength(lp) = used;
 	    lsetclear(lp);
-	    lp->l_nxtundo = NULL;
+	    lp->l_nxtundo = 0;
 #if OPT_LINE_ATTRS
 	    lp->l_attrs = NULL;
 #endif
@@ -238,24 +234,22 @@ lremove(BUFFER *bp, LINE *lp)
 #endif
 #if OPT_VIDEO_ATTRS
     {
-	AREGION **rpp = &(bp->b_attribs);
-	AREGION *ap;
-
-	while ((ap = *rpp) != NULL) {
-	    AREGION **next = &(ap->ar_next);
+	AREGION *ap = bp->b_attribs;
+	while (ap != NULL) {
+	    AREGION *next = ap->ar_next;
 	    int samestart = (ap->ar_region.r_orig.l == lp);
 	    int sameend = (ap->ar_region.r_end.l == lp);
 
 	    if (samestart && sameend) {
-		free_attrib2(bp, rpp);
-		next = rpp;
+		AREGION *tofree = ap;
+		free_attrib(bp, tofree);
 	    } else if (samestart) {
 		ap->ar_region.r_orig = mark_after;
 	    } else if (sameend) {
 		ap->ar_region.r_end.l = lback(lp);
 		ap->ar_region.r_end.o = llength(ap->ar_region.r_end.l);
 	    }
-	    rpp = next;
+	    ap = next;
 	}
     }
 #endif /* OPT_VIDEO_ATTRS */
@@ -267,18 +261,6 @@ lremove(BUFFER *bp, LINE *lp)
      * a memory leak.
      */
     if (!b_val(bp, MDUNDOABLE)) {
-	lfree(lp, bp);
-    }
-}
-
-/*
- * Remove a line, and free its memory whether or not the buffer is undoable.
- */
-void
-lremove2(BUFFER *bp, LINE *lp)
-{
-    lremove(bp, lp);
-    if (b_val(bp, MDUNDOABLE)) {
 	lfree(lp, bp);
     }
 }
@@ -308,7 +290,7 @@ lstrinsert(TBUFF *tp, int len)
 	int limit = tb_length0(tp);
 	int save_offset = DOT.o;
 
-	if (tp != NULL) {
+	if (tp != 0) {
 	    const char *string = tb_values(tp);
 	    for (n = 0; n < len; ++n) {
 		if (!lins_bytes(1, (n < limit) ? string[n] : ' ')) {
@@ -416,7 +398,7 @@ lins_bytes(int n, int c)
 	if (DOT.o != 0) {
 	    mlforce("BUG: lins_bytes");
 	    rc = (FALSE);
-	} else if ((lp2 = lalloc(n, curbp)) == NULL) {
+	} else if ((lp2 = lalloc(n, curbp)) == 0) {
 	    rc = (FALSE);
 	} else {
 	    lp3 = lback(lp1);	/* Previous line        */
@@ -436,10 +418,11 @@ lins_bytes(int n, int c)
 	}
     } else {
 	doto = DOT.o;		/* Save for later.      */
-	nsize = ((size_t) llength(lp1) + 1 + (size_t) doto + (size_t) n);
+	lp1 = lp1;
+	nsize = (size_t) (llength(lp1) + 1 + doto + n);
 	if (nsize > lp1->l_size) {	/* Hard: reallocate     */
 	    /* first, create the new image */
-	    nsize = roundlenup(nsize);
+	    nsize = roundlenup((int) nsize);
 	    CopyForUndo(lp1);
 	    if ((ntext = castalloc(char, nsize)) == NULL) {
 		rc = FALSE;
@@ -452,12 +435,12 @@ lins_bytes(int n, int c)
 		if (lvalue(lp1)) {
 #if OPT_LINE_ATTRS
 		    UCHAR *l_attrs = lp1->l_attrs;
-		    lp1->l_attrs = NULL;	/* momentarily detach */
+		    lp1->l_attrs = 0;	/* momentarily detach */
 #endif
 		    if (llength(lp1) > doto) {
 			(void) memcpy(&ntext[doto + n],
 				      &lvalue(lp1)[doto],
-				      ((size_t) llength(lp1) - (size_t) doto));
+				      (size_t) (llength(lp1) - doto));
 		    }
 		    ltextfree(lp1, curbp);
 #if OPT_LINE_ATTRS
@@ -537,14 +520,10 @@ int
 lins_chars(int n, int c)
 {
     int rc = FALSE;
-    UCHAR target[MAX_UTF8];
+    UCHAR target[10];
     int nbytes;
     int nn;
     int mapped;
-
-    TRACE((T_CALLED "lins_chars global %d, buffer %d U+%04X\n",
-	   global_is_utfXX(),
-	   b_is_utfXX(curbp), c));
 
     if ((c > 127) && b_is_utfXX(curbp)) {
 	nbytes = vl_conv_to_utf8(target, (UINT) c, sizeof(target));
@@ -569,9 +548,9 @@ lins_chars(int n, int c)
 		break;
 	}
     } else {
-	rc = lins_bytes(n, c);
+	rc = lins_bytes(1, c);
     }
-    returnCode(rc);
+    return rc;
 }
 #endif
 
@@ -580,7 +559,7 @@ lins_chars(int n, int c)
  * current window. The funny ass-backwards way it does things is not a botch;
  * it just makes the last line in the file not a special case. Return TRUE if
  * everything works out and FALSE on error (memory allocation failure). The
- * update of dot and mark is a bit easier than in the above case, because the
+ * update of dot and mark is a bit easier then in the above case, because the
  * split forces more updating.
  */
 int
@@ -602,7 +581,7 @@ lnewline(void)
 	&& lforw(lp1) == lp1) {
 	/* empty buffer -- just  create empty line */
 	lp2 = lalloc(doto, curbp);
-	if (lp2 != NULL) {
+	if (lp2 != 0) {
 	    /* put lp2 in below lp1 */
 	    set_lforw(lp2, lforw(lp1));
 	    set_lforw(lp1, lp2);
@@ -624,20 +603,20 @@ lnewline(void)
 	}
     } else {
 	lp2 = lalloc(doto, curbp);	/* New first half line */
-	if (lp2 != NULL) {
+	if (lp2 != 0) {
 	    if (doto > 0) {
 		CopyForUndo(lp1);
 #if OPT_LINE_ATTRS
-		if (lp1->l_attrs != NULL) {
+		if (lp1->l_attrs != 0) {
 		    if (doto == llength(lp1)) {
 			lp2->l_attrs = lp1->l_attrs;
-			lp1->l_attrs = NULL;
+			lp1->l_attrs = 0;
 		    } else {
 			UCHAR *newattr
-			= typeallocn(UCHAR, (size_t) llength(lp1) + 1);
+			= typeallocn(UCHAR, (unsigned) (llength(lp1) + 1));
 			int n;
 
-			if (newattr != NULL) {
+			if (newattr != 0) {
 			    lp2->l_attrs = newattr;
 			    lp2->l_attrs[doto] = EOS;
 			    for (n = 0; (lp1->l_attrs[n] =
@@ -754,14 +733,12 @@ ldel_bytes(B_COUNT nbytes, int kflag)
 	    status = FALSE;
 	    break;
 	}
-	if (doto > llength(dotp)) {
+	if (doto > llength(dotp))
 	    uchunk = 0;
-	} else {
+	else
 	    uchunk = (B_COUNT) (llength(dotp) - doto);	/* Size of chunk.  */
-	}
-	if (uchunk > nbytes) {
+	if (uchunk > nbytes)
 	    uchunk = nbytes;
-	}
 
 	schunk = (long) uchunk;
 	if (schunk < 0) {
@@ -821,10 +798,10 @@ ldel_bytes(B_COUNT nbytes, int kflag)
 	}
 	while (cp2 != lvalue(dotp) + llength(dotp))
 	    *cp1++ = *cp2++;
-	llength(dotp) -= (int) schunk;
+	llength(dotp) -= schunk;
 #if ! WINMARK
 	if (MK.l == dotp && MK.o > doto) {
-	    MK.o -= (C_NUM) schunk;
+	    MK.o -= schunk;
 	    if (MK.o < doto)
 		MK.o = doto;
 	}
@@ -832,7 +809,7 @@ ldel_bytes(B_COUNT nbytes, int kflag)
 	for_each_window(wp) {	/* Fix windows          */
 	    if (wp->w_dot.l == dotp
 		&& wp->w_dot.o > doto) {
-		wp->w_dot.o -= (C_NUM) schunk;
+		wp->w_dot.o -= schunk;
 		if (wp->w_dot.o < doto)
 		    wp->w_dot.o = doto;
 	    }
@@ -846,7 +823,7 @@ ldel_bytes(B_COUNT nbytes, int kflag)
 #endif
 	    if (wp->w_lastdot.l == dotp
 		&& wp->w_lastdot.o > doto) {
-		wp->w_lastdot.o -= (C_NUM) schunk;
+		wp->w_lastdot.o -= schunk;
 		if (wp->w_lastdot.o < doto)
 		    wp->w_lastdot.o = doto;
 	    }
@@ -854,13 +831,13 @@ ldel_bytes(B_COUNT nbytes, int kflag)
 	do_mark_iterate(mp, {
 	    if (mp->l == dotp
 		&& mp->o > doto) {
-		mp->o -= (C_NUM) schunk;
+		mp->o -= schunk;
 		if (mp->o < doto)
 		    mp->o = doto;
 	    }
 	});
 #if OPT_LINE_ATTRS
-	if (!lattr_shift(curbp, dotp, doto, (int) -schunk)) {
+	if (!lattr_shift(curbp, dotp, doto, -schunk)) {
 	    status = FALSE;
 	    break;
 	}
@@ -880,25 +857,7 @@ ldel_bytes(B_COUNT nbytes, int kflag)
 int
 ldel_chars(B_COUNT nchars, int kflag)
 {
-    LINE *lp = DOT.l;
-    int off = DOT.o;
-    B_COUNT total = 0;
-
-    while (nchars != 0) {
-	int test_bytes = count_bytes(lp, off, (int) nchars);
-	int test_chars = count_chars(lp, off, test_bytes);
-
-	total += (B_COUNT) test_bytes;
-	if ((B_COUNT) test_chars >= nchars)
-	    break;
-
-	lp = lforw(DOT.l);
-	off = 0;
-
-	total += (B_COUNT) len_record_sep(curbp);;
-	nchars -= (B_COUNT) (1 + test_chars);
-    }
-    return ldel_bytes(total, kflag);
+    return ldel_bytes((B_COUNT) count_bytes(DOT.l, DOT.o, (int) nchars), kflag);
 }
 #endif
 
@@ -972,7 +931,7 @@ lrepl_regex(REGEXVAL * rexp, const char *np, int length)
 	   rexp ? NONNULL(rexp->pat) : "",
 	   length, np));
 
-    if (rexp == NULL || rexp->reg == NULL) {
+    if (rexp == 0 || rexp->reg == 0) {
 	status = FALSE;
 
     } else if ((status = check_editable(curbp)) == TRUE) {
@@ -980,8 +939,8 @@ lrepl_regex(REGEXVAL * rexp, const char *np, int length)
 
 	mayneedundo();
 
-	if (lregexec(exp, DOT.l, DOT.o, llength(DOT.l), FALSE)) {
-	    int old = (int) (exp->endp[0] - exp->startp[0]);
+	if (lregexec(exp, DOT.l, DOT.o, llength(DOT.l))) {
+	    int old = exp->endp[0] - exp->startp[0];
 	    if (old > 0) {
 		regionshape = rgn_EXACT;
 		status = forwdelchar(TRUE, old);
@@ -1050,7 +1009,7 @@ ldelnewline(void)
 	char *ntext;
 	size_t nsize;
 	/* first, create the new image */
-	nsize = roundlenup((size_t) len + (size_t) add);
+	nsize = roundlenup(len + add);
 	if ((ntext = castalloc(char, nsize)) == NULL)
 	      return (FALSE);
 	if (lvalue(lp1)) {	/* possibly NULL if l_size == 0 */
@@ -1279,7 +1238,7 @@ reg2index(int c)
     else if (isLower(c))
 	n = c - 'a' + 10;	/* named buffs are in 10 through 36 */
     else if (isUpper(c))
-	n = c - 'A' + 10;	/* ignore case of register-name */
+	n = c - 'A' + 10;
 #if OPT_SELECTIONS
     else if (c == SEL_KCHR)
 	n = SEL_KREG;
@@ -1349,9 +1308,9 @@ usekreg(int f, int n)
 	kregflag |= KAPPEND;
 
     if (clexec) {
-	TBUFF *tok = NULL;
+	TBUFF *tok = 0;
 	char *name = mac_unquotedarg(&tok);	/* get the next token */
-	if (name != NULL) {
+	if (name != 0) {
 	    status = execute(engl2fnc(name), f, n);
 	    tb_free(&tok);
 	} else {
@@ -1531,7 +1490,7 @@ doput(int f, int n, int after, REGIONSHAPE shape)
     if (shape == rgn_FULLLINE) {
 	if (after && !is_header_line(DOT, curbp))
 	    DOT.l = lforw(DOT.l);
-	DOT.o = b_left_margin(curbp);
+	DOT.o = 0;
     } else {
 	if (after && !is_at_end_of_line(DOT))
 	    forwchar(TRUE, 1);
@@ -1803,21 +1762,15 @@ execkreg(int f, int n)
 	    tkp = tkp->d_next;
 	}
 	/* process them in reverse order */
-	while (kbcount > 0) {
+	while (kbcount) {
 	    whichkb = kbcount;
 	    tkp = kp;
-	    while (--whichkb > 0) {
-		if ((tkp = tkp->d_next) == NULL) {
-		    kbcount = 0;
-		    break;	/* quit on error */
-		}
-	    }
-	    if (tkp != NULL) {
-		i = (int) KbSize(jj, tkp);
-		sp = (char *) tkp->d_chunk + i - 1;
-		while (i--) {
-		    mapungetc((int) ((UINT) (*sp--) | YESREMAP));
-		}
+	    while (--whichkb != 0)
+		tkp = tkp->d_next;
+	    i = (int) KbSize(jj, tkp);
+	    sp = (char *) tkp->d_chunk + i - 1;
+	    while (i--) {
+		mapungetc((int) ((*sp--) | YESREMAP));
 	    }
 	    kbcount--;
 	}
@@ -1835,7 +1788,7 @@ loadkreg(int f, int n GCC_UNUSED)
     ksetup();
     *respbuf = EOS;
     s = mlreply_no_opts("Load register with: ",
-			respbuf, (UINT) sizeof(respbuf));
+			respbuf, sizeof(respbuf));
     if (s != TRUE)
 	return FALSE;
     if (f)
@@ -1881,7 +1834,7 @@ makereglist(
 	short save = ukb;
 
 	ii = index2ukb(i);
-	if ((kp = kbs[ii].kbufh) != NULL) {
+	if ((kp = kbs[ii].kbufh) != 0) {
 	    int first = FALSE;
 	    if (any++) {
 		bputc('\n');
@@ -1915,7 +1868,7 @@ makereglist(
 		    } else
 			any = 1;
 		}
-	    } while ((kp = kp->d_next) != NULL);
+	    } while ((kp = kp->d_next) != 0);
 	}
 	if (i < 10)
 	    ukb = save;
@@ -1933,85 +1886,28 @@ showkreg(int f, int n GCC_UNUSED)
 }
 
 #if OPT_UPBUFF
+
 static int
 show_Registers(BUFFER *bp)
 {
     b_clr_obsolete(bp);
     return showkreg(show_all_chars, 1);
 }
+
+static void
+relist_registers(void)
+{
+
+    if (will_relist_regs)	/* have we already done this? */
+	return;
+
+    will_relist_regs = TRUE;
+
+    update_scratch(REGISTERS_BufName, show_Registers);
+}
 #endif /* OPT_UPBUFF */
 
 #endif /* OPT_SHOW_REGS */
-
-#if OPT_REGS_CMPL
-KBD_OPTIONS
-regs_kbd_options(void)
-{
-    return KBD_MAYBEC;
-}
-
-static int
-reg_has_data(int src)
-{
-    int rc = FALSE;
-    int j = reg2index(src);
-    if (j >= 0 ||
-	(regs_kbd_default && (src == UNAME_KCHR))) {
-	int jj = index2ukb(j);
-	if (jj >= 0 && jj < NKREGS) {
-	    if (kbs[jj].kbufh) {
-		rc = TRUE;
-	    }
-	}
-    }
-    return rc;
-}
-
-/*
- * Register names are a single ASCII character.
- */
-static const char **
-init_regs_cmpl(char *buf, size_t cpos)
-{
-    int dst, src;
-    char **result = typeallocn(char *, 96);
-    if (result != NULL) {
-	for (dst = 0, src = 32; src < 127; ++src) {
-	    if (isUpper(src))	/* register names are caseless */
-		continue;
-	    if (reg_has_data(src)) {
-		if (cpos == 0 || *buf == src) {
-		    char value[2];
-		    value[0] = (char) src;
-		    value[1] = 0;
-		    result[dst++] = strmalloc(value);
-		}
-	    }
-	}
-	result[dst] = NULL;
-    }
-    return (const char **) result;
-}
-
-int
-regs_completion(DONE_ARGS)
-{
-    size_t cpos = *pos;
-    int status = FALSE;
-    const char **nptr;
-
-    kbd_init();			/* nothing to erase */
-    buf[cpos] = EOS;		/* terminate it for us */
-
-    beginDisplay();
-    if ((nptr = init_regs_cmpl(buf, cpos)) != NULL) {
-	status = kbd_complete(PASS_DONE_ARGS, (const char *) nptr, sizeof(*nptr));
-	free(TYPECAST(char *, nptr));
-    }
-    endofDisplay();
-    return status;
-}
-#endif
 
 /* For memory-leak testing (only!), releases all kill-buffer storage. */
 #if NO_LEAKS

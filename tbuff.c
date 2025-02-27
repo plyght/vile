@@ -7,7 +7,8 @@
  *	To do:	add 'tb_ins()' and 'tb_del()' to support cursor-level command
  *		editing.
  *
- * $Id: tbuff.c,v 1.83 2025/01/26 17:08:26 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/tbuff.c,v 1.74 2009/10/31 17:10:23 tom Exp $
+ *
  */
 
 #include "estruct.h"
@@ -34,7 +35,7 @@ tb_remember(TBUFF *p)
 {
     TB_LIST *q;
 
-    if ((q = typealloc(TB_LIST)) != NULL) {
+    if ((q = typealloc(TB_LIST)) != 0) {
 	q->buff = p;
 	q->link = all_tbuffs;
 	all_tbuffs = q;
@@ -47,9 +48,9 @@ tb_forget(TBUFF *p)
     TB_LIST *q, *r;
 
     beginDisplay();
-    for (q = all_tbuffs, r = NULL; q != NULL; r = q, q = q->link) {
+    for (q = all_tbuffs, r = 0; q != 0; r = q, q = q->link) {
 	if (q->buff == p) {
-	    if (r != NULL)
+	    if (r != 0)
 		r->link = q->link;
 	    else
 		all_tbuffs = q->link;
@@ -63,7 +64,7 @@ tb_forget(TBUFF *p)
 void
 tb_leaks(void)
 {
-    while (all_tbuffs != NULL) {
+    while (all_tbuffs != 0) {
 	TBUFF *q = all_tbuffs->buff;
 	FreedBuffer(q);
 	tb_free(&q);
@@ -81,14 +82,14 @@ ValidateTBUFF(TBUFF *p, int lineno)
 {
     int ok = TRUE;
 
-    if (p != NULL) {
+    if (p != 0) {
 	if (p->tb_errs) {
-	    if ((p->tb_size != 0 || p->tb_used != 0) || (p->tb_data != NULL))
+	    if ((p->tb_size != 0 || p->tb_used != 0) || (p->tb_data != 0))
 		ok = FALSE;
 	} else {
-	    if ((p->tb_size != 0 || p->tb_used != 0) && (p->tb_data == NULL))
+	    if ((p->tb_size != 0 || p->tb_used != 0) && (p->tb_data == 0))
 		ok = FALSE;
-	    if ((p->tb_size == 0 && p->tb_used == 0) && (p->tb_data != NULL))
+	    if ((p->tb_size == 0 && p->tb_used == 0) && (p->tb_data != 0))
 		ok = FALSE;
 	}
 	if (!ok) {
@@ -126,9 +127,9 @@ tb_alloc(TBUFF **p, size_t n)
 	n = sizeof(TBUFF);
     }
 
-    if (q == NULL) {
-	if ((q = typecalloc(TBUFF)) != NULL) {
-	    if ((q->tb_data = typeallocn(char, q->tb_size = n)) != NULL) {
+    if (q == 0) {
+	if ((q = typealloc(TBUFF)) != 0) {
+	    if ((q->tb_data = typeallocn(char, q->tb_size = n)) != 0) {
 		q->tb_used = 0;
 		q->tb_last = 0;
 		q->tb_endc = esc_c;
@@ -139,9 +140,9 @@ tb_alloc(TBUFF **p, size_t n)
 		tb_free(&q);
 	    }
 	}
-    } else if (!isTB_ERRS(q) && (n >= q->tb_size || q->tb_data == NULL)) {
-	safe_typereallocn(char, q->tb_data, q->tb_size = (n * 2));
-	if (q->tb_data == NULL)
+    } else if (!isTB_ERRS(q) && (n >= q->tb_size || q->tb_data == 0)) {
+	q->tb_data = typereallocn(char, q->tb_data, q->tb_size = (n * 2));
+	if (q->tb_data == 0)
 	    tb_free(&q);
     }
     endofDisplay();
@@ -155,9 +156,9 @@ TBUFF *
 tb_init(TBUFF **p, int c)
 {
     TBUFF *q = *p;
-    if (q == NULL)
-	q = tb_alloc(p, (size_t) NCHUNK);
-    if (q != NULL) {
+    if (q == 0)
+	q = tb_alloc(p, NCHUNK);
+    if (q != 0) {
 	q->tb_used = 0;
 	q->tb_last = 0;
 	q->tb_endc = c;		/* code to return if no-more-data */
@@ -175,7 +176,7 @@ tb_error(TBUFF **p)
     TBUFF *result;
 
     beginDisplay();
-    if ((result = tb_init(p, EOS)) != NULL) {
+    if ((result = tb_init(p, EOS)) != 0) {
 	result->tb_size = 0;
 	result->tb_used = 0;
 	FreeAndNull(result->tb_data);
@@ -195,12 +196,12 @@ tb_free(TBUFF **p)
 
     beginDisplay();
     valid_tbuff(q);
-    if (q != NULL) {
+    if (q != 0) {
 	FreedBuffer(q);
 	FreeIfNeeded(q->tb_data);
 	free(q);
     }
-    *p = NULL;
+    *p = 0;
     endofDisplay();
 }
 
@@ -215,7 +216,7 @@ tb_put(TBUFF **p, size_t n, int c)
     TBUFF *q = *p;
 
     if (!isTB_ERRS(q)) {
-	if ((q = tb_alloc(p, n + 1)) != NULL) {
+	if ((q = tb_alloc(p, n + 1)) != 0) {
 	    q->tb_data[n] = (char) c;
 	    q->tb_used = n + 1;
 	}
@@ -248,7 +249,7 @@ TBUFF *
 tb_append(TBUFF **p, int c)
 {
     TBUFF *q = *p;
-    size_t n = (q != NULL) ? q->tb_used : 0;
+    size_t n = (q != 0) ? q->tb_used : 0;
 
     return tb_put(p, n, c);
 }
@@ -265,7 +266,7 @@ tb_insert(TBUFF **p, size_t n, int c)
 	size_t m = tb_length(*p);
 
 	q = tb_append(p, c);
-	if (q != NULL && n < m) {
+	if (q != 0 && n < m) {
 	    while (n < m) {
 		q->tb_data[m] = q->tb_data[m - 1];
 		m--;
@@ -287,8 +288,8 @@ tb_copy(TBUFF **d, TBUFF *s)
     if (isTB_ERRS(p)) {
 	p = tb_error(d);
     } else {
-	if (s != NULL) {
-	    if ((p = tb_init(d, s->tb_endc)) != NULL)
+	if (s != 0) {
+	    if ((p = tb_init(d, s->tb_endc)) != 0)
 		p = tb_bappend(d, tb_values(s), tb_length(s));
 	} else {
 	    p = tb_init(d, esc_c);
@@ -305,12 +306,12 @@ tb_bappend(TBUFF **p, const char *s, size_t len)
 {
     TBUFF *q = *p;
 
-    if (!isTB_ERRS(*p) && (s != NULL)) {
-	size_t n = (q != NULL) ? q->tb_used : 0;
+    if (!isTB_ERRS(*p)) {
+	size_t n = (q != 0) ? q->tb_used : 0;
 
 	if (isErrorVal(s)) {
 	    tb_error(&q);
-	} else if ((q = tb_alloc(p, n + len)) != NULL) {
+	} else if ((q = tb_alloc(p, n + len)) != 0) {
 	    if (len != 0) {
 		if (q->tb_data + n != s)
 		    memmove(q->tb_data + n, s, len);
@@ -328,7 +329,7 @@ tb_bappend(TBUFF **p, const char *s, size_t len)
 TBUFF *
 tb_sappend(TBUFF **p, const char *s)
 {
-    if (s != NULL)
+    if (s != 0)
 	(void) tb_bappend(p, s, strlen(s));
     return *p;
 }
@@ -340,9 +341,9 @@ tb_sappend(TBUFF **p, const char *s)
 TBUFF *
 tb_sappend0(TBUFF **p, const char *s)
 {
-    if (s != NULL) {
+    if (s != 0) {
 	TBUFF *q = *p;
-	if (q != NULL
+	if (q != 0
 	    && !isTB_ERRS(q)
 	    && q->tb_used > 0
 	    && q->tb_data[q->tb_used - 1] == EOS) {
@@ -371,7 +372,7 @@ tb_scopy(TBUFF **p, const char *s)
 TBUFF *
 tb_string(const char *s)
 {
-    TBUFF *p = NULL;
+    TBUFF *p = 0;
     (void) tb_init(&p, EOS);
     return tb_bappend(&p, s, strlen(s));
 }
@@ -386,7 +387,7 @@ tb_get(TBUFF *p, size_t n)
 {
     int c = esc_c;
 
-    if (p != NULL
+    if (p != 0
 	&& !isTB_ERRS(p))
 	c = (n < p->tb_used) ? p->tb_data[n] : p->tb_endc;
 
@@ -399,7 +400,7 @@ tb_get(TBUFF *p, size_t n)
 void
 tb_unput(TBUFF *p)
 {
-    if (p != NULL
+    if (p != 0
 	&& !isTB_ERRS(p)
 	&& p->tb_used != 0)
 	p->tb_used -= 1;
@@ -427,7 +428,7 @@ tb_first(TBUFF *p)
 int
 tb_more(TBUFF *p)
 {
-    return (p != NULL && !isTB_ERRS(p)) ? (p->tb_last < p->tb_used) : FALSE;
+    return (p != 0 && !isTB_ERRS(p)) ? (p->tb_last < p->tb_used) : FALSE;
 }
 
 /*
@@ -436,7 +437,7 @@ tb_more(TBUFF *p)
 int
 tb_next(TBUFF *p)
 {
-    if (p != NULL && !isTB_ERRS(p))
+    if (p != 0 && !isTB_ERRS(p))
 	return tb_get(p, p->tb_last++);
     return esc_c;
 }
@@ -478,7 +479,7 @@ tb_dequote(TBUFF **p)
     char *value = tb_values(*p);
 
     TRACE2(("tb_dequote %s\n", tb_visible(*p)));
-    if (value == NULL) {
+    if (value == 0) {
 	TRACE2(("...empty\n"));
     } else if (!isErrorVal(value)) {
 	int escaped = FALSE;
@@ -532,7 +533,7 @@ tb_enquote(TBUFF **p)
     char *value = tb_values(*p);
 
     TRACE2(("tb_enquote %s\n", tb_visible(*p)));
-    if (value == NULL) {
+    if (value == 0) {
 	TRACE2(("...empty\n"));
     } else if (!isErrorVal(value) && tb_length(*p)) {
 	UINT j;
@@ -558,23 +559,21 @@ tb_enquote(TBUFF **p)
 	}
 
 	tb_alloc(p, need + 1);
-	if (*p)
-	    (*p)->tb_used = need + 1;
+	(*p)->tb_used = need + 1;
 
-	if ((value = tb_values(*p)) != NULL) {
-	    value[need] = EOS;
-	    value[need - 1] = (char) delim;
-	    for (j = 0; j < have; ++j) {
-		size_t i = have - j - 1;
-		size_t k = need - j - 2;
-		UINT ch = CharOf(value[k] = value[i]);
-		if (delim == DQUOTE && (ch == DQUOTE || ch == BACKSLASH)) {
-		    --need;
-		    value[k - 1] = BACKSLASH;
-		}
+	value = tb_values(*p);
+	value[need] = EOS;
+	value[need - 1] = (char) delim;
+	for (j = 0; j < have; ++j) {
+	    size_t i = have - j - 1;
+	    size_t k = need - j - 2;
+	    UINT ch = CharOf(value[k] = value[i]);
+	    if (delim == DQUOTE && (ch == DQUOTE || ch == BACKSLASH)) {
+		--need;
+		value[k - 1] = BACKSLASH;
 	    }
-	    value[0] = (char) delim;
 	}
+	value[0] = (char) delim;
 	TRACE2(("...tb_enquote %s\n", tb_visible(*p)));
     }
     valid_tbuff(*p);
@@ -584,20 +583,18 @@ tb_enquote(TBUFF **p)
 void
 tb_prequote(TBUFF **p)
 {
-    char *value;
-
     TRACE2(("tb_prequote %s\n", tb_visible(*p)));
-    if (tb_length(*p) && (value = tb_values(*p)) != NULL) {
-	if (*value == DQUOTE || *value == SQUOTE) {
+    if (tb_length(*p)) {
+	if (*tb_values(*p) == DQUOTE || *tb_values(*p) == SQUOTE) {
 	    tb_append(p, EOS);
 	    {
-		size_t len = tb_length(*p);
-		if ((value = tb_values(*p)) != NULL) {
-		    do {
-			value[len] = value[len - 1];
-		    } while (--len != 0);
-		    value[0] = SQUOTE;
-		}
+		unsigned len = tb_length(*p);
+		char *value = tb_values(*p);
+
+		do {
+		    value[len] = value[len - 1];
+		} while (--len != 0);
+		value[0] = SQUOTE;
 		TRACE2(("...tb_prequote %s\n", tb_visible(*p)));
 	    }
 	}
@@ -612,9 +609,9 @@ tb_prequote(TBUFF **p)
 char *
 tb_values(TBUFF *p)
 {
-    char *result = NULL;
+    char *result = 0;
 
-    if (p != NULL) {
+    if (p != 0) {
 	if (isTB_ERRS(p)) {
 	    result = error_val;
 	} else {
@@ -633,10 +630,10 @@ tb_length(TBUFF *p)
 {
     size_t result = 0;
 
-    if (p != NULL) {
+    if (p != 0) {
 	if (isTB_ERRS(p)) {
 	    result = ERROR_LEN;
-	} else if (p->tb_data != NULL) {
+	} else if (p->tb_data != 0) {
 	    result = p->tb_used;
 	}
     }
@@ -668,11 +665,11 @@ tb_setlen(TBUFF **p, int n)
 {
     size_t len;
 
-    if (p != NULL) {
+    if (p != 0) {
 	if (!isTB_ERRS(*p)) {
 	    if (n < 0) {
 		char *value = tb_values(*p);
-		if (value != NULL)
+		if (value != 0)
 		    len = strlen(value) + 1;
 		else
 		    len = 0;
@@ -680,8 +677,7 @@ tb_setlen(TBUFF **p, int n)
 		len = (size_t) n;
 		tb_alloc(p, len);
 	    }
-	    if (*p)
-		(*p)->tb_used = len;
+	    (*p)->tb_used = len;
 	}
 	valid_tbuff(*p);
     }

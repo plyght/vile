@@ -2,7 +2,9 @@
  *		The routines in this file handle the conversion of pathname
  *		strings.
  *
- * $Id: path.c,v 1.186 2025/01/26 14:33:43 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/path.c,v 1.168 2009/11/14 00:25:42 tom Exp $
+ *
+ *
  */
 
 #include "estruct.h"
@@ -260,7 +262,7 @@ char *
 unix_pathleaf(char *path)
 {
     char *s = last_slash(path);
-    if (s == NULL) {
+    if (s == 0) {
 #if OPT_MSDOS_PATH
 	if ((s = is_msdos_drive(path)) == 0)
 #endif
@@ -293,19 +295,19 @@ pathcat(char *dst, const char *path, const char *cleaf)
     char *s;
     size_t have;
 
-    if (dst == NULL)
-	return NULL;
+    if (dst == 0)
+	return 0;
 
-    if (cleaf == NULL)
+    if (cleaf == 0)
 	cleaf = "";
 
-    leaf = vl_strncpy(save_leaf, cleaf, (size_t) NFILEN);	/* leaf may be in dst */
+    leaf = vl_strncpy(save_leaf, cleaf, NFILEN);	/* leaf may be in dst */
 
     if (isEmpty(path)) {
 	(void) strcpy(dst, leaf);
     } else {
 
-	path = vl_strncpy(save_path, path, (size_t) NFILEN);	/* path may be in dst */
+	path = vl_strncpy(save_path, path, NFILEN);	/* path may be in dst */
 
 #if OPT_MSDOS_PATH
 	if (is_msdos_drive(save_path) != 0
@@ -321,7 +323,7 @@ pathcat(char *dst, const char *path, const char *cleaf)
 #endif
 	if (is_abs_pathname(leaf)) {
 	    (void) strcpy(dst, leaf);
-	} else if (leaf != NULL) {
+	} else {
 	    have = strlen(strcpy(dst, path));
 	    if (have + strlen(leaf) + 2 < NFILEN) {
 		s = dst + have - 1;
@@ -359,7 +361,7 @@ last_slash(char *fn)
 	for (s = skip_string(fn); s > fn; s--)
 	    if (is_slashc(s[-1]))
 		return s - 1;
-    return NULL;
+    return 0;
 }
 
 /*
@@ -387,7 +389,7 @@ save_user(const char *name, const char *path)
 
     if (name != NULL
 	&& path != NULL
-	&& (q = typecalloc(UPATH)) != NULL) {
+	&& (q = typealloc(UPATH)) != NULL) {
 	TRACE(("save_user(name=%s, path=%s)\n", name, path));
 	if ((q->name = strmalloc(name)) != NULL
 	    && (q->path = strmalloc(path)) != NULL) {
@@ -435,13 +437,13 @@ find_user(const char *name)
 	/* if either of the above lookups worked
 	 * then save the result
 	 */
-	if (p != NULL) {
+	if (p != 0) {
 	    return save_user(name, p->pw_dir);
 	}
 #endif
 	if (*name == EOS) {
 	    char *env = home_dir();
-	    if (env != NULL) {
+	    if (env != 0) {
 		return save_user(name, env);
 	    }
 	}
@@ -865,7 +867,7 @@ resolve_directory(char *path_name, char **file_namep)
 	    (void) closedir(dp);
 	    if (!found)
 		return NULL;
-	} else			/* couldn't open directory */
+	} else			/* could't open directory */
 	    return NULL;
 
 	thisdev = dotdev;
@@ -881,12 +883,13 @@ resolve_directory(char *path_name, char **file_namep)
 #endif /* defined(GMDRESOLVE_LINKS) */
 #endif /* defined(HAVE_REALPATH) */
 
+#if OPT_CASELESS
+
 /*
  * The function case_correct_path is intended to determine the true
  * case of all pathname components of a syntactically canonicalized
- * pathname for operating systems which use caseless filenames.
+ * pathname for operating systems on which OPT_CASELESS applies.
  */
-#undef case_correct_path
 
 #if SYS_WINNT
 
@@ -980,7 +983,9 @@ case_correct_path(char *old_file, char *new_file)
     return;
 }
 
-#elif SYS_OS2
+#else /* !SYS_WINNT */
+
+#if SYS_OS2
 
 int
 is_case_preserving(const char *name)
@@ -1078,11 +1083,21 @@ case_correct_path(char *old_file, char *new_file)
     return;
 }
 
-#else
+#else /* !SYS_OS2 */
 
-#define case_correct_path(old_file, new_file)	/* nothing */
+static void
+case_correct_path(char *old_file, char *new_file)
+{
+    if (old_file != new_file)
+	(void) strcpy(new_file, old_file);
+    return;
+}
+
+#endif /* !SYS_OS2 */
 
 #endif /* !SYS_WINNT */
+
+#endif /* OPT_CASELESS */
 
 /* canonicalize a pathname, to eliminate extraneous /./, /../, and ////
 	sequences.  only guaranteed to work for absolute pathnames */
@@ -1093,8 +1108,8 @@ canonpath(char *ss)
     char *s;
 
     TRACE((T_CALLED "canonpath '%s'\n", str_visible(ss)));
-    if ((s = is_appendname(ss)) != NULL) {
-	returnString((canonpath(s) != NULL) ? ss : NULL);
+    if ((s = is_appendname(ss)) != 0) {
+	returnString((canonpath(s) != 0) ? ss : 0);
     } else {
 
 	s = ss;
@@ -1103,8 +1118,9 @@ canonpath(char *ss)
 	    returnString(s);
 
 #if OPT_MSDOS_PATH
-	if (!global_g_val(GMDFILENAME_IC))
-	    (void) mklower(ss);	/* MS-DOS is case-independent */
+#if !OPT_CASELESS
+	(void) mklower(ss);	/* MS-DOS is case-independent */
+#endif
 	if (is_slashc(*ss))
 	    *ss = SLASHC;
 	/* pretend the drive designator isn't there */
@@ -1150,16 +1166,15 @@ canonpath(char *ss)
 	    char temp3[NFILEN];
 	    char *real = realpath(s, temp);
 
-	    if (real != NULL) {
+	    if (real != 0) {
 		(void) strcpy(s, real);
-	    } else if ((leaf = pathleaf(vl_strncpy(temp, s,
-						   sizeof(temp)))) != NULL) {
-		vl_strncpy(temp2, leaf, sizeof(temp2));
+	    } else if ((leaf = pathleaf(strcpy(temp, s))) != 0) {
+		strcpy(temp2, leaf);
 		if (leaf == temp + 1)
 		    leaf[0] = EOS;
 		else
 		    leaf[-1] = EOS;
-		if (realpath(temp, temp3) != NULL) {
+		if (realpath(temp, temp3) != 0) {
 		    pathcat(s, temp3, temp2);
 		}
 	    }
@@ -1279,9 +1294,8 @@ canonpath(char *ss)
 	}
 #endif
 
-#ifndef case_correct_path
-	if (global_g_val(GMDFILENAME_IC))
-	    case_correct_path(ss, ss);
+#if OPT_CASELESS
+	case_correct_path(ss, ss);
 #endif
     }
     returnString(ss);
@@ -1309,8 +1323,8 @@ shorten_path(char *path, int keep_cwd)
     if (isInternalName(path))
 	return path;
 
-    if ((f = is_appendname(path)) != NULL)
-	return (shorten_path(f, keep_cwd) != NULL) ? path : NULL;
+    if ((f = is_appendname(path)) != 0)
+	return (shorten_path(f, keep_cwd) != 0) ? path : 0;
 
     TRACE(("shorten '%s'\n", path));
 #if OPT_VMS_PATH
@@ -1400,10 +1414,10 @@ shorten_path(char *path, int keep_cwd)
 	    *temp = EOS;
 	if (is_slashc(*ff)) {
 	    found = TRUE;
-	    (void) strcpy(path, vl_strncat(temp, ff + 1, sizeof(temp)));
+	    (void) strcpy(path, strcat(temp, ff + 1));
 	} else if (slp == ff - 1) {
 	    found = TRUE;
-	    (void) strcpy(path, vl_strncat(temp, ff, sizeof(temp)));
+	    (void) strcpy(path, strcat(temp, ff));
 	}
     }
 
@@ -1412,17 +1426,13 @@ shorten_path(char *path, int keep_cwd)
 	if (slp != path) {
 	    /* if we mismatched in the last component of cwd, then the file
 	       is under '..' */
-	    if (last_slash(cwd) == NULL) {
-		(void) strcpy(path,
-			      vl_strncat(vl_strncpy(temp, "..", sizeof(temp)),
-					 slp,
-					 sizeof(temp)));
-	    }
+	    if (last_slash(cwd) == 0)
+		(void) strcpy(path, strcat(strcpy(temp, ".."), slp));
 	}
     }
 
     /* we're off by more than just '..', so use absolute path */
-# endif	/* SYS_UNIX || SYS_MSDOS */
+# endif				/* SYS_UNIX || SYS_MSDOS */
 #endif /* OPT_VMS_PATH */
 
     TRACE(("     -> '%s' shorten\n", path));
@@ -1459,7 +1469,7 @@ lengthen_path(char *path)
     char my_rsa[NAM$C_MAXRSS + 1];	/* result: sys$search */
 #endif
     int len;
-    const char *cwd = NULL;
+    const char *cwd = 0;
     char *f;
     char temp[NFILEN];
 #if OPT_MSDOS_PATH
@@ -1467,10 +1477,10 @@ lengthen_path(char *path)
     char drive;
 #endif
 
-    if ((f = is_appendname(path)) != NULL)
-	return (lengthen_path(f) != NULL) ? path : NULL;
+    if ((f = is_appendname(path)) != 0)
+	return (lengthen_path(f) != 0) ? path : 0;
 
-    if ((f = path) == NULL
+    if ((f = path) == 0
 	|| isErrorVal(f))
 	return path;
 
@@ -1575,7 +1585,7 @@ lengthen_path(char *path)
 #if OPT_UNC_PATH
 	if (drive == EOS) {
 	    W32_CHAR uncdir[NFILEN];
-	    GetCurrentDirectory(sizeof(uncdir) / sizeof(uncdir[0]), uncdir);
+	    GetCurrentDirectory(sizeof(uncdir), uncdir);
 	    cwd = bsl_to_sl_inplace(asc_charstring(uncdir));
 	    free_cwd = TRUE;
 	} else
@@ -1599,12 +1609,12 @@ lengthen_path(char *path)
 #if OPT_VMS_PATH
 	vms2unix_path(temp, cwd);
 #else
-	(void) vl_strncpy(temp, cwd, sizeof(temp));
+	(void) strcpy(temp, cwd);
 #endif
 	len = (int) strlen(temp);
 	temp[len++] = SLASHC;
 	(void) vl_strncpy(temp + len, f, sizeof(temp) - (size_t) len);
-	(void) vl_strncpy(path, temp, NFILEN);
+	(void) strcpy(path, temp);
     }
 #if OPT_MSDOS_PATH
     if (is_msdos_drive(path) == 0) {	/* ensure that we have drive too */
@@ -1613,7 +1623,7 @@ lengthen_path(char *path)
 	    temp[0] = (char) curdrive();
 	    temp[1] = ':';
 	    (void) vl_strncpy(temp + 2, path, sizeof(temp) - 2);
-	    (void) vl_strncpy(path, temp, NFILEN);
+	    (void) strcpy(path, temp);
 	}
     }
     if (free_cwd)
@@ -1631,36 +1641,32 @@ lengthen_path(char *path)
 int
 is_abs_pathname(char *path)
 {
-    int result = FALSE;
     char *f;
-
-    if (path == NULL)
-	result = FALSE;
-    else if ((f = is_appendname(path)) != NULL)
-	result = is_pathname(f);
+    if ((f = is_appendname(path)) != 0)
+	return is_pathname(f);
 
 #if OPT_VMS_PATH
-    else if (is_vms_pathname(path, -TRUE)
-	     && (strchr(path, L_BLOCK) != 0
-		 || strchr(path, ':') != 0))
-	result = TRUE;
+    if (is_vms_pathname(path, -TRUE)
+	&& (strchr(path, L_BLOCK) != 0
+	    || strchr(path, ':') != 0))
+	return TRUE;
 #endif
 
 #if OPT_MSDOS_PATH
-    else if ((f = is_msdos_drive(path)) != 0)
-	result = is_abs_pathname(f);
+    if ((f = is_msdos_drive(path)) != 0)
+	return is_abs_pathname(f);
 #endif
 
 #if SYS_UNIX || OPT_MSDOS_PATH || SYS_VMS
 #if SYS_UNIX
-    else if (path[0] == CH_TILDE)
-	result = TRUE;
+    if (path[0] == CH_TILDE)
+	return TRUE;
 #endif
-    else if (is_slashc(path[0]))
-	result = TRUE;
+    if (is_slashc(path[0]))
+	return TRUE;
 #endif /* SYS_UNIX || OPT_MSDOS_PATH || SYS_VMS */
 
-    return result;
+    return FALSE;
 }
 
 /*
@@ -1716,7 +1722,7 @@ maybe_pathname(char *fn)
     if (is_msdos_drive(fn))
 	return TRUE;
 #endif
-    if (last_slash(fn) != NULL)
+    if (last_slash(fn) != 0)
 	return TRUE;
 #if OPT_VMS_PATH
     while (*fn != EOS) {
@@ -1735,7 +1741,7 @@ maybe_pathname(char *fn)
 char *
 is_appendname(char *fn)
 {
-    if (fn != NULL) {
+    if (fn != 0) {
 	if (isAppendToName(fn)) {
 	    fn += 2;		/* skip the ">>" prefix */
 	    fn = skip_blanks(fn);
@@ -1743,7 +1749,7 @@ is_appendname(char *fn)
 		return fn;
 	}
     }
-    return NULL;
+    return 0;
 }
 
 /*
@@ -1835,7 +1841,6 @@ is_directory(const char *path)
 static int
 is_filemode(struct stat *sb)
 {
-#pragma warning(suppress: 6287)
     return (S_ISREG(sb->st_mode) || S_ISFIFO(sb->st_mode));
 }
 
@@ -1866,33 +1871,24 @@ is_nonfile(char *path)
  * more entries can be parsed.
  */
 const char *
-parse_pathlist(const char *list, char *result, int *first)
+parse_pathlist(const char *list, char *result)
 {
-    TRACE(("parse_pathlist(%s)\n", TRACE_NULL(list)));
     if (list != NULL && *list != EOS) {
 	int len = 0;
 
-	if (first && *first && *list == vl_pathchr) {
-	    result[len++] = '.';
-	} else {
-	    if (*list == vl_pathchr)
-		++list;
-	    while (*list && (*list != vl_pathchr)) {
-		if (len < NFILEN - 1)
-		    result[len++] = *list;
-		list++;
-	    }
-	    if (len == 0)	/* avoid returning an empty-string */
-		result[len++] = '.';
+	while (*list && (*list != vl_pathchr)) {
+	    if (len < NFILEN - 1)
+		result[len++] = *list;
+	    list++;
 	}
+	if (len == 0)		/* avoid returning an empty-string */
+	    result[len++] = '.';
 	result[len] = EOS;
-    } else {
+
+	if (*list == vl_pathchr)
+	    ++list;
+    } else
 	list = NULL;
-	result[0] = EOS;
-    }
-    TRACE(("...parse_pathlist(%s) ->'%s'\n", TRACE_NULL(list), result));
-    if (first)
-	*first = 0;
     return list;
 }
 
@@ -1916,18 +1912,17 @@ DIR *
 opendir(char *fname)
 {
     DIR *od = 0;
-    size_t len = strlen(fname);
-    char *buf = typeallocn(char, len + 10);
+    char *buf = typeallocn(char, strlen(fname) + 10);
 
     if (buf != 0) {
 	(void) strcpy(buf, fname);
 
-	if (!strcmp(fname, ".")) {
+	if (!strcmp(buf, ".")) {
 	    /* if it's just a '.', replace with '*.*' */
-	    (void) strcpy(fname, "*.*");
+	    (void) strcpy(buf, "*.*");
 	} else {
 	    /* If the name ends with a slash, append '*.*' otherwise '\*.*' */
-	    if (is_slashc(fname[len - 1]))
+	    if (is_slashc(buf[strlen(buf) - 1]))
 		(void) strcat(buf, "*.*");
 	    else
 		(void) strcat(buf, "\\*.*");
@@ -2114,12 +2109,16 @@ find_in_path_list(const char *path_list, char *path)
     char temp[NFILEN];
     int found = FALSE;
     char find[NFILEN];
-    int first = TRUE;
 
     vl_strncpy(find, SL_TO_BSL(path), sizeof(find));
     TRACE(("find_in_path_list\n\t%s\n\t%s\n", TRACE_NULL(path_list), find));
-    while ((path_list = parse_pathlist(path_list, temp, &first)) != NULL) {
-	if (!cs_strcmp(global_g_val(GMDFILENAME_IC), temp, find)) {
+    while ((path_list = parse_pathlist(path_list, temp)) != 0) {
+#if OPT_CASELESS
+	if (!stricmp(temp, find))
+#else
+	if (!strcmp(temp, find))
+#endif
+	{
 	    found = TRUE;
 	    break;
 	}
@@ -2166,46 +2165,41 @@ prepend_to_path_list(char **path_list, char *path)
 #endif
 
 /*
- * Append the given path(s) to a path-list
+ * Append the given path to a path-list
  */
 void
 append_to_path_list(char **path_list, const char *path)
 {
     char *s, *t;
     size_t need;
-    char working[NFILEN];
     char find[NFILEN];
-    const char *in_work = working;
 #if SYS_UNIX
     struct stat sb;
 #endif
-    int first = TRUE;
 
-    vl_strncpy(working, SL_TO_BSL(path), sizeof(working));
-    while ((in_work = parse_pathlist(in_work, find, &first)) != NULL) {
-	if (!find_in_path_list(*path_list, find)
+    vl_strncpy(find, SL_TO_BSL(path), sizeof(find));
+    if (!find_in_path_list(*path_list, find)
 #if SYS_UNIX
-	    && file_stat(find, &sb) == 0
+	&& file_stat(find, &sb) == 0
 #endif
-	    ) {
-	    need = strlen(find) + 2;
-	    if ((t = *path_list) != NULL) {
-		need += strlen(t);
-	    } else {
-		t = empty_string;
-	    }
-	    if ((s = typeallocn(char, need)) != NULL) {
-		if (*t != EOS)
-		    lsprintf(s, "%s%c%s", t, vl_pathchr, find);
-		else
-		    strcpy(s, find);
-		if (*path_list != NULL)
-		    free(*path_list);
-		*path_list = s;
-	    }
+	) {
+	need = strlen(find) + 2;
+	if ((t = *path_list) != 0) {
+	    need += strlen(t);
+	} else {
+	    t = empty_string;
+	}
+	if ((s = typeallocn(char, need)) != 0) {
+	    if (*t != EOS)
+		lsprintf(s, "%s%c%s", t, vl_pathchr, find);
+	    else
+		strcpy(s, find);
+	    if (*path_list != 0)
+		free(*path_list);
+	    *path_list = s;
 	}
     }
-    TRACE(("...append_to_path_list\n\t%s\n", TRACE_NULL(*path_list)));
+    TRACE(("append_to_path_list\n\t%s\n\t%s\n", *path_list, find));
 }
 
 /*
@@ -2224,7 +2218,7 @@ append_to_path_list(char **path_list, const char *path)
  *   trunc_buf_len - sizeof(trunc_buf).  Must be >= 5.
  *
  * DESCRIPTION
- *   Shorten a path from _the left_ to fit within the bounds of
+ *   Shorten a path from _the left_ to fit within the bounds of 
  *   both max_output_len and trunc_buf_len.  This function is useful when
  *   displaying path names in the message line.
  *
@@ -2272,26 +2266,24 @@ append_libdir_to_path(void)
     const char *cp;
     char buf[NFILEN];
 
-    if (libdir_path != NULL
-	&& (tmp = getenv("PATH")) != NULL
-	&& (env = strmalloc(tmp)) != NULL) {
-	int first = TRUE;
-
+    if (libdir_path != 0
+	&& (tmp = getenv("PATH")) != 0
+	&& (env = strmalloc(tmp)) != 0) {
 	cp = libdir_path;
-	while ((cp = parse_pathlist(cp, buf, &first)) != NULL) {
+	while ((cp = parse_pathlist(cp, buf)) != 0) {
 	    append_to_path_list(&env, buf);
 	}
 	if (strcmp(tmp, env)) {
-	    if ((tmp = typeallocn(char, 6 + strlen(env))) != NULL) {
+	    if ((tmp = typeallocn(char, 6 + strlen(env))) != 0) {
 		lsprintf(tmp, "PATH=%s", env);
 		putenv(tmp);
 		TRACE(("putenv %s\n", tmp));
 	    }
+	} else {
+	    free(env);
 	}
-	free(env);
     }
 }
-
 #else
 void
 append_libdir_to_path(void)

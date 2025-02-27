@@ -7,7 +7,8 @@
  *
  * original author: D. R. Banks 9-May-86
  *
- * $Id: isearch.c,v 1.72 2025/01/26 14:38:58 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/isearch.c,v 1.66 2010/05/03 09:39:14 tom Exp $
+ *
  */
 
 #include	"estruct.h"
@@ -41,25 +42,15 @@ scanmore(			/* search forward or back for a pattern */
 
     FreeIfNeeded(gregexp);
     gregexp = regcomp(tb_values(patrn), tb_length(patrn), b_val(curbp, MDMAGIC));
-    if (gregexp != NULL) {
-	int ic = window_b_val(curwp, MDIGNCASE) &&
-	!(window_b_val(curwp, MDSMARTCASE) && gregexp->uppercase);
+    if (gregexp != 0) {
+	ignorecase = window_b_val(curwp, MDIGNCASE);
 
-	if (curwp != NULL) {
-	    sts = scanner(gregexp,
-			  ((dir < 0)
-			   ? REVERSE
-			   : FORWARD),
-			  FALSE,
-			  (DOT.o == 0),
-			  ic,
-			  (int *) 0);
-	}
+	sts = scanner(gregexp, (dir < 0) ? REVERSE : FORWARD, FALSE, (int *) 0);
 	if (!sts) {
 	    kbd_alarm();	/* beep the terminal if we fail */
 	}
 #if OPT_EXTRA_COLOR
-	else {
+	else if (curwp != 0) {
 	    MARK save_MK;
 	    int *attrp = lookup_extra_color(XCOLOR_ISEARCH);
 	    if (!isEmpty(attrp)) {
@@ -109,7 +100,7 @@ echochar(int c)			/* character to be echoed */
 static void
 unget_char(void)
 {
-    if (cmd_buff != NULL
+    if (cmd_buff != 0
 	&& cmd_buff->itb_used >= 2) {
 	cmd_buff->itb_used -= 2;	/* remove Rubout and last char */
     }
@@ -172,7 +163,7 @@ get_char(void)
 static int
 isearch(int f GCC_UNUSED, int n)
 {
-    static TBUFF *pat_save = NULL;	/* Saved copy of the old pattern str */
+    static TBUFF *pat_save = 0;	/* Saved copy of the old pattern str */
 
     int status;			/* Search status */
     register int cpos;		/* character number in search string */
@@ -181,8 +172,7 @@ isearch(int f GCC_UNUSED, int n)
     int init_direction;		/* The initial search direction */
 
     /* Initialize starting conditions */
-    if (curwp == NULL)
-	return FALSE;
+
     cmd_reexecute = -1;		/* We're not re-executing (yet?) */
     itb_init(&cmd_buff, EOS);	/* Init the command buffer */
     /* Save the old pattern string */

@@ -2,7 +2,8 @@
  * This file contains the command processing functions for a number of random
  * commands. There is no functional grouping here, for sure.
  *
- * $Id: random.c,v 1.361 2025/01/26 14:29:47 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/random.c,v 1.339 2010/06/10 12:04:07 tom Exp $
+ *
  */
 
 #ifdef __BEOS__
@@ -36,6 +37,11 @@
 #if SYS_VMS
 #include <starlet.h>
 #include <lib$routines.h>
+#endif
+
+#ifdef WIN32
+#include "w32vile.h"		/* for VL_ELAPSED */
+#undef WIN32_LEAN_AND_MEAN
 #endif
 
 #define DIRS_FORCE    0		/* force DirStack buffer on screen if dirs_idx > 0.
@@ -86,9 +92,14 @@ set_rdonly(BUFFER *bp, const char *name, int mode)
     b_clr_changed(bp);		/* assumes text is loaded... */
     bp->b_active = TRUE;
 
-    set_local_b_val(bp, mode, TRUE);
-    set_local_b_val(bp, VAL_TAB, 8);
-    set_local_b_val(bp, MDDOS, system_crlf);
+    make_local_b_val(bp, mode);
+    set_b_val(bp, mode, TRUE);
+
+    make_local_b_val(bp, VAL_TAB);
+    set_b_val(bp, VAL_TAB, 8);
+
+    make_local_b_val(bp, MDDOS);
+    set_b_val(bp, MDDOS, CRLF_LINES);
 
     fix_cmode(bp, FALSE);
 }
@@ -158,7 +169,7 @@ liststuff(const char *name,
 		    (void) gomark(FALSE, 1);
 		    (void) forwbline(FALSE, 1);
 		    (void) reposition(FALSE, 1);
-		} else if (wp != NULL && (appendit < 0 && save_line >= 0)) {
+		} else if (wp != 0 && (appendit < 0 && save_line >= 0)) {
 		    (void) vl_gotoline(save_top);
 		    wp->w_line.l = wp->w_dot.l;
 		    wp->w_line.o = 0;
@@ -323,7 +334,7 @@ L_NUM
 vl_line_count(BUFFER *the_buffer)
 {
     L_NUM numlines = 0;		/* # of lines in file */
-    if (the_buffer != NULL) {
+    if (the_buffer != 0) {
 #if SMALLER
 	LINE *lp;		/* current line */
 
@@ -343,7 +354,7 @@ line_no(BUFFER *the_buffer, LINE *the_line)
 {
     L_NUM line_num = 0;
 
-    if (the_line != NULL) {
+    if (the_line != 0) {
 #if SMALLER
 	LINE *lp;
 
@@ -463,7 +474,7 @@ set_char2(LINE *lp, int offset, int ch)
 {
 #if OPT_MULTIBYTE
     if (b_is_utfXX(curbp)) {
-	UCHAR buffer[MAX_UTF8];
+	UCHAR buffer[10];
 	int old_len = bytes_at(lp, offset);
 	int new_len = vl_conv_to_utf8(buffer, (UINT) ch, sizeof(buffer));
 	int n;
@@ -534,7 +545,7 @@ getcol(MARK mark, int actual)
     C_NUM i;
     C_NUM col = 0;
 
-    if (mark.l != NULL
+    if (mark.l != 0
 	&& llength(mark.l) > 0) {
 	if (actual) {
 	    col = offs2col(curwp, mark.l, mark.o) - nu_width(curwp);
@@ -628,7 +639,7 @@ gocol(int n)
 {
     int offs;			/* column number the cursor is on */
 
-    if (DOT.l != NULL) {
+    if (DOT.l != 0) {
 	offs = getoff(n, (C_NUM *) 0);
 
 	if (offs >= 0) {
@@ -714,13 +725,13 @@ forceblank(int f, int n)
     }
 
     DOT.l = lforw(lp1);
-    DOT.o = b_left_margin(curbp);
+    DOT.o = 0;
 
     if (n_arg == nld) {		/* things are just right */
 	/*EMPTY */ ;
     } else if (n_arg < nld) {	/* delete (nld - n_arg) lines */
 	DOT.l = lp2;
-	DOT.o = b_left_margin(curbp);
+	DOT.o = 0;
 	if (nchar) {
 	    backchar(TRUE, nchar);
 	    s = ldel_chars((B_COUNT) nchar, FALSE);
@@ -733,9 +744,8 @@ forceblank(int f, int n)
 
     /* scan forward */
     while ((firstchar(DOT.l) < 0) &&
-	   (DOT.l != buf_head(curbp))) {
-	dot_next_bol();
-    }
+	   (DOT.l != buf_head(curbp)))
+	DOT.l = lforw(DOT.l);
 
     return s;
 }
@@ -838,7 +848,7 @@ int
 writemsg(int f GCC_UNUSED, int n GCC_UNUSED)
 {
     int status;
-    TBUFF *buf = NULL;
+    TBUFF *buf = 0;
 
     if ((status = kbd_reply("Message to write: ", &buf, eol_history, '\n',
 			    KBD_NORMAL, no_completion)) == TRUE)
@@ -1062,13 +1072,13 @@ current_directory(int force)
      * Given the choice between broken and slow behavior, we can resolve it
      * with another environment variable, set in the user's shell.
      */
-    s = ((did_chdir != 0 || getenv("VILE_PWD") == NULL)
-	 ? NULL
+    s = ((did_chdir != 0 || getenv("VILE_PWD") == 0)
+	 ? 0
 	 : getenv("PWD"));
     cwd = realpath(s ? s : ".", current_dirname);
-    if (cwd == NULL)
+    if (cwd == 0)
 #endif
-	cwd = getcwd(current_dirname, (size_t) NFILEN);
+	cwd = getcwd(current_dirname, NFILEN);
 #else
 # ifdef HAVE_GETWD
     cwd = getwd(current_dirname);
@@ -1101,8 +1111,9 @@ current_directory(int force)
     bsl_to_sl_inplace(cwd);
     lengthen_path(cwd);
     cwd[NFILEN - 1] = EOS;
-    if (!global_g_val(GMDFILENAME_IC))
-	mklower(cwd);
+#if !OPT_CASELESS
+    mklower(cwd);
+#endif
 #endif
 
 #if SYS_MSDOS || SYS_OS2
@@ -1244,7 +1255,7 @@ vl_chdir(int f GCC_UNUSED, int n GCC_UNUSED)
     status = mlreply_dir("Change to directory: ", &last, cdirname);
 #if SYS_UNIX || SYS_VMS || SYS_WINNT
     if (status == FALSE) {	/* empty reply, go HOME */
-	(void) vl_strncpy(cdirname, "~", sizeof(cdirname));
+	(void) strcpy(cdirname, "~");
 	status = TRUE;
     }
 #endif
@@ -1315,16 +1326,14 @@ cd_and_pwd(char *path)
 	     *
 	     * which is not usable later when "." changes.
 	     */
-	    if (getcwd(cwd, sizeof(cwd))) {
-		/*
-		 * Store path in Unix format, since that's the external
-		 * presentation format used by the editor.
-		 */
-		bsl_to_sl_inplace(cwd);
-		store_recent_file_or_folder(cwd, FALSE);
-	    } else {
-		return FALSE;
-	    }
+	    getcwd(cwd, sizeof(cwd));
+
+	    /*
+	     * Store path in Unix format, since that's the external
+	     * presentation format used by the editor.
+	     */
+	    bsl_to_sl_inplace(cwd);
+	    store_recent_file_or_folder(cwd, FALSE);
 	}
 #endif
 	return TRUE;
@@ -1359,7 +1368,7 @@ set_directory(const char *dir)
     upmode();
 
     TRACE(("set_directory(%s)\n", dir));
-    exdp = vl_strncpy(exdir, dir, sizeof(exdir));
+    exdp = strcpy(exdir, dir);
 
     if (doglob(exdp)) {
 #if SYS_MSDOS || SYS_OS2
@@ -1390,7 +1399,7 @@ set_directory(const char *dir)
 	if (!dirs_add_active) {
 	    /* Save current directory for subsequent "cd -". */
 
-	    (void) vl_strncpy(prevdir, current_directory(FALSE), sizeof(prevdir));
+	    (void) strcpy(prevdir, current_directory(FALSE));
 	}
 #if OPT_VMS_PATH
 	if (!*exdp)
@@ -1420,10 +1429,9 @@ set_directory(const char *dir)
 	 * want here.
 	 */
 	if (is_directory(exdp)) {
-	    int first = TRUE;
 	    /* For each comma-delimited component in CDPATH */
 	    cdpath = get_cdpath();
-	    while ((cdpath = parse_pathlist(cdpath, cdpathdir, &first)) != 0) {
+	    while ((cdpath = parse_pathlist(cdpath, cdpathdir)) != 0) {
 		int len;
 		char *tmp, newdir[NFILEN];
 
@@ -1433,7 +1441,7 @@ set_directory(const char *dir)
 		    char **globvec = glob_string(cdpathdir);
 
 		    if (glob_length(globvec) == 1) {
-			vl_strncpy(cdpathdir, globvec[0], sizeof(cdpathdir));
+			strcpy(cdpathdir, globvec[0]);
 			glob_free(globvec);
 			tmp = &cdpathdir[len - 1];
 			if (*tmp == R_BLOCK &&
@@ -1473,14 +1481,13 @@ set_directory(const char *dir)
 	 * directory in CDPATH.
 	 */
 	if (!is_pathname(exdp)) {
-	    int first = TRUE;
 	    /* For each appropriately delimited component in CDPATH */
 	    cdpath = get_cdpath();
-	    while ((cdpath = parse_pathlist(cdpath, cdpathdir, &first)) != NULL) {
+	    while ((cdpath = parse_pathlist(cdpath, cdpathdir)) != 0) {
 		char **globvec = glob_string(cdpathdir);
 
 		if (glob_length(globvec) == 1) {
-		    vl_strncpy(cdpathdir, globvec[0], sizeof(cdpathdir));
+		    strcpy(cdpathdir, globvec[0]);
 		    glob_free(globvec);
 		    if (cd_and_pwd(pathcat(cdpathdir, cdpathdir, exdp))) {
 			return TRUE;
@@ -1499,7 +1506,7 @@ set_directory(const char *dir)
 #endif
 
     outlen = (int) ((unsigned) (term.cols - 1) - (sizeof(CHANGE_FAILED) - 3));
-    mlforce(CHANGE_FAILED, path_trunc(exdir, outlen, tmp, (int) sizeof(tmp)));
+    mlforce(CHANGE_FAILED, path_trunc(exdir, outlen, tmp, sizeof(tmp)));
     return FALSE;
 
 #undef CHANGE_FAILED
@@ -1511,8 +1518,8 @@ set_directory_from_file(BUFFER *bp)
     TRACE((T_CALLED "set_directory_from_file(%s)\n", bp->b_fname));
     if (!isInternalName(bp->b_fname)) {
 	char name[NFILEN];
-	char *leaf = pathleaf(vl_strncpy(name, bp->b_fname, (size_t) NFILEN));
-	if (leaf != NULL
+	char *leaf = pathleaf(vl_strncpy(name, bp->b_fname, NFILEN));
+	if (leaf != 0
 	    && leaf != name) {
 	    *leaf = EOS;
 	    bsl_to_sl_inplace(name);
@@ -1548,7 +1555,7 @@ ch_fname(BUFFER *bp, const char *fname)
 
 	len = (int) strlen(np) + 1;
 
-	if (bp->b_fname == NULL || strcmp(bp->b_fname, np)) {
+	if (bp->b_fname == 0 || strcmp(bp->b_fname, np)) {
 
 	    if (bp->b_fname && bp->b_fnlen < len) {
 		/* don't free it yet -- it _may_ have been passed in as
@@ -1559,7 +1566,7 @@ ch_fname(BUFFER *bp, const char *fname)
 	    }
 
 	    if (!bp->b_fname) {
-		if ((bp->b_fname = strmalloc(np)) == NULL) {
+		if ((bp->b_fname = strmalloc(np)) == 0) {
 		    bp->b_fname = out_of_mem;
 		    bp->b_fnlen = (int) strlen(bp->b_fname);
 		    no_memory("ch_fname");
@@ -1618,24 +1625,26 @@ run_a_hook(HOOK * hook)
 {
     int status = FALSE;
 
-    if (hook->proc[0] && !doingopcmd) {
-	if (!DisableHook(hook)) {
-	    MARK save_pre_op_dot;	/* ugly hack */
-	    int save_dotcmdactive;	/* another ugly hack */
+    if (!hook->latch && hook->proc[0] && !doingopcmd) {
+	MARK save_pre_op_dot;	/* ugly hack */
+	int save_dotcmdactive;	/* another ugly hack */
 
-	    save_dotcmdactive = dotcmdactive;
-	    save_pre_op_dot = pre_op_dot;
+	TRACE((T_CALLED "run_a_hook(%s)\n", name_of_hook(hook)));
 
-	    TPRINTF(("running %s HOOK with %s, current %s\n",
-		     name_of_hook(hook), hook->proc, curbp->b_bname));
-	    status = docmd(hook->proc, TRUE, FALSE, 1);
+	save_dotcmdactive = dotcmdactive;
+	save_pre_op_dot = pre_op_dot;
 
-	    pre_op_dot = save_pre_op_dot;
-	    dotcmdactive = save_dotcmdactive;
-	}
+	DisableHook(hook);
+	TPRINTF(("running %s HOOK with %s, current %s\n",
+		 name_of_hook(hook), hook->proc, curbp->b_bname));
+	status = docmd(hook->proc, TRUE, FALSE, 1);
 	EnableHook(hook);
+
+	pre_op_dot = save_pre_op_dot;
+	dotcmdactive = save_dotcmdactive;
+	returnCode(status);
     }
-    return (status);
+    return FALSE;
 }
 
 int
@@ -1662,9 +1671,9 @@ vl_elapsed(VL_ELAPSED * first, int begin)
     double result;
 
 #if defined(HAVE_GETTIMEOFDAY) && (SYS_UNIX && !SYS_MINGW)
-#define	SECS(tv)	((double) tv.tv_sec + ((double) tv.tv_usec / 1.0e6))
+#define	SECS(tv)	(tv.tv_sec + (tv.tv_usec / 1.0e6))
     VL_ELAPSED tv1;
-    gettimeofday(&tv1, NULL);
+    gettimeofday(&tv1, 0);
     if (begin)
 	*first = tv1;
     result = 1000.0 * (SECS(tv1) - SECS((*first)));
@@ -1691,7 +1700,7 @@ can_autocolor(BUFFER *bp)
     int rc = FALSE;
     if (b_val(bp, VAL_AUTOCOLOR) > 0
 #if OPT_MAJORMODE
-	&& (bp->majr != NULL || !b_is_temporary(bp))
+	&& (bp->majr != 0 || !b_is_temporary(bp))
 	&& b_val(bp, MDHILITE)
 #endif
 	) {
@@ -1799,7 +1808,8 @@ autocolor(void)
 			     * Make a local autocolor mode to show the user
 			     * what the actual interval is.
 			     */
-			    set_local_b_val(bp, VAL_AUTOCOLOR, next_time);
+			    make_local_b_val(bp, VAL_AUTOCOLOR);
+			    set_b_val(bp, VAL_AUTOCOLOR, next_time);
 			    /*
 			     * Set counter to skip autocolor intervals.
 			     */
@@ -1858,9 +1868,9 @@ dirstack_extend(const char *dir, const char *fnname)
 				   ((unsigned) dirs_len * sizeof(dirstack[0])));
 	} else {
 	    dirs_len *= 2;
-	    safe_castrealloc(char *,
-			     dirstack,
-			       ((unsigned) dirs_len * sizeof(dirstack[0])));
+	    dirstack = castrealloc(char *,
+				   dirstack,
+				     ((unsigned) dirs_len * sizeof(dirstack[0])));
 	}
 	if (!dirstack)
 	    return (no_memory(fnname));
@@ -1921,7 +1931,7 @@ do_pushd(int uindx,		/* user-specified dirstack index */
     int rc;
     char oldcwd[NFILEN], *path;
 
-    vl_strncpy(oldcwd, current_directory(TRUE), sizeof(oldcwd));
+    strcpy(oldcwd, current_directory(TRUE));
 
     beginDisplay();
     if ((uindx == 0 && sign > 0) || (uindx == dirs_idx && sign < 0)) {
@@ -1968,7 +1978,6 @@ pushd(int f GCC_UNUSED, int n GCC_UNUSED)
 {
     long dirlocn;
     int failed, rc, sign;
-    int ch;
     char oldcwd[NFILEN], newcwd[NFILEN], *tmp, *cp;
     static TBUFF *last;
 
@@ -1993,7 +2002,7 @@ pushd(int f GCC_UNUSED, int n GCC_UNUSED)
 
 	/* handle simple case first:  pushd without +|-n arg */
 	if (*cp != '+' && *cp != '-') {
-	    vl_strncpy(oldcwd, current_directory(TRUE), sizeof(oldcwd));
+	    strcpy(oldcwd, current_directory(TRUE));
 	    if ((rc = pushd_popd_set_dir(newcwd)) != TRUE)
 		return (rc);
 
@@ -2008,8 +2017,7 @@ pushd(int f GCC_UNUSED, int n GCC_UNUSED)
 		sign = (*cp == '-') ? -1 : 1;
 		cp++;
 		rc = FALSE;
-		ch = *cp++;
-		if (isDigit(ch)) {
+		if (isDigit(*cp++)) {
 		    cp = skip_number(cp);
 		    if (*cp == '\0')
 			rc = TRUE;
@@ -2032,7 +2040,7 @@ pushd(int f GCC_UNUSED, int n GCC_UNUSED)
 		    mlforce("[Pushd index out-of-range]");
 		    return (FALSE);
 		}
-		rc = do_pushd((int) dirlocn, sign);
+		rc = do_pushd(dirlocn, sign);
 	    }
 	}
     }
@@ -2051,7 +2059,6 @@ popd(int f GCC_UNUSED, int n GCC_UNUSED)
     long dirlocn;
     static TBUFF *last;
     int sign = 0, rc, failed;
-    int ch;
 
     rc = mlreply2("Directory stack entry: ", &last);
     if (rc == ABORT)
@@ -2085,8 +2092,7 @@ popd(int f GCC_UNUSED, int n GCC_UNUSED)
     if (*cp == '-' || *cp == '+') {
 	sign = (*cp == '-') ? -1 : 1;
 	cp++;
-	ch = *cp++;
-	if (isDigit(ch)) {
+	if (isDigit(*cp++)) {
 	    cp = skip_number(cp);
 	    if (*cp == '\0')
 		rc = TRUE;
@@ -2110,7 +2116,7 @@ popd(int f GCC_UNUSED, int n GCC_UNUSED)
 	mlforce("[Popd index out-of-range]");
 	return (FALSE);
     }
-    if ((rc = do_popd((int) dirlocn, sign)) == TRUE)
+    if ((rc = do_popd(dirlocn, sign)) == TRUE)
 	(void) vl_dirs(0, 0);
     return (rc);
 }
@@ -2249,7 +2255,7 @@ vl_dirs_add(int f GCC_UNUSED, int n GCC_UNUSED)
 	 * might be accessible via CDPATH
 	 */
 
-	vl_strncpy(savedcwd, current_directory(TRUE), sizeof(savedcwd));
+	strcpy(savedcwd, current_directory(TRUE));
 	dirs_add_active = TRUE;
 	if (set_directory(newdir)) {
 	    rc = dirstack_extend(current_directory(TRUE), "vl_dirs_add");
@@ -2284,7 +2290,7 @@ vl_atol(const char *str, int base, int *failed)
 
     *failed = FALSE;
 
-    if (str != NULL) {
+    if (str != 0) {
 #if defined(EDOM) && defined(ERANGE)
 	char *prem;
 
@@ -2297,7 +2303,7 @@ vl_atol(const char *str, int base, int *failed)
 	    if (errno == EDOM || errno == ERANGE) {
 		*failed = TRUE;
 	    } else {
-		if (*skip_blanks(prem) != EOS) {
+		if (*(prem = skip_blanks(prem)) != EOS) {
 		    *failed = TRUE;	/* trailing garbage */
 		}
 	    }
@@ -2337,7 +2343,7 @@ vl_atoul(const char *str, int base, int *failed)
 	    if (errno == EDOM || errno == ERANGE) {
 		*failed = TRUE;
 	    } else {
-		if (*skip_blanks(prem) != EOS)
+		if (*(prem = skip_blanks(prem)) != EOS)
 		    *failed = TRUE;	/* trailing garbage */
 	    }
 	}
@@ -2371,33 +2377,8 @@ vl_stricmp(const char *a, const char *b)
 	    ch2 = toUpper(ch2);
 	cmp = ch1 - ch2;
 	if (cmp != 0 || ch1 == EOS || ch2 == EOS)
-	    break;
+	    return cmp;
     }
-    return cmp;
-}
-#endif
-
-#ifndef vl_strnicmp
-/*
- * Compare two strings ignoring case
- */
-int
-vl_strnicmp(const char *a, const char *b, size_t n)
-{
-    int ch1, ch2, cmp = 0;
-
-    while (n-- != 0) {
-	ch1 = CharOf(*a++);
-	ch2 = CharOf(*b++);
-	if (isLower(ch1))
-	    ch1 = toUpper(ch1);
-	if (isLower(ch2))
-	    ch2 = toUpper(ch2);
-	cmp = ch1 - ch2;
-	if (cmp != 0 || ch1 == EOS || ch2 == EOS)
-	    break;
-    }
-    return cmp;
 }
 #endif
 
@@ -2439,10 +2420,10 @@ tb_visbuf(const char *buffer, size_t len)
 {
     char temp[20];
     size_t n;
-    TBUFF *result = NULL;
+    TBUFF *result = 0;
 
-    if (buffer != NULL && len != 0
-	&& tb_init(&result, EOS) != NULL) {
+    if (buffer != 0 && len != 0
+	&& tb_init(&result, EOS) != 0) {
 	for (n = 0; n < len; ++n) {
 	    tb_sappend0(&result, vl_vischr(temp, buffer[n]));
 	}

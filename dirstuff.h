@@ -4,7 +4,7 @@
  *	Definitions to interface to unix-like DIRECTORY(3) procedures.
  *	Include this after "estruct.h"
  *
- * $Id: dirstuff.h,v 1.33 2009/05/15 21:35:30 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/dirstuff.h,v 1.32 2009/05/15 21:35:30 tom Exp $
  *
  */
 

@@ -16,8 +16,8 @@ more recent additions to this README appear near the bottom.  that is, most
 of the newest stuff is at the end, not up here where you are.
 
 visit
-	https://invisible-island.net/archives/vile/
-	https://invisible-mirror.net/archives/vile/
+	ftp://invisible-island.net/vile
+	ftp://ftp.phred.org/pub/vile
 to be sure it's still the latest.
 
 impatient?  just type "./configure; make", and get a cup of coffee, decaf
@@ -38,9 +38,8 @@ want PC support?  look for precompiled binaries at the various ftp sites.
 want to build vile on a PC host?  refer to the file README.PC .
 
 want VMS support?  some precompiled binaries are available at
-	https://invisible-island.net/archives/vile/
-otherwise, you'll need to build vile yourself.  In either case, refer to the
-file README.VMS .
+ftp://ftp.phred.org/pub/vile.  otherwise, you'll need to build vile
+yourself.  In either case, refer to the file README.VMS .
 
 if you like vile, and wish to be informed of new releases, let me know -- i
 maintain a mailing list for that purpose (scroll down a bit for details).
@@ -53,12 +52,14 @@ tom dickey, dickey@invisible-island.net (current maintainer)
 ------------------------------------------------------
 Up-to-date copies of vile, including executables for DOS, Win32 and
 OS/2 are found at
-	https://invisible-island.net/archives/vile/
-	https://invisible-mirror.net/archives/vile/
+	ftp://invisible-island.net/vile/
+
+which is mirrored at
+	ftp://ftp.phred.org/pub/vile/
 
 Development patches are found at
-	https://invisible-island.net/archives/vile/patches/
-	https://invisible-mirror.net/archives/vile/patches/
+	ftp://invisible-island.net/vile/patches/
+	ftp://ftp.phred.org/pub/vile/patches/
 
 In addition, we have distributed copies at other sites, including
 metalabs.unc.edu, hobbes.nmsu.edu (OS/2) and the VMS Freeware
@@ -968,7 +969,7 @@ July 2005,
       ".source" command.
 
     + add a ".brief" to filters parsing, which uses "?" to match zero or
-      all of the following characters, in contrast to ".abbrev" which
+      all of the following characters, in constrast to ".abbrev" which
       uses "*" to match zero or more of the following characters.
 
     + several new majormodes, with corresponding syntax filters:
@@ -2146,5 +2147,5 @@ filters.
 	  conversions.
 
 -------------------------------
-$Id: README,v 1.109 2022/12/22 21:05:22 tom Exp $
+$Header: /usr/build/vile/vile/RCS/README,v 1.103 2010/08/08 21:56:28 tom Exp $
 -------------------------------

@@ -3,7 +3,8 @@
  * paragraph at a time.  There are all sorts of word mode commands.  If I
  * do any sentence mode commands, they are likely to be put in this file.
  *
- * $Id: word.c,v 1.110 2025/01/26 14:35:39 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/word.c,v 1.101 2010/02/12 09:57:34 tom Exp $
+ *
  */
 
 #include	"estruct.h"
@@ -49,7 +50,7 @@ wrapword(int f, int n)
 	if (f) {
 	    LINE *lp = DOT.l;
 	    to_delete = 0L;
-	    if (DOT.o >= 0 && !isSpace(lgetc(lp, DOT.o))) {
+	    if (DOT.o >= 0 && !n && !isSpace(lgetc(lp, DOT.o))) {
 		int tmp = 0;
 		for (each_character(c)) {
 		    if (isSpace(lgetc(lp, c))) {
@@ -392,8 +393,8 @@ dot_at_section_break(void)
     regexp *expP = b_val_rexp(curbp, VAL_PARAGRAPHS)->reg;
     regexp *expC = b_val_rexp(curbp, VAL_COMMENTS)->reg;
 
-    return (lregexec(expP, DOT.l, 0, llength(DOT.l), FALSE) ||
-	    lregexec(expC, DOT.l, 0, llength(DOT.l), FALSE));
+    return (lregexec(expP, DOT.l, 0, llength(DOT.l)) ||
+	    lregexec(expC, DOT.l, 0, llength(DOT.l)));
 }
 
 /* returns the length of the comment-prefix, if it matches, otherwise -1 */
@@ -402,7 +403,7 @@ comment_prefix(void)
 {
     regexp *expP = b_val_rexp(curbp, VAL_CMT_PREFIX)->reg;
     int result = -1;
-    if (lregexec(expP, DOT.l, 0, llength(DOT.l), FALSE)) {
+    if (lregexec(expP, DOT.l, 0, llength(DOT.l))) {
 	result = (int) (expP->endp[0] - lvalue(DOT.l));
     }
     return result;
@@ -410,13 +411,12 @@ comment_prefix(void)
 
 #if OPT_MULTIBYTE
 static int
-byte_to_columns(int text, int size)
+byte_to_columns(char text, int size)
 {
-    char ch = (char) text;
     int result = 0;
 
     if (b_is_utfXX(curbp)) {
-	result = (mb_cellwidth(curwp, &ch, 1) * size);
+	result = (mb_cellwidth(curwp, &text, 1) * size);
     } else {
 	result = size;
     }
@@ -439,7 +439,7 @@ any_wcs_width(const char *value, long bytes)
 	    bytes -= step;
 	}
     } else {
-	result = (int) bytes;
+	result = bytes;
     }
 
     return result;
@@ -492,7 +492,7 @@ tb_wcs_width(TBUFF *text)
 
 #define word_finishes_c_comment(wp) \
 		(tb_length(*wp) >= 2 \
-		&& memcmp("/*", tb_values(*wp), (size_t) 2) == 0)
+		&& memcmp("/*", tb_values(*wp), 2) == 0)
 
 static int
 do_formatting(TBUFF **wp, TBUFF **cp)
@@ -530,7 +530,7 @@ do_formatting(TBUFF **wp, TBUFF **cp)
 	if (DOT.l == pastline)	/* FIXME */
 	    return setmark();
 	while (dot_at_section_break()) {
-	    dot_next_bol();
+	    DOT.l = lforw(DOT.l);
 	    if (DOT.l == pastline)
 		return setmark();
 	}
@@ -539,7 +539,7 @@ do_formatting(TBUFF **wp, TBUFF **cp)
 
 	/* go forward to get the indent for the second
 	   and following lines */
-	dot_next_bol();
+	DOT.l = lforw(DOT.l);
 
 	if (DOT.l != pastline) {
 	    secondindent = indentlen(DOT.l);
@@ -560,13 +560,13 @@ do_formatting(TBUFF **wp, TBUFF **cp)
 	    is_comment = TRUE;
 	    tb_bappend(cp,
 		       lvalue(DOT.l) + DOT.o,
-		       (size_t) plength - (size_t) DOT.o);
+		       (size_t) (plength - DOT.o));
 	} else if (cplus_comment_start(c)) {
 	    is_comment = TRUE;
-	    tb_bappend(cp, "//", (size_t) 2);
+	    tb_bappend(cp, "//", 2);
 	} else if (c_comment_start(c)) {
 	    is_comment = TRUE;
-	    tb_bappend(cp, "*", (size_t) 1);
+	    tb_bappend(cp, "*", 1);
 	}
 
 	/* scan through lines, filling words */
@@ -580,10 +580,8 @@ do_formatting(TBUFF **wp, TBUFF **cp)
 
 	    /* get the next character */
 	    if (is_at_end_of_line(DOT)) {
-		MARK saved = DOT;
-
 		c = ' ';
-		dot_next_bol();
+		DOT.l = lforw(DOT.l);
 		if (DOT.l == pastline) {
 		    finished = TRUE;
 		} else if (dot_at_section_break()) {
@@ -591,6 +589,8 @@ do_formatting(TBUFF **wp, TBUFF **cp)
 		}
 
 		if ((s = comment_prefix()) >= 0) {
+		    int save = DOT.o;
+
 		    (void) firstnonwhite(FALSE, 1);
 		    s -= DOT.o;
 
@@ -613,14 +613,15 @@ do_formatting(TBUFF **wp, TBUFF **cp)
 			if (DOT.l != pastline
 			    && !dot_at_section_break()) {
 			    B_COUNT spcs = (B_COUNT) DOT.o;
-			    DOT.o = b_left_margin(curbp);
+			    DOT.o = 0;
 			    s = ldel_bytes(spcs, FALSE);
 			    if (s != TRUE)
 				return s;
 			}
 		    }
+		    DOT.o = save;
 		}
-		DOT = saved;
+		DOT.l = lback(DOT.l);
 		at_nl = TRUE;
 	    } else {
 		c = char_at(DOT);
@@ -656,8 +657,8 @@ do_formatting(TBUFF **wp, TBUFF **cp)
 			     * add "etc.", but that is a valid sentence ending,
 			     * and would be unclear without a comma otherwise.
 			     */
-			    sentence = memcmp(ptr, "e.g.", (size_t) 4)
-				&& memcmp(ptr, "i.e.", (size_t) 4);
+			    sentence = memcmp(ptr, "e.g.", 4)
+				&& memcmp(ptr, "i.e.", 4);
 			} else {
 			    sentence = TRUE;
 			}
@@ -708,7 +709,7 @@ do_formatting(TBUFF **wp, TBUFF **cp)
 	   section or the region */
 	if (b_val(bp, MDTABINSERT))
 	    entabline((void *) TRUE, 0, 0);
-	dot_next_bol();
+	DOT.l = lforw(DOT.l);
     }
     return setmark();
 }
@@ -717,11 +718,11 @@ int
 formatregion(void)
 {
     int s = FALSE;
-    TBUFF *wp = NULL;		/* word buffer */
-    TBUFF *cp = NULL;		/* comment-prefix buffer */
+    TBUFF *wp = 0;		/* word buffer */
+    TBUFF *cp = 0;		/* comment-prefix buffer */
 
-    if ((wp = tb_init(&wp, EOS)) != NULL
-	&& (wp = tb_init(&wp, EOS)) != NULL) {
+    if ((wp = tb_init(&wp, EOS)) != 0
+	&& (wp = tb_init(&wp, EOS)) != 0) {
 	s = do_formatting(&wp, &cp);
 	tb_free(&wp);
 	tb_free(&cp);
@@ -798,7 +799,7 @@ wordcount(int f GCC_UNUSED, int n GCC_UNUSED)
 
     /* and report on the info */
     if (nwords > 0L)
-	avgch = ((1.0 * (double) nchars) / (double) nwords);
+	avgch = ((1.0 * nchars) / nwords);
     else
 	avgch = 0.0;
 

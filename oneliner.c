@@ -1,11 +1,10 @@
 /*
  *	A few functions that used to operate on single whole lines, mostly
  *	here to support the globals() function.  They now work on regions.
- *	Copyright (c) 1996-2019,2025 by Thomas E. Dickey
  *	Copyright (c) 1990, 1995-1999 by Paul Fox, except for delins(), which is
  *	Copyright (c) 1986 by University of Toronto, as noted below.
  *
- * $Id: oneliner.c,v 1.129 2025/01/26 17:16:19 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/oneliner.c,v 1.118 2010/05/04 00:58:30 tom Exp $
  */
 
 #include	"estruct.h"
@@ -72,13 +71,13 @@ pregion(UINT flag)
 	    curwp = bp2any_wp(bp);
 	    if (flag & PGREP) {
 		DOT.l = lback(buf_head(bp));
-		DOT.o = b_left_margin(bp);
+		DOT.o = 0;
 		bprintf("%s:%d:", oldbp->b_bname, line_no(oldbp, linep));
-		DOT.o = b_left_margin(bp);
+		DOT.o = 0;
 	    } else {
 		make_local_w_val(curwp, WMDNUMBER);
 		set_w_val(curwp, WMDNUMBER, TRUE);
-		flag &= (UINT) (~PNUMS);
+		flag &= ~PNUMS;
 	    }
 	    curbp = savebp;
 	    curwp = savewp;
@@ -157,7 +156,7 @@ subst_again(int f GCC_UNUSED, int n GCC_UNUSED)
 
     /* the region spans just the line */
     MK.l = DOT.l;
-    DOT.o = b_left_margin(curbp);
+    DOT.o = 0;
     MK.o = llength(MK.l);
     s = substreg1(FALSE, FALSE, FALSE);
     if (s != TRUE) {
@@ -194,7 +193,7 @@ substreg1(int needpats, int use_opts, int is_globalsub)
 
 	if (gregexp) {
 	    FreeIfNeeded(substexp);
-	    if ((substexp = castalloc(regexp, (size_t) (gregexp->size))) == NULL) {
+	    if ((substexp = castalloc(regexp, (size_t) (gregexp->size))) == 0) {
 		no_memory("substreg1");
 		return FALSE;
 	    }
@@ -202,7 +201,7 @@ substreg1(int needpats, int use_opts, int is_globalsub)
 			  (size_t) gregexp->size);
 	}
 
-	newpattern = NULL;
+	newpattern = 0;
 	tb_init(&newpattern, EOS);
 	status = readpattern("replacement string: ",
 			     &newpattern, (regexp **) 0, c, FALSE);
@@ -238,9 +237,9 @@ substreg1(int needpats, int use_opts, int is_globalsub)
 	char *bp = buf;
 
 	buf[0] = EOS;
-	status =
-	    mlreply("(g)lobally, ([1-9])th occurrence on line, (c)onfirm, and/or (p)rint result: ",
-		    buf, (UINT) sizeof buf);
+	status = mlreply(
+			    "(g)lobally, ([1-9])th occurrence on line, (c)onfirm, and/or (p)rint result: ",
+			    buf, sizeof buf);
 	if (status == ABORT) {
 	    return FALSE;
 	}
@@ -280,7 +279,6 @@ substreg1(int needpats, int use_opts, int is_globalsub)
 	    return status;
 	}
 	DOT.l = lforw(oline);
-	DOT.o = b_left_margin(curbp);
     } while (!sameline(DOT, region.r_end));
     calledbefore = TRUE;
 
@@ -317,16 +315,14 @@ substline(regexp * exp, int nth_occur, int printit, int globally, int *confirmp)
     int again = 0;
     int s;
     int which_occur = 0;
-    int at_bol = (DOT.o <= b_left_margin(curbp));
-    int ic;
     int matched_at_eol = FALSE;
     int yes, c, skipped;
 
-    assert(curwp != NULL);
+    assert(curwp != 0);
 
     TRACE((T_CALLED
-	   "substline(exp=%p, nth_occur=%d, printit=%d, globally=%d, confirmp=%p) bol:%d\n",
-	   (void *) exp, nth_occur, printit, globally, (void *) confirmp, at_bol));
+	   "substline(exp=%p, nth_occur=%d, printit=%d, globally=%d, confirmp=%p)\n",
+	   (void *) exp, nth_occur, printit, globally, (void *) confirmp));
 
     /* if the "magic number" hasn't been set yet... */
     if (!exp || UCHAR_AT(exp->program) != REGEXP_MAGIC) {
@@ -334,25 +330,24 @@ substline(regexp * exp, int nth_occur, int printit, int globally, int *confirmp)
 	returnCode(FALSE);
     }
 
-    if (curwp == NULL)
-	returnCode(FALSE);
+    ignorecase = window_b_val(curwp, MDIGNCASE);
 
-    ic = window_b_val(curwp, MDIGNCASE);
+    if (curwp == 0)
+	returnCode(FALSE);
 
     foundit = FALSE;
     scanboundpos.l = DOT.l;
     scanbound_is_header = FALSE;
-    DOT.o = b_left_margin(curbp);
+    DOT.o = 0;
     do {
 	scanboundpos.o = llength(DOT.l);
-	s = scanner(exp, FORWARD, FALSE, at_bol, ic, (int *) 0);
+	s = scanner(exp, FORWARD, FALSE, (int *) 0);
 	if (s != TRUE)
 	    break;
 
 	/* found the pattern */
 	foundit = TRUE;
 	which_occur++;
-	at_bol = FALSE;		/* at most, match "^" once */
 	if (nth_occur == -1 || which_occur == nth_occur) {
 	    (void) setmark();
 	    /* only allow one match at the end of line, to

@@ -5,9 +5,8 @@
 %a 10000
 
 %{
-
 /*
- * $Id: mc-filt.l,v 1.14 2025/01/26 11:06:34 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/mc-filt.l,v 1.9 2009/04/04 00:47:46 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of mailcap-file.
  */
@@ -15,7 +14,7 @@
 #include <filters.h>
 #include <fltstack.h>
 
-DefineFilter(mailcap);
+DefineFilter("mailcap");
 
 static char *Action_attr;
 static char *Comment_attr;
@@ -63,7 +62,7 @@ MIMENAME	{MIMELEAF}("/"{MIMELEAF})?
 <COMMAND>[\r\n]		{ ECHO; new_state(NORMAL); }
 
 <FIELD>{BLANK}		{ ECHO; }
-<FIELD>{IDENT}		{ WriteToken(get_keyword_attr(yytext)); new_state(NEXTARG); }
+<FIELD>{IDENT}		{ WriteToken(keyword_attr(yytext)); new_state(NEXTARG); }
 
 <NEXTARG>{BLANK}	{ ECHO; }
 <NEXTARG>";"		{ ECHO; new_state(FIELD); }
@@ -82,7 +81,7 @@ MIMENAME	{MIMELEAF}("/"{MIMELEAF})?
 <PARAMS>{IDENT2}	|
 <PARAMS>{IDENTX}	{ WriteToken(Ident_attr); }
 
-<PARAMS>\\[n]		{ flt_bfr_embed(yytext, 1, Action_attr); flt_bfr_append(yytext + 1, yyleng - 1); }
+<PARAMS>\\[n]		{ flt_bfr_embed(yytext, 1, Action_attr); flt_bfr_append(yytext + 1, yyleng - 1); } 
 <PARAMS>\\.		|
 <PARAMS>\'		{ PushQuote(SSTRING, String_attr); }
 <PARAMS>\"		{ PushQuote(DSTRING, String_attr); }
@@ -123,12 +122,12 @@ do_filter(FILE *inputs)
 {
     InitLEX(inputs);
 
-    Action_attr = class_attr(NAME_ACTION);
+    Action_attr  = class_attr(NAME_ACTION);
     Comment_attr = class_attr(NAME_COMMENT);
-    Error_attr = class_attr(NAME_ERROR);
-    Ident_attr = class_attr(NAME_IDENT2);
-    Number_attr = class_attr(NAME_NUMBER);
-    String_attr = class_attr(NAME_LITERAL);
+    Error_attr   = class_attr(NAME_ERROR);
+    Ident_attr   = class_attr(NAME_IDENT2);
+    Number_attr  = class_attr(NAME_NUMBER);
+    String_attr  = class_attr(NAME_LITERAL);
 
     begin_state(NORMAL);
 

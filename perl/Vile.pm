@@ -1,35 +1,25 @@
 package Vile;
 
-use strict;
-
 sub mlreply_opts {
-    my ( $prompt, @origopts ) = @_;
-    my $i        = 0;
-    my $word     = $origopts[$i];
-    my $lastchar = 9;
-    my @opts     = @origopts;
-    my $char;
+    my ($prompt, @origopts) = @_;
+    my ($i, $word, $lastchar) = (0, $origopts[$i], 9);
+    my @opts = @origopts;
     print $prompt, $word;
-    while ( ( $char = Vile::keystroke() ) != 13 ) {
-
-        if ( $char == 9 ) {
-            @opts = grep( /^$word/, @origopts ) if ( $lastchar != 9 );
-            $word = $opts[ ++$i % ( $#opts + 1 ) ] if ( $#opts > -1 );
-        }
-        elsif ( $char == 8 ) {
-            $word = substr( $word, $[, length($word) - 1 ) if ( length $word );
+    while (($char = Vile::keystroke) != 13) {
+        if ($char == 9) {
+            @opts = grep(/^$word/, @origopts) if ($lastchar != 9);
+            $word = $opts[++$i%($#opts+1)] if ($#opts > -1);
+        } elsif ($char == 8) {
+            $word = substr($word, $[, length($word)-1) if (length $word);
             $i = 0;
-        }
-        elsif ( $char == 21 ) {
+        } elsif ($char == 21) {
             $word = "";
-            $i    = 0;
-        }
-        elsif ( $char == 27 ) {
+            $i = 0;
+        } elsif ($char == 27) {
             undef $word;
             last;
-        }
-        else {
-            $word = "" if ( $lastchar == 9 );
+        } else {
+            $word = "" if ($lastchar == 9);
             $word .= sprintf "%c", $char;
             $i = 0;
         }
@@ -49,9 +39,9 @@ Vile - perl library additions to Vile package
 
 =head1 SYNOPSIS
 
-    use Vile;
+use Vile;
 
-    Vile::mlreply_opts($prompt, @options)
+Vile::mlreply_opts($prompt, @options)
 
 =head1 DESCRIPTION
 

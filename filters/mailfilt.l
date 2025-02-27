@@ -6,14 +6,14 @@
 %{
 
 /*
- * $Id: mailfilt.l,v 1.31 2013/12/02 01:32:53 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/mailfilt.l,v 1.24 2009/04/25 16:41:57 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of mail
  */
 
 #include <filters.h>
 
-DefineFilter(mail);
+DefineFilter("mail");
 
 static char *Action_attr;
 static char *Comment_attr;
@@ -55,14 +55,13 @@ write_label(char *text, int size)
     char temp[1024];
     char *buffer;
 
-    if (size >= (int) sizeof(temp)) {
+    if ((size + 1) >= (int) sizeof(temp)) {
 	buffer = strdup(lname);
     } else {
-	buffer = temp;
-	memcpy(temp, lname, (size_t) size);
+	buffer = strcpy(temp, lname);
     }
-    buffer[--size] = '\0';
-    flt_puts(text, size, get_keyword_attr(buffer));
+    buffer[--size] = 0;
+    flt_puts(text, size, keyword_attr(buffer));
     flt_putc(':');
 
     if (buffer != temp)
@@ -80,10 +79,10 @@ do_filter(FILE *inputs)
 {
     InitLEX(inputs);
 
-    Action_attr = class_attr(NAME_ACTION);
+    Action_attr  = class_attr(NAME_ACTION);
     Comment_attr = class_attr(NAME_COMMENT);
-    Ident2_attr = class_attr(NAME_IDENT2);
-    String_attr = class_attr(NAME_LITERAL);
+    Ident2_attr  = class_attr(NAME_IDENT2);
+    String_attr  = class_attr(NAME_LITERAL);
 
     BEGIN(HEADER);
     RunLEX();

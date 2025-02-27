@@ -8,7 +8,7 @@
  *   "FAILED" may not be used to test an OLE return code.  Use SUCCEEDED
  *   instead.
  *
- * $Id: w32oo.cpp,v 1.22 2022/11/18 23:44:36 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/w32oo.cpp,v 1.14 2009/05/18 21:15:31 tom Exp $
  */
 
 #include "w32vile.h"
@@ -26,7 +26,7 @@ extern "C" {
 #include "dirstuff.h"
 
 #if CC_TURBO
-#include <dir.h>                /* for 'chdir()' */
+#include <dir.h>		/* for 'chdir()' */
 #endif
 
 #ifdef UNICODE
@@ -37,12 +37,12 @@ vl_GetPathFromIDList(LPITEMIDLIST lp, char *bufferp)
     W32_CHAR buffer[FILENAME_MAX];
     char *result;
 
-    rc = SHGetPathFromIDList(lp, reinterpret_cast<LPTSTR>(buffer));
+    rc = SHGetPathFromIDList(lp, buffer);
     if (rc) {
-        if ((result = asc_charstring(buffer)) != 0) {
-            strcpy(bufferp, result);
-            free (result);
-        }
+	if ((result = asc_charstring(buffer)) != 0) {
+	    strcpy(bufferp, result);
+	    free (result);
+	}
     }
     return rc;
 }
@@ -124,7 +124,6 @@ BrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LPARAM pData)
     W32_CHAR      szDir[MAX_PATH];
     LPWSTR        wide_path;
 
-    (void) pData;
     switch(uMsg)
     {
         case BFFM_INITIALIZED:
@@ -135,11 +134,6 @@ BrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LPARAM pData)
                                       -1,
                                       0,
                                       0);
-            if (len == 0)
-            {
-                disp_win32_error(GetLastError(), hwnd);
-                break;
-            }
             wide_path = new WCHAR[len];
             MultiByteToWideChar(CP_ACP,
                                 MB_USEGLYPHCHARS|MB_PRECOMPOSED,
@@ -158,7 +152,7 @@ BrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LPARAM pData)
             hr = pShellFolder->ParseDisplayName(0,
                                                 0,
                                                 wide_path,
-                                                NULL,
+                                                &len,
                                                 &pidl,
                                                 0);
             if (! SUCCEEDED(hr)) {
@@ -172,7 +166,7 @@ BrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LPARAM pData)
             break;
         case BFFM_SELCHANGED:
            // Set the status window text to the currently selected path.
-           if (SHGetPathFromIDList((LPITEMIDLIST) lp, reinterpret_cast<LPTSTR>(szDir)))
+           if (SHGetPathFromIDList((LPITEMIDLIST) lp, szDir))
               SendMessage(hwnd, BFFM_SETSTATUSTEXT, 0, (LPARAM) szDir);
            break;
         default:
@@ -246,9 +240,6 @@ wincd(int f, int n)
     static TBUFF *last;
     int          rc;
 
-    (void) f;
-    (void) n;
-
     TRACE((T_CALLED "wincd(%d,%d)\n", f, n));
     buf[0] = '\0';
     rc     = mlreply_dir("Initial Directory: ", &last, buf);
@@ -261,10 +252,7 @@ wincd(int f, int n)
     {
         /* empty response */
 
-        if (getcwd(buf, sizeof(buf)) == NULL) {
-            mlforce("[getcwd: %s]", strerror(errno));
-            return FALSE;
-        }
+        getcwd(buf, sizeof(buf));
         rc = graphical_cd(buf);
     }
     /* else rc == ABORT or SORTOFTRUE */
@@ -277,13 +265,11 @@ wincd_dir(const char *dir)
 {
     char buf[NFILEN];
 
-    TRACE((T_CALLED "wincd_dir(%s)\n", dir));
+    TRACE((T_CALLED "wincd_dir(%s)\n"));
     if (dir == NULL)
     {
-        if ((dir = getcwd(buf, sizeof(buf))) == NULL) {
-            mlforce("[getcwd: %s]", strerror(errno));
-            return FALSE;
-        }
+        getcwd(buf, sizeof(buf));
+        dir = buf;
     }
     returnCode(graphical_cd(dir));
 }
@@ -305,11 +291,11 @@ filterExceptions(unsigned int code, struct _EXCEPTION_POINTERS *ep)
 {
     if (code == EXCEPTION_INVALID_HANDLE)
     {
-        return EXCEPTION_EXECUTE_HANDLER;
+	return EXCEPTION_EXECUTE_HANDLER;
     }
     else
     {
-        return EXCEPTION_CONTINUE_SEARCH;
+	return EXCEPTION_CONTINUE_SEARCH;
     }
 }
 #endif
@@ -321,11 +307,11 @@ w32_close_handle(HANDLE handle)
 #if USE_EXCEPTION_FILTERING
     __try
     {
-        (void) CloseHandle(handle);
+	(void) CloseHandle(handle);
     }
     __except(filterExceptions(GetExceptionCode(), GetExceptionInformation()))
     {
-        TRACE(("error closing handle %#x\n", handle));
+	TRACE(("error closing handle %#x\n", handle));
     }
 #else
     (void) CloseHandle(handle);

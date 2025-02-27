@@ -3,7 +3,7 @@
 ;;
 ;; Author: Kevin Buettner
 ;;
-;; $Id: manpage.rc,v 1.29 2022/01/25 11:24:32 tom Exp $
+;; $Header: /usr/build/vile/vile/macros/RCS/manpage.rc,v 1.24 2007/08/07 00:44:58 tom Exp $
 ;;
 
 store-procedure ShowManpage "Prompt for, and display a manual-page"
@@ -42,7 +42,7 @@ store-procedure ShowManpage "Prompt for, and display a manual-page"
 ~endm
 bind-key ShowManpage ^X-m
 
-store-procedure ShowFormatted "Render the current buffer with nroff (-man or -ms), lynx or vile-pager"
+store-procedure ShowFormatted "Render the current buffer with nroff -man or -ms"
 	~local %type %macros %table %nroff %filter %manpagesrc %manpagebuf $error-buffer
 
 	set-variable %filter &pquote &lookup e+l+p &cat vile-manfilt $exec-suffix
@@ -89,17 +89,6 @@ store-procedure ShowFormatted "Render the current buffer with nroff (-man or -ms
 			&cat " " \
 			&cat &pquote $cfilname \
 			&cat " | " %filter
-	~elseif &seq $majormode "md"
-		" fick
-		kill-buffer '[Trace]'
-		~trace on
-		edit-file \
-			&cat "!markdown " \
-			&cat &pquote $cfilname \
-			&cat "|lynx -nolist -stdin -force_html -with_backspaces -dump -width=" \
-			&cat $pagewid \
-			&cat "|" %filter
-		~trace off
 	~elseif &seq $majormode "perl"
 		~if &seq %table ''
 			edit-file &cat "!pod2text " \
@@ -114,12 +103,6 @@ store-procedure ShowFormatted "Render the current buffer with nroff (-man or -ms
 				&cat %nroff \
 				&cat " -man | " %filter
 		~endif
-	~elseif &or &seq $majormode "log" \
-		    &sin $cbufname "typescript"
-		edit-file &cat "!" \
-			&cat %filter \
-			&cat " " \
-			&pquote $cfilname
 	~else
 		~if &seq %type ".ms"
 			setv %macros="-ms"

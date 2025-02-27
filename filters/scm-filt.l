@@ -2,9 +2,8 @@
 %x NORMAL QUOTED COMMENT
 
 %{
-
 /*
- * $Id: scm-filt.l,v 1.10 2013/12/02 01:32:53 tom Exp $
+ * $Id: scm-filt.l,v 1.7 2009/12/10 00:33:18 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of scheme code.
  *
@@ -20,7 +19,7 @@
 #define FLTSTACK_EXTRA_PUSH FLTSTACK_THIS.quoted = 0;
 #include <fltstack.h>
 
-DefineFilter(scheme);
+DefineFilter("scheme");
 
 static char *Action_attr;
 static char *Comment_attr;
@@ -112,7 +111,7 @@ RPAREN		[\)\]]
 			      FLTSTACK_THIS.quoted = save ? save : (yytext[yyleng-6] == 'i' ? 2 : 1);
 			  WriteToken3(paren_attr(),1);
 			  flt_puts(yytext+1, skip, "");
-			  flt_puts(yytext+1+skip, yyleng-1-skip, get_keyword_attr(yytext+1+skip));
+			  flt_puts(yytext+1+skip, yyleng-1-skip, ci_keyword_attr(yytext+1+skip));
 			}
 
 <NORMAL>['`]\,@?	{
@@ -148,7 +147,7 @@ RPAREN		[\)\]]
 			  flt_puts(yytext+1+skip, yyleng-1-skip,
 				   save == 0
 				   ? Error_attr
-				   : get_keyword_attr(yytext+1+skip));
+				   : ci_keyword_attr(yytext+1+skip));
 			  next_quoted = 0;
 			}
 
@@ -171,7 +170,7 @@ RPAREN		[\)\]]
 
 <NORMAL>{NUMBER}	{ WriteToken(Number_attr); }
 
-<NORMAL>{IDENT}		{ WriteToken(get_keyword_attr(yytext)); }
+<NORMAL>{IDENT}		{ WriteToken(ci_keyword_attr(yytext)); }
 
 <NORMAL>\"		{ BeginQuote(QUOTED, Literal_attr); }
 <QUOTED>\\.		{ flt_bfr_append(yytext, yyleng); }
@@ -199,6 +198,7 @@ count_spaces(const char *text, int len)
     return i;
 }
 
+
 static void
 init_filter(int before GCC_UNUSED)
 {
@@ -210,13 +210,13 @@ do_filter(FILE *inputs)
 {
     InitLEX(inputs);
 
-    Action_attr = class_attr(NAME_ACTION);
+    Action_attr  = class_attr(NAME_ACTION);
     Comment_attr = class_attr(NAME_COMMENT);
-    Error_attr = class_attr(NAME_ERROR);
-    Ident_attr = class_attr(NAME_IDENT2);
+    Error_attr   = class_attr(NAME_ERROR);
+    Ident_attr   = class_attr(NAME_IDENT2);
     Keyword_attr = class_attr(NAME_KEYWORD);
-    Number_attr = class_attr(NAME_NUMBER);
-    Literal_attr = class_attr(NAME_LITERAL);
+    Number_attr  = class_attr(NAME_NUMBER);
+    Literal_attr  = class_attr(NAME_LITERAL);
 
     begin_state(NORMAL);
     RunLEX();

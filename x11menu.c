@@ -8,7 +8,7 @@
 /************************************************************************/
 
 /*
- * $Id: x11menu.c,v 1.25 2025/01/26 16:54:07 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/x11menu.c,v 1.13 2010/03/02 09:05:26 tom Exp $
  */
 
 #define NEED_X_INCLUDES 1
@@ -19,45 +19,21 @@
 
 #if DISP_X11
 
-#if ATHENA_WIDGETS
-#if defined(HAVE_LIB_XAW3DXFT)
-#include	<X11/Xaw3dxft/Form.h>
-#include	<X11/Xaw3dxft/SimpleMenu.h>
-#include	<X11/Xaw3dxft/MenuButton.h>
-#include	<X11/Xaw3dxft/SmeLine.h>
-#include	<X11/Xaw3dxft/SmeBSB.h>
-#elif defined(HAVE_LIB_XAW3D)
-#include	<X11/Xaw3d/Form.h>
-#include	<X11/Xaw3d/SimpleMenu.h>
-#include	<X11/Xaw3d/MenuButton.h>
-#include	<X11/Xaw3d/SmeLine.h>
-#include	<X11/Xaw3d/SmeBSB.h>
-#elif defined(HAVE_LIB_XAWPLUS)
-#include	<X11/XawPlus/Form.h>
-#include	<X11/XawPlus/SimpleMenu.h>
-#include	<X11/XawPlus/MenuButton.h>
-#include	<X11/XawPlus/SmeLine.h>
-#include	<X11/XawPlus/SmeBSB.h>
-#elif defined(HAVE_LIB_NEXTAW)
-#include	<X11/neXtaw/Form.h>
-#include	<X11/neXtaw/SimpleMenu.h>
-#include	<X11/neXtaw/MenuButton.h>
-#include	<X11/neXtaw/SmeLine.h>
-#include	<X11/neXtaw/SmeBSB.h>
-#elif defined(HAVE_LIB_XAW)
-#include	<X11/Xaw/Form.h>
-#include	<X11/Xaw/SimpleMenu.h>
-#include	<X11/Xaw/MenuButton.h>
-#include	<X11/Xaw/SmeLine.h>
-#include	<X11/Xaw/SmeBSB.h>
+#if MOTIF_WIDGETS
+#include <Xm/MainW.h>
+#include <Xm/CascadeB.h>
+#include <Xm/SeparatoG.h>
+#include <Xm/RowColumn.h>
+#include <Xm/PushBG.h>
+#include <Xm/ToggleB.h>
 #endif
-#elif MOTIF_WIDGETS
-#include	<Xm/MainW.h>
-#include	<Xm/CascadeB.h>
-#include	<Xm/SeparatoG.h>
-#include	<Xm/RowColumn.h>
-#include	<Xm/PushBG.h>
-#include	<Xm/ToggleB.h>
+
+#if ATHENA_WIDGETS
+#include <X11/Xaw/Form.h>
+#include <X11/Xaw/SimpleMenu.h>
+#include <X11/Xaw/MenuButton.h>
+#include <X11/Xaw/SmeLine.h>
+#include <X11/Xaw/SmeBSB.h>
 #endif
 
 #define Nval(name,value) name, (XtArgVal)(value)
@@ -78,7 +54,7 @@ static MY_MENUS *my_menus;
 /* Motif function to make a cascade button into a menubar               */
 /************************************************************************/
 void *
-gui_make_menu(void *menubar, const char *nom, int the_class GCC_UNUSED)
+gui_make_menu(void *menubar, char *nom, int the_class GCC_UNUSED)
 {
     MY_MENUS *remember;
     Widget pm;
@@ -120,7 +96,7 @@ gui_make_menu(void *menubar, const char *nom, int the_class GCC_UNUSED)
     }
 #elif ATHENA_WIDGETS
     static Widget last;
-    char *str = XtMalloc((Cardinal) strlen(nom) + 10);
+    String str = XtMalloc(strlen(nom) + 10);
 
     sprintf(str, "%sMenu", nom);
     pm = XtVaCreatePopupShell(str,
@@ -137,26 +113,12 @@ gui_make_menu(void *menubar, const char *nom, int the_class GCC_UNUSED)
 				      Nval(XtNfromHoriz, last),
 				      Nval(XtNmenuName, str),
 				      NULL);
-#if OPT_MENUS_COLORED
-    XtVaSetValues(pm,
-		  Nval(XtNforeground, x_menu_foreground()),
-		  Nval(XtNbackground, x_menu_background()),
-		  NULL);
-    XtVaSetValues(menub,
-		  Nval(XtNforeground, x_menu_foreground()),
-		  Nval(XtNbackground, x_menu_background()),
-		  NULL);
-    XtVaSetValues(cascade,
-		  Nval(XtNforeground, x_menu_foreground()),
-		  Nval(XtNbackground, x_menu_background()),
-		  NULL);
-#endif /* OPT_MENUS_COLORED */
     last = cascade;
 
 #endif /* ATHENA_WIDGETS */
 
     /* remember the widgets we created, so we can destroy them */
-    if ((remember = typecalloc(MY_MENUS)) != NULL) {
+    if ((remember = typecalloc(MY_MENUS)) != 0) {
 	remember->parent = pm;
 	remember->child = cascade;
 	remember->next = my_menus;
@@ -170,7 +132,7 @@ gui_make_menu(void *menubar, const char *nom, int the_class GCC_UNUSED)
 /* Motif function to make a button into a cascade (with accelarator)    */
 /************************************************************************/
 void *
-gui_add_menu_item(void *pm, const char *nom, char *accel GCC_UNUSED, int the_class)
+gui_add_menu_item(void *pm, char *nom, char *accel GCC_UNUSED, int the_class)
 {
     Widget w;
 #if MOTIF_WIDGETS
@@ -271,7 +233,7 @@ proc_back(Widget w GCC_UNUSED, XtPointer arg, XtPointer call GCC_UNUSED)
 	return;
 #endif
 
-    if ((s = vlmenu_is_cmd(macro_action)) != NULL) {
+    if ((s = vlmenu_is_cmd(macro_action)) != 0) {
 	macro_action = s;
 	exec_flag = FALSE;
     }
@@ -307,14 +269,14 @@ gui_add_func_callback(void *w, void *closure)
 static void
 post_buffer_list(Widget w GCC_UNUSED,
 		 XtPointer client GCC_UNUSED,
-		 XEvent *ev GCC_UNUSED,
-		 Boolean *ok GCC_UNUSED)
+		 XEvent * ev GCC_UNUSED,
+		 Boolean * ok GCC_UNUSED)
 {
-    static unsigned in_item_menu_list = 0;	/* number allocated */
-    static unsigned nb_item_menu_list = 0;	/* number in use */
+    static int in_item_menu_list = 0;	/* number allocated */
+    static int nb_item_menu_list = 0;	/* number in use */
     static Widget *pm_buffer;
 
-    unsigned i, n = nb_item_menu_list;
+    int i, n = nb_item_menu_list;
     BUFFER *bp;
     char string[NBUFN + 2 + NFILEN], temp[1 + NFILEN], *p;
     Widget pm = (Widget) client;
@@ -326,7 +288,7 @@ post_buffer_list(Widget w GCC_UNUSED,
 	if (b_is_temporary(bp))	/* cf: hist_show() */
 	    continue;
 
-	p = shorten_path(vl_strncpy(temp, bp->b_fname, sizeof(temp)), FALSE);
+	p = shorten_path(strcpy(temp, bp->b_fname), FALSE);
 	sprintf(string, "%-*.*s %s", NBUFN - 1, NBUFN - 1,
 		bp->b_bname, p);
 
@@ -334,25 +296,25 @@ post_buffer_list(Widget w GCC_UNUSED,
 	TRACE(("ACCEL(%s) = %s\n", temp, string));
 
 	if (nb_item_menu_list + 2 >= in_item_menu_list) {
-	    unsigned m = in_item_menu_list;
+	    int m = in_item_menu_list;
 
 	    in_item_menu_list = (in_item_menu_list + 3) * 2;
 
-	    if (pm_buffer != NULL)
+	    if (pm_buffer != 0)
 		pm_buffer = typereallocn(Widget, pm_buffer, in_item_menu_list);
 	    else
 		pm_buffer = typeallocn(Widget, in_item_menu_list);
 
-	    if (pm_buffer == NULL) {
+	    if (pm_buffer == 0) {
 		no_memory("post_buffer_list");
 		return;
 	    }
 
 	    while (m < in_item_menu_list)
-		pm_buffer[m++] = NULL;
+		pm_buffer[m++] = 0;
 	}
 
-	if (pm_buffer[nb_item_menu_list] == NULL) {
+	if (pm_buffer[nb_item_menu_list] == 0) {
 	    pm_buffer[nb_item_menu_list] = (Widget) gui_add_menu_item(pm, string,
 								      temp, 'B');
 	} else {
@@ -399,7 +361,7 @@ post_buffer_list(Widget w GCC_UNUSED,
 void
 gui_add_list_callback(void *pm)
 {
-    if (cascade != NULL)
+    if (cascade != 0)
 	XtAddEventHandler(cascade,
 			  ButtonPressMask,
 			  False,
@@ -416,7 +378,7 @@ gui_hide_menus(int f GCC_UNUSED, int n GCC_UNUSED)
     int rc = FALSE;
     Widget w = x_menu_widget();
 
-    if (w != NULL) {
+    if (w != 0) {
 	XtUnmapWidget(w);
 	rc = TRUE;
     }
@@ -430,7 +392,7 @@ gui_show_menus(int f GCC_UNUSED, int n GCC_UNUSED)
     int rc = FALSE;
     Widget w = x_menu_widget();
 
-    if (w != NULL) {
+    if (w != 0) {
 	XtMapWidget(w);
 	rc = TRUE;
     }
@@ -448,7 +410,7 @@ gui_remove_menus(int f GCC_UNUSED, int n GCC_UNUSED)
     int count = 0;
 
     gui_hide_menus(f, n);
-    while (my_menus != NULL) {
+    while (my_menus != 0) {
 	MY_MENUS *next = my_menus->next;
 
 	XtUnmanageChild(my_menus->parent);

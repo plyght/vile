@@ -17,7 +17,7 @@
 # The entries are functions within the editor.  They _must_ match the
 #  functions' names.  On the same line as the name is the set of flags
 #  describing that function.
-# Also accompanying each function is a list of English names  for the
+# Also accompanying each function is a list of english names  for the
 #  command, in double quotes, and a list of keys bound to the command,
 #  in single quotes.  These are the default key bindings -- they can change
 #  at runtime.  English names must be all lowercase.
@@ -97,7 +97,7 @@
 #		in '!' listed, then the flag does nothing, and should be
 #		viewed simply as documentation.
 #
-# $Id: cmdtbl,v 1.274 2022/12/05 23:07:26 tom Exp $
+# $Header: /usr/build/vile/vile/RCS/cmdtbl,v 1.263 2010/02/18 00:02:23 tom Exp $
 #
 #
 
@@ -483,10 +483,6 @@ define_mode	NONE			OPT_MAJORMODE
 	"define-majormode"
 	"define-mode"
 	<define a major mode, i.e., a collection of buffer modes>
-derive_mode	NONE			OPT_MAJORMODE
-	"derive-majormode"
-	"derive-mode"
-	<derive a major mode based on an existing majormode>
 define_submode	NONE			OPT_MAJORMODE
 	"define-submode"
 	<define a submode within a major mode>
@@ -503,14 +499,6 @@ forceblank	REDO|UNDO
 	"force-blank-lines"		!FEWNAMES
 	'^A-d'
 	<delete blank lines (or force some if CNT specified)>
-del_emptylines	OPER|REDO|UNDO|GLOBOK|RANGE	!SMALLER
-	"delete-empty-lines"		!FEWNAMES
-	'^A-e'
-	<delete empty lines in the region>
-frc_emptylines	OPER|REDO|UNDO|GLOBOK|RANGE	!SMALLER
-	"force-empty-lines"		!FEWNAMES
-	'^X-E'
-	<force sequences of empty lines in the region to be $empty-lines>
 delglobmode	NONE
 	"delete-global-mode"		!FEWNAMES
 	"setgno"
@@ -549,30 +537,10 @@ des_s_bind	NONE			OPT_REBIND
 	"list-selmode-bindings"		!FEWNAMES
 	"show-selmode-bindings"
 	<show a list of all commands that may be executed in selection mode>
-desall_bind	NONE			OPT_REBIND
-	"describe-all-keys"
-	"list-all-keys"			!FEWNAMES
-	"show-all-keys"
-	<show a list of all keys, showing if they are bound to command>
-desall_i_bind	NONE			OPT_REBIND
-	"describe-all-insmode-keys"
-	"list-all-insmode-keys"		!FEWNAMES
-	"show-all-insmode-keys"
-	<show a list of all insert-mode keys, showing if they are bound to command>
-desall_c_bind	NONE			OPT_REBIND
-	"describe-all-cmdmode-keys"
-	"list-all-cmdmode-keys"		!FEWNAMES
-	"show-all-cmdmode-keys"
-	<show a list of all editing-keys, showing if they are bound to command>
-desall_s_bind	NONE			OPT_REBIND
-	"describe-all-selmode-keys"
-	"list-all-selmode-keys"		!FEWNAMES
-	"show-all-selmode-keys"
-	<show a list of all selection-mode keys, showing if they are bound to command>
 des_keynames	NONE			OPT_REBIND
 	"list-key-names"		!FEWNAMES
 	"show-key-names"
-	<show a list of all function-keys that may be bound with #-syntax>
+	<show a list of all function-key that may be bound with #-syntax>
 descolors	NONE			OPT_SHOW_COLORS
 	"list-colors"			!FEWNAMES
 	"show-colors"
@@ -582,11 +550,6 @@ desmotions	NONE			OPT_REBIND
 	"describe-motions"
 	"show-motions"
 	<show a list of all motion commands>
-desglobals	NONE			OPT_REBIND
-	"list-globals"			!FEWNAMES
-	"describe-globals"
-	"show-globals"
-	<show a list of all global commands>
 desopers	NONE			OPT_REBIND
 	"list-operators"		!FEWNAMES
 	"describe-operators"
@@ -628,10 +591,8 @@ dotcmdplay	UNDO
 	<repeat the last text-changing command, CNT times>
 des_amp_funcs	NONE			OPT_EVAL
 	"describe-&functions"
-	"describe-user-functions"	!FEWNAMES
 des_dlr_vars	NONE			OPT_EVAL
 	"describe-$variables"
-	"describe-state-variables"	!FEWNAMES
 evaluate	NONE			OPT_EVAL
 	"eval"
 	"execute-string"		!FEWNAMES
@@ -1164,12 +1125,12 @@ namedcmd	NONE
 	":"
 	':'
 	<execute the given function, by name, applying CNT as its repeat-count>
-openup		REDO|UNDO|FROM
+openup		REDO|UNDO|(FROM)
 	"open-line-above-and-insert-chars"	!FEWNAMES
 	"i"
 	'O'
 	<insert text in CNT fresh blank line(s), before current line>
-openup_i	REDO|UNDO|FROM		!SMALLER
+openup_i	REDO|UNDO|(FROM)	!SMALLER
 	"insert-indented-chars"		!FEWNAMES
 	"i!"
 	<insert text in CNT fresh blank line(s), before current line, toggle autoindent>
@@ -1186,7 +1147,7 @@ opendown_no_aindent	REDO|UNDO|FROM|ZERO
 	"open-line-below-no-autoindent"	!FEWNAMES
 	'^A-o'
 	<insert text in CNT fresh blank line(s), after current, no autoindent>
-operopenrect	OPER|REDO|UNDO|GLOBOK|RANGE
+operopenrect	OPER|REDO|UNDO|GLOBOK|(RANGE)
 	"open-rectangle"
 	'^A-r'
 	<open blank rectangular area specified by given motion>
@@ -1194,12 +1155,12 @@ operattrbold	OPER|GLOBOK|RANGE	OPT_SELECTIONS
 	"attribute-bold-til"		!FEWNAMES
 	'^A-B'
 	<display text as bold in the region>
-operattrcaseq	OPER|REDO|UNDO|GLOBOK|RANGE	OPT_SELECTIONS
+operattrcaseq	REDO|UNDO|OPER|GLOBOK|RANGE	OPT_SELECTIONS
 	"attribute-cntl_a-sequences-til"	!FEWNAMES
 	"decode-attributes-til"			!FEWNAMES
 	'^A-A'
 	<display text as given by ^A sequences in the region>
-operattrencode	OPER|REDO|UNDO|GLOBOK|RANGE	OPT_SELECTIONS
+operattrencode	REDO|UNDO|OPER|GLOBOK|RANGE	OPT_SELECTIONS
 	"encode-attributes-til"			!FEWNAMES
 	'^A-E'
 	<encode attributes in the region as ^A sequences>
@@ -1242,19 +1203,19 @@ operchg_i	OPER|REDO|UNDO		!SMALLER
 	"change-indented-chars"		!FEWNAMES
 	"c!"
 	<insert text, replacing that in the region, toggles autoindent>
-operdetab	OPER|REDO|UNDO|GLOBOK|RANGE
+operdetab	OPER|REDO|UNDO|GLOBOK|(RANGE)
 	"detab-lines-til"		!FEWNAMES
 	'^A- '
 	<convert tabs to spaces in the region>
-oper_l_detab	OPER|REDO|UNDO|GLOBOK|RANGE
+oper_l_detab	OPER|REDO|UNDO|GLOBOK|(RANGE)
 	"leading-detab-lines-til"	!FEWNAMES
 	'^X- '
 	<convert leading tabs to spaces in the region>
-operentab	OPER|REDO|UNDO|GLOBOK|RANGE
+operentab	OPER|REDO|UNDO|GLOBOK|(RANGE)
 	"entab-lines-til"		!FEWNAMES
 	'^A-^I'
 	<convert spaces to tabs where possible in the region>
-oper_l_entab	OPER|REDO|UNDO|GLOBOK|RANGE
+oper_l_entab	OPER|REDO|UNDO|GLOBOK|(RANGE)
 	"leading-entab-lines-til"	!FEWNAMES
 	'^X-^I'
 	<convert leading spaces to tabs where possible in the region>
@@ -1262,7 +1223,7 @@ opermove	OPER|RANGE|EXTRA
 	"move-til"
 	"m"
 	<move text in the region to the given line>
-operlinechg	OPER|REDO|UNDO|RANGE
+operlinechg	OPER|REDO|UNDO|(RANGE)
 	"change-lines-til"		!FEWNAMES
 	"delete-lines-and-insert-chars-til"	!FEWNAMES
 	"ch"
@@ -1290,12 +1251,12 @@ operfilter	OPER|REDO|UNDO|EXRCOK|RANGE|NAMEDFS|DFLNONE|VI_NL OPT_SHELL
 	"!"
 	'!'
 	<pipe the text in the region through an external filter command>
-operformat	OPER|REDO|UNDO|RANGE	OPT_FORMAT
+operformat	OPER|REDO|UNDO|(RANGE)	OPT_FORMAT
 	"format-til"			!FEWNAMES
 	'^A-f'
 	'^A-j'
 	<format (rejustify) the text in the region>
-operflip	OPER|REDO|UNDO|GLOBOK|RANGE
+operflip	OPER|REDO|UNDO|GLOBOK|(RANGE)
 	"flip-til"			!FEWNAMES
 	"~"
 	'^A-~'
@@ -1313,43 +1274,43 @@ opervglobals	BANG|EXTRA|DFLALL
 	"g!"
 	"v"
 	<perform command on all lines not containing the given pattern>
-operlower	OPER|REDO|UNDO|GLOBOK|RANGE
+operlower	OPER|REDO|UNDO|GLOBOK|(RANGE)
 	"lower-til"			!FEWNAMES
 	"L"
 	'^A-l'
 	<convert to lowercase all characters in the region>
-operlist	OPER|GLOBOK|RANGE
+operlist	OPER|GLOBOK|(RANGE)
 	"list-lines-til"		!FEWNAMES
 	"l"
 	<show lines, making tabs and newlines visible>
-opernumber	OPER|GLOBOK|RANGE
+opernumber	OPER|GLOBOK|(RANGE)
 	"number-lines-til"		!FEWNAMES
 	"nu"
 	"#"
 	<show lines with their line numbers>
-operprint	OPER|GLOBOK|RANGE
+operprint	OPER|GLOBOK|(RANGE)
 	"print-lines-til"		!FEWNAMES
 	"p"
 	<show lines>
-operpprint	OPER|GLOBOK|RANGE
+operpprint	OPER|GLOBOK|(RANGE)
 	"print-prefixed-lines-til"	!FEWNAMES
 	"pp"
 	<show lines with line numbers>
-operselect	OPER|GLOBOK|RANGE	OPT_SELECTIONS
+operselect	OPER|GLOBOK|(RANGE)	OPT_SELECTIONS
 	"select-til"			!FEWNAMES
 	'^A-s'
 	<select (and yank) the text in the region>
-operupper	OPER|REDO|UNDO|GLOBOK|RANGE
+operupper	OPER|REDO|UNDO|GLOBOK|(RANGE)
 	"upper-til"			!FEWNAMES
 	"U"
 	'^A-u'
 	<convert to uppercase all characters in the region>
-operlshift	OPER|REDO|UNDO|GLOBOK|RANGE
+operlshift	OPER|REDO|UNDO|GLOBOK|(RANGE)
 	"shift-left-til"		!FEWNAMES
 	"<"
 	'<'
 	<shift lines in the region left by one \"shiftwidth\">
-operrshift	OPER|REDO|UNDO|GLOBOK|RANGE
+operrshift	OPER|REDO|UNDO|GLOBOK|(RANGE)
 	"shift-right-til"		!FEWNAMES
 	">"
 	'>'
@@ -1362,12 +1323,12 @@ opersubstall	OPER|REDO|UNDO|GLOBOK|RANGE|EXTRA
 	"substitute-all-til"	!FEWNAMES
 	'^X-s'
 	<perform an all-occurrence text substitution over the region>
-opertrim	REDO|UNDO|GLOBOK|UNDO|RANGE
+opertrim	REDO|UNDO|GLOBOK|UNDO|(RANGE)
 	"trim-lines-til"		!FEWNAMES
 	"trim"
 	'^A-t'
 	<trim trailing whitespace from lines in the region>
-operblank       REDO|UNDO|GLOBOK|UNDO|RANGE
+operblank       REDO|UNDO|GLOBOK|UNDO|(RANGE)
 	"blank-region"
 	"blank"
 	'^A-b'
@@ -1695,19 +1656,10 @@ list_majormodes	NONE			OPT_MAJORMODE
 	"show-majormodes"
 	<report values of all majormode settings (use CNT for verbose listing)>
 listvars	NONE			OPT_SHOW_EVAL
-	"show-variables"
 	"list-variables"		!FEWNAMES
+	"show-variables"
 	"showvars"			!FEWNAMES
 	<report values of all variables, built-in and user>
-list_dlr_vars	NONE			OPT_SHOW_EVAL
-	"show-system-variables"
-	"list-$variables"		!FEWNAMES
-	"list-system-variables"		!FEWNAMES
-	<report values of all user variables>
-list_user_vars	NONE			OPT_SHOW_EVAL
-	"list-user-variables"		!FEWNAMES
-	"show-user-variables"
-	<report values of all user variables>
 showversion	EXRCOK
 	"version"
 	<report version information for the editor>
@@ -1947,7 +1899,7 @@ mouse_motion	ABSM|MOTION		OPT_XTERM||DISP_X11
 	<dummy command to support mouse movements internally>
 copy_to_clipboard NONE			DISP_X11
 	"copy-to-clipboard"
-	<copies the currently highlighted selection to the clipboard buffer>
+	<copies the currently highlighted selection to the cut buffer>
 paste_from_clipboard REDO|UNDO		DISP_X11
 	"paste-from-clipboard"
 	<pastes the contents of the cut buffer>

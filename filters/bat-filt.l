@@ -4,7 +4,7 @@
 %{
 
 /*
- * $Id: bat-filt.l,v 1.38 2025/01/26 11:05:40 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/bat-filt.l,v 1.33 2010/07/13 13:40:00 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of DOS (and
  * similar, such as W95, NT) batch file.
@@ -12,7 +12,7 @@
 
 #include <filters.h>
 
-DefineFilter(bat);
+DefineFilter("bat");
 
 static char *Action_attr;
 static char *Comment_attr;
@@ -22,7 +22,7 @@ static char *String_attr;
 
 static int setting;
 
-static const char *variable_attr(char *text);
+static const char * variable_attr(char *text);
 static void write_label(char *text, int length);
 
 %}
@@ -65,20 +65,20 @@ IDENT2		({PARAM}|{VARIABLE})
 				   * is not echoed.  So we highlight it as
 				   * part of the name.
 				   */
-				  if (type != NULL)
+				  if (type != 0)
 				      *type = '\0';
-				  attr = get_keyword_attr(temp);
+				  attr = keyword_attr(temp);
 				  if (!strcmp(temp, "echo")) {
 					BEGIN(ECHOING);
 					echoing = 1;
 				  } else if (!strcmp(temp, "goto")) {
 					BEGIN(LABEL);
-				  } else if (attr != NULL && Comment_attr == attr) {
+				  } else if (attr != 0 && Comment_attr == attr) {
 					BEGIN(COMMENT);
 				  } else if (!strcmp(temp, "set")) {
 					setting = 1;
 				  }
-				  if (type != NULL && echoing) {
+				  if (type != 0 && echoing) {
 				      int len = (int) (type - temp) + 1;
 
 				      flt_puts(yytext, len, attr);
@@ -102,11 +102,10 @@ IDENT2		({PARAM}|{VARIABLE})
 				  BEGIN(INITIAL);
 				}
 %%
-
 static const char *
 variable_attr(char *text)
 {
-    const char *attr = get_keyword_attr(text);
+    const char *attr = ci_keyword_attr(text);
     int isvar = (setting || *text == '%');
 
     if (isEmpty(attr) && isvar) {
@@ -118,7 +117,7 @@ variable_attr(char *text)
     return attr;
 }
 
-#define MAX_LABEL 8		/* labels are unique to only 8 chars */
+#define MAX_LABEL 8	/* labels are unique to only 8 chars */
 
 static void
 write_label(char *text, int length)
@@ -148,15 +147,15 @@ do_filter(FILE *inputs)
     InitLEX(inputs);
 
     setting = 0;
-    Action_attr = class_attr(NAME_ACTION);
+    Action_attr  = class_attr(NAME_ACTION);
     Comment_attr = class_attr(NAME_COMMENT);
-    Error_attr = class_attr(NAME_ERROR);
-    Ident2_attr = class_attr(NAME_IDENT2);
-    String_attr = class_attr(NAME_LITERAL);
+    Error_attr   = class_attr(NAME_ERROR);
+    Ident2_attr  = class_attr(NAME_IDENT2);
+    String_attr  = class_attr(NAME_LITERAL);
 
     BEGIN(INITIAL);
     RunLEX();
-    flt_bfr_error();
+    flt_bfr_finish();
 }
 
 #if NO_LEAKS

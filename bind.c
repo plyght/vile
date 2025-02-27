@@ -3,7 +3,8 @@
  *
  *	written 11-feb-86 by Daniel Lawrence
  *
- * $Id: bind.c,v 1.384 2025/01/26 17:07:24 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/bind.c,v 1.350 2010/05/18 23:10:27 tom Exp $
+ *
  */
 
 #include	"estruct.h"
@@ -19,10 +20,15 @@
 				   over those shorter.  e.g. display "quit"
 				   instead of "q" if possible */
 
-extern const int nametbl_size;
+extern const int nametblsize;
 
+#if OPT_CASELESS
 #define Strcmp(s,d)      cs_strcmp(case_insensitive, s, d)
 #define StrNcmp(s,d,len) cs_strncmp(case_insensitive, s, d, len)
+#else
+#define Strcmp(s,d)      strcmp(s, d)
+#define StrNcmp(s,d,len) strncmp(s, d, len)
+#endif
 
 #if OPT_REBIND
 #define	isSpecialCmd(k) \
@@ -36,7 +42,6 @@ extern const int nametbl_size;
 static int key_to_bind(const CMDFUNC * kcmd);
 static int update_binding_list(BUFFER *bp);
 static void makebindlist(LIST_ARGS);
-static void makebindkeyslist(LIST_ARGS);
 #endif /* OPT_REBIND */
 
 #if OPT_NAMEBST
@@ -114,8 +119,6 @@ static struct {
     },
 };
 
-static UINT which_current;
-
 #if OPT_REBIND
 static BINDINGS *bindings_to_describe = &dft_bindings;
 #endif
@@ -127,7 +130,7 @@ static void kbd_puts(const char *s);
 BINDINGS *
 vl_get_binding(const char *name)
 {
-    BINDINGS *result = NULL;
+    BINDINGS *result = 0;
     unsigned n;
     for (n = 0; n < TABLESIZE(bindings_by_name); ++n) {
 	if (!strncmp(bindings_by_name[n].name, name, strlen(name))) {
@@ -147,7 +150,7 @@ old_namebst(BI_NODE * a)
     beginDisplay();
     if (!(a->value.n_flags & NBST_READONLY)) {
 	CMDFUNC *cmd = TYPECAST(CMDFUNC, a->value.n_cmd);
-	if (cmd != NULL) {
+	if (cmd != 0) {
 	    if ((cmd->c_flags & CMD_TYPE) != CMD_FUNC) {
 #if OPT_ONLINEHELP
 		if (cmd->c_help)
@@ -156,7 +159,7 @@ old_namebst(BI_NODE * a)
 #if OPT_MACRO_ARGS
 		if (cmd->c_args) {
 		    int n;
-		    for (n = 0; cmd->c_args[n].pi_text != NULL; ++n) {
+		    for (n = 0; cmd->c_args[n].pi_text != 0; ++n) {
 			free(cmd->c_args[n].pi_text);
 		    }
 		    free(cmd->c_args);
@@ -179,12 +182,12 @@ new_namebst(BI_DATA * a)
     BI_NODE *p;
 
     beginDisplay();
-    if ((p = typecalloc(BI_NODE)) != NULL) {
+    if ((p = typecalloc(BI_NODE)) != 0) {
 	p->value = *a;
 	if (!(a->n_flags & NBST_READONLY)) {
-	    if ((BI_KEY(p) = strmalloc(a->bi_key)) == NULL) {
+	    if ((BI_KEY(p) = strmalloc(a->bi_key)) == 0) {
 		old_namebst(p);
-		p = NULL;
+		p = 0;
 	    }
 	}
     }
@@ -197,13 +200,15 @@ static void
 dpy_namebst(BI_NODE * a GCC_UNUSED, int level GCC_UNUSED)
 {
 #if OPT_TRACE
+    char *indent = strmalloc(trace_indent(level, '.'));
     TRACE(("[%d]%s%p -> %s%s (%d)\n",
-	   level, alloc_indent(level, '.'),
+	   level, indent,
 	   (void *) a,
 	   (a->value.n_flags & NBST_READONLY)
 	   ? "*"
 	   : "",
 	   BI_KEY(a), a->balance));
+    free(indent);
 #endif
 }
 
@@ -215,42 +220,12 @@ xcg_namebst(BI_NODE * a, BI_NODE * b)
     b->value = temp;
 }
 
-#define BI_DATA0 {{NULL}, 0, {NULL,NULL,0}}
+#define BI_DATA0 {{0}, 0, {0,0,0}}
 #define BI_TREE0 0, 0, BI_DATA0
-
 static BI_TREE namebst =
 {new_namebst, old_namebst, dpy_namebst, xcg_namebst, BI_TREE0};
-
-static BI_TREE glbsbst =
-{new_namebst, old_namebst, dpy_namebst, xcg_namebst, BI_TREE0};
-
 static BI_TREE redefns =
 {new_namebst, old_namebst, dpy_namebst, xcg_namebst, BI_TREE0};
-
-/*----------------------------------------------------------------------------*/
-/*
- * Name-completion for global commands uses a different table (a subset) from
- * the normal command-table.  Provide a way to select that table.
- */
-
-static BI_TREE *
-bst_pointer(UINT which)
-{
-    BI_TREE *result;
-
-    if (which == GLOBOK) {
-	result = &glbsbst;
-    } else {
-	result = &namebst;
-    }
-    return result;
-}
-
-static BI_TREE *
-bst_current(void)
-{
-    return bst_pointer(which_current);
-}
 #endif /* OPT_NAMEBST */
 
 /*----------------------------------------------------------------------------*/
@@ -295,7 +270,8 @@ vl_help(int f GCC_UNUSED, int n GCC_UNUSED)
 	set_bname(bp, HELP_BufName);
 	set_rdonly(bp, hname, MDVIEW);
 
-	set_local_b_val(bp, MDIGNCASE, TRUE);	/* easy to search, */
+	make_local_b_val(bp, MDIGNCASE);	/* easy to search, */
+	set_b_val(bp, MDIGNCASE, TRUE);
 	b_set_scratch(bp);
 	b_set_recentlychanged(bp);
 	if (!alreadypopped)
@@ -323,22 +299,22 @@ kcode2kbind(const BINDINGS * bs, int code)
 {
     KBIND *kbp;
 
-    TRACE((T_CALLED "kcode2kbind(%s, %#x)\n", bs->bufname, code));
+    TRACE(("kcode2kbind(%s, %#x)\n", bs->bufname, code));
 #if OPT_REBIND
     for (kbp = bs->kb_extra; kbp != bs->kb_special; kbp = kbp->k_link) {
 	if (kbp->k_code == code) {
 	    TRACE(("...found in extra-bindings\n"));
-	    returnPtr(kbp);
+	    return kbp;
 	}
     }
 #endif
     for (kbp = bs->kb_special; kbp->k_cmd; kbp++) {
 	if (kbp->k_code == code) {
 	    TRACE(("...found in special-bindings\n"));
-	    returnPtr(kbp);
+	    return kbp;
 	}
     }
-    returnPtr(NULL);
+    return 0;
 }
 
 #if OPT_REBIND
@@ -366,7 +342,7 @@ static const struct {
 		{"suspend",		&suspc,		's'},
 		{"test-completions",	&test_cmpl,	0},
 		{"word-kill",		&wkillc,	's'},
-		{NULL,                  NULL,           0}
+		{0,                     0,              0}
 		/* *INDENT-ON* */
 
 };
@@ -385,7 +361,7 @@ makechrslist(int dum1 GCC_UNUSED, void *ptr GCC_UNUSED)
     bpadc('-', term.cols - DOT.o);
     bputc('\n');
 
-    for (i = 0; TermChrs[i].name != NULL; i++) {
+    for (i = 0; TermChrs[i].name != 0; i++) {
 	bprintf("\n%s = %s",
 		TermChrs[i].name,
 		kcod2prc(*(TermChrs[i].value), temp));
@@ -399,8 +375,8 @@ static int
 chr_lookup(const char *name)
 {
     int j;
-    if (name != NULL) {
-	for (j = 0; TermChrs[j].name != NULL; j++)
+    if (name != 0) {
+	for (j = 0; TermChrs[j].name != 0; j++)
 	    if (!strcmp(name, TermChrs[j].name))
 		return j;
     }
@@ -449,8 +425,9 @@ set_termchrs(int f GCC_UNUSED, int n GCC_UNUSED)
     /* get the table-entry */
     tb_scopy(&name, "");
     if ((s = kbd_reply("Terminal setting: ", &name, chr_eol,
-		       ' ', 0, chr_complete)) == TRUE
-	&& (j = chr_lookup(tb_values(name))) >= 0) {
+		       ' ', 0, chr_complete)) == TRUE) {
+
+	j = chr_lookup(tb_values(name));
 	switch (TermChrs[j].how_to) {
 	case 's':
 	default:
@@ -480,7 +457,7 @@ mac_token2kcod(int check)
     char *value;
     int c;
 
-    if ((value = mac_unquotedarg(&tok)) == NULL) {
+    if ((value = mac_unquotedarg(&tok)) == 0) {
 	c = -1;
     } else {
 	c = prc2kcod(value);
@@ -547,9 +524,9 @@ unbindchar(BINDINGS * bs, int c)
     KBIND *skbp;		/* saved pointer into the command table */
 
     /* if it's a simple character, it will be in the normal[] array */
-    if (is8Bits(c)) {
+    if (!isSpecial(c)) {
 	if (bs->kb_normal[CharOf(c)]) {
-	    bs->kb_normal[CharOf(c)] = NULL;
+	    bs->kb_normal[CharOf(c)] = 0;
 	    return TRUE;
 	}
 	return FALSE;
@@ -573,7 +550,7 @@ unbindchar(BINDINGS * bs, int c)
     }
 
     /* nope, check special codes */
-    for (skbp = NULL; kbp->k_cmd; kbp++) {
+    for (skbp = 0; kbp->k_cmd; kbp++) {
 	if (!skbp && kbp->k_code == c)
 	    skbp = kbp;
     }
@@ -591,7 +568,7 @@ unbindchar(BINDINGS * bs, int c)
 
     /* null out the last one */
     kbp->k_code = 0;
-    kbp->k_cmd = NULL;
+    kbp->k_cmd = 0;
 
     return TRUE;
 }
@@ -708,9 +685,9 @@ install_bind(int c, const CMDFUNC * kcmd, BINDINGS * bs)
     reset_prefix(-1, kcod2fnc(bs, c), bs);
     reset_prefix(c, kcmd, bs);
 
-    if (is8Bits(c)) {
+    if (!isSpecial(c)) {
 	bs->kb_normal[CharOf(c)] = TYPECAST(CMDFUNC, kcmd);
-    } else if ((kbp = kcode2kbind(bs, c)) != NULL) {	/* change it in place */
+    } else if ((kbp = kcode2kbind(bs, c)) != 0) {	/* change it in place */
 	kbp->k_cmd = kcmd;
     } else {
 
@@ -718,7 +695,7 @@ install_bind(int c, const CMDFUNC * kcmd, BINDINGS * bs)
 	kbp = typealloc(KBIND);
 	endofDisplay();
 
-	if (kbp == NULL) {
+	if (kbp == 0) {
 	    return no_memory("Key-Binding");
 	}
 	kbp->k_link = bs->kb_extra;
@@ -740,7 +717,7 @@ bind_any_key(BINDINGS * bs)
 
     /* prompt the user to type in a key to bind */
     /* and get the function name to bind it to */
-    fnp = kbd_engl("Bind function whose full name is: ", cmd, 0);
+    fnp = kbd_engl("Bind function whose full name is: ", cmd);
 
     if (fnp == NULL || (kcmd = engl2fnc(fnp)) == NULL) {
 	return no_such_function(fnp);
@@ -787,7 +764,6 @@ bind_s_key(int f GCC_UNUSED, int n GCC_UNUSED)
 /* remember whether we last did "apropos" or "describe-bindings" */
 static char *last_lookup_string;
 static CMDFLAGS last_whichcmds;
-static int last_whichmode;
 static int append_to_binding_list;
 
 /* ARGSUSED */
@@ -799,7 +775,7 @@ update_binding_list(BUFFER *bp GCC_UNUSED)
 }
 
 static int
-describe_any_bindings(char *lookup, CMDFLAGS whichcmd)
+describe_any_bindings(char *lookup, int whichcmd)
 {
     last_lookup_string = lookup;
     last_whichcmds = whichcmd;
@@ -811,60 +787,7 @@ describe_any_bindings(char *lookup, CMDFLAGS whichcmd)
 int
 desbind(int f GCC_UNUSED, int n GCC_UNUSED)
 {
-    return describe_any_bindings((char *) 0, (CMDFLAGS) 0);
-}
-
-/* ARGSUSED */
-static int
-update_bindkeys_list(BUFFER *bp GCC_UNUSED)
-{
-    return liststuff(bindings_to_describe->bufname, append_to_binding_list,
-		     makebindkeyslist, (int) last_whichcmds, (void *) last_lookup_string);
-}
-
-static int
-describe_all_bindings(char *lookup, CMDFLAGS whichcmd, int mode)
-{
-    last_lookup_string = lookup;
-    last_whichcmds = whichcmd;
-    last_whichmode = mode;
-
-    return update_bindkeys_list((BUFFER *) 0);
-}
-
-/* ARGSUSED */
-int
-desall_bind(int f GCC_UNUSED, int n GCC_UNUSED)
-{
-    return describe_all_bindings((char *) 0, (CMDFLAGS) 0, (f ? n : -1));
-}
-
-static int
-describe_all_keys_bindings(BINDINGS * bs, int mode)
-{
-    int code;
-    bindings_to_describe = bs;
-    code = describe_all_bindings((char *) 0, (CMDFLAGS) 0, mode);
-    bindings_to_describe = &dft_bindings;
-    return code;
-}
-
-int
-desall_i_bind(int f GCC_UNUSED, int n GCC_UNUSED)
-{
-    return describe_all_keys_bindings(&ins_bindings, (f ? n : -1));
-}
-
-int
-desall_c_bind(int f GCC_UNUSED, int n GCC_UNUSED)
-{
-    return describe_all_keys_bindings(&cmd_bindings, (f ? n : -1));
-}
-
-int
-desall_s_bind(int f GCC_UNUSED, int n GCC_UNUSED)
-{
-    return describe_all_keys_bindings(&sel_bindings, (f ? n : -1));
+    return describe_any_bindings((char *) 0, 0);
 }
 
 static int
@@ -872,7 +795,7 @@ describe_alternate_bindings(BINDINGS * bs)
 {
     int code;
     bindings_to_describe = bs;
-    code = describe_any_bindings((char *) 0, (CMDFLAGS) 0);
+    code = describe_any_bindings((char *) 0, 0);
     bindings_to_describe = &dft_bindings;
     return code;
 }
@@ -909,13 +832,6 @@ desopers(int f GCC_UNUSED, int n GCC_UNUSED)
     return describe_any_bindings((char *) 0, OPER);
 }
 
-/* ARGSUSED */
-int
-desglobals(int f GCC_UNUSED, int n GCC_UNUSED)
-{
-    return describe_any_bindings((char *) 0, GLOBOK);
-}
-
 /* lookup function by substring */
 /* ARGSUSED */
 int
@@ -924,11 +840,11 @@ dessubstr(int f GCC_UNUSED, int n GCC_UNUSED)
     int s;
     static char substring[NSTRING];
 
-    s = mlreply("Apropos string: ", substring, (UINT) sizeof(substring));
+    s = mlreply("Apropos string: ", substring, sizeof(substring));
     if (s != TRUE)
 	return (s);
 
-    return describe_any_bindings(substring, (CMDFLAGS) 0);
+    return describe_any_bindings(substring, 0);
 }
 
 static char described_cmd[NLINE + 1];	/* string to match cmd names to */
@@ -945,12 +861,12 @@ desfunc(int f GCC_UNUSED, int n GCC_UNUSED)
     described_cmd[0] = '^';
 
     fnp = kbd_engl("Describe function whose full name is: ",
-		   described_cmd + 1, 0);
+		   described_cmd + 1);
     if (fnp == NULL || engl2fnc(fnp) == NULL) {
 	s = no_such_function(fnp);
     } else {
 	append_to_binding_list = TRUE;
-	s = describe_any_bindings(described_cmd, (CMDFLAGS) 0);
+	s = describe_any_bindings(described_cmd, 0);
 	append_to_binding_list = FALSE;
     }
     return s;
@@ -972,7 +888,7 @@ make_key_names(int iarg GCC_UNUSED, void *varg GCC_UNUSED)
 	{ KEY_Down,	   "KEY_Down" },
 	{ KEY_Right,	   "KEY_Right" },
 	{ KEY_Left,	   "KEY_Left" },
-	{ 0,		   NULL },
+	{ 0,		   0 },
 	{ KEY_Delete,	   "KEY_Delete" },
 	{ KEY_End,	   "KEY_End" },
 	{ KEY_Find,	   "KEY_Find" },
@@ -984,7 +900,7 @@ make_key_names(int iarg GCC_UNUSED, void *varg GCC_UNUSED)
 	{ KEY_Prior,	   "KEY_Prior" },
 	{ KEY_Select,	   "KEY_Select" },
 	{ KEY_BackTab,	   "KEY_BackTab" },
-	{ 0,		   NULL },
+	{ 0,		   0 },
 	{ KEY_F1,	   "KEY_F1" },
 	{ KEY_F2,	   "KEY_F2" },
 	{ KEY_F3,	   "KEY_F3" },
@@ -1020,7 +936,7 @@ make_key_names(int iarg GCC_UNUSED, void *varg GCC_UNUSED)
 	{ KEY_F33,	   "KEY_F33" },
 	{ KEY_F34,	   "KEY_F34" },
 	{ KEY_F35,	   "KEY_F35" },
-	{ 0,		   NULL },
+	{ 0,		   0 },
 	{ KEY_KP_F1,	   "KEY_KP_F1" },
 	{ KEY_KP_F2,	   "KEY_KP_F2" },
 	{ KEY_KP_F3,	   "KEY_KP_F3" },
@@ -1082,9 +998,9 @@ prompt_describe_key(BINDINGS * bs)
 
     /* describe it */
     described_cmd[0] = '^';
-    (void) vl_strncpy(described_cmd + 1, temp.n_name, sizeof(described_cmd) - 1);
+    (void) strcpy(described_cmd + 1, temp.n_name);
     append_to_binding_list = TRUE;
-    s = describe_any_bindings(described_cmd, (CMDFLAGS) 0);
+    s = describe_any_bindings(described_cmd, 0);
     append_to_binding_list = FALSE;
 
     mlwrite("Key sequence '%s' is bound to function \"%s\"",
@@ -1121,8 +1037,8 @@ des_s_key(int f GCC_UNUSED, int n GCC_UNUSED)
 static char *
 quoted(char *dst, const char *src)
 {
-    char *result = NULL;
-    if (dst != NULL) {
+    char *result = 0;
+    if (dst != 0) {
 	result = strcat(strcat(strcpy(dst, "\""), src), "\"");
     } else {
 	char temp[NLINE];
@@ -1136,7 +1052,7 @@ static unsigned
 converted_len(char *buffer)
 {
     unsigned len = 0, c;
-    while ((c = CharOf(*buffer++)) != EOS) {
+    while ((c = *buffer++) != EOS) {
 	if (c == '\t')
 	    len |= 7;
 	len++;
@@ -1148,7 +1064,7 @@ static void
 quote_and_pad(char *dst, const char *src)
 {
     quoted(dst, src);
-    if (dst != NULL) {
+    if (dst != 0) {
 	if (converted_len(dst) >= 32)
 	    strcat(dst, "\t");
 	else
@@ -1177,7 +1093,7 @@ to_tabstop(char *buffer)
 static void
 convert_kcode(int c, char *buffer)
 {
-    if (buffer != NULL) {
+    if (buffer != 0) {
 	(void) kcod2prc(c, to_tabstop(buffer));
     } else {
 	char temp[NLINE];
@@ -1254,11 +1170,11 @@ show_onlinehelp(const CMDFUNC * cmd)
 	return FALSE;
 #if OPT_PROCEDURES
     if ((cmd->c_flags & CMD_TYPE) == CMD_PROC)
-	flags &= ~(UNDO | REDO);
+	flags &= !(UNDO | REDO);
 #endif
 #if OPT_PERL
     if ((cmd->c_flags & CMD_TYPE) == CMD_PERL)
-	flags &= ~(UNDO | REDO);
+	flags &= !(UNDO | REDO);
 #endif
     if (flags & (RANGE | UNDO | REDO | GLOBOK)) {
 	const char *gaps = "";
@@ -1283,11 +1199,11 @@ show_onlinehelp(const CMDFUNC * cmd)
 	    return FALSE;
     }
 #if OPT_MACRO_ARGS
-    if (cmd->c_args != NULL) {
+    if (cmd->c_args != 0) {
 	int i;
 	for (i = 0; cmd->c_args[i].pi_type != PT_UNKNOWN; i++) {
 	    (void) lsprintf(outseq, "  ( $%d = %s )", i + 1,
-			    (cmd->c_args[i].pi_text != NULL)
+			    (cmd->c_args[i].pi_text != 0)
 			    ? cmd->c_args[i].pi_text
 			    : choice_to_name(&fsm_paramtypes_blist,
 					     cmd->c_args[i].pi_type));
@@ -1329,7 +1245,7 @@ btree_walk(BI_NODE * node, int (*func) (BI_NODE *, const void *),
 static int
 clearflag_func(BI_NODE * n, const void *d GCC_UNUSED)
 {
-    clr_typed_flags(n->value.n_flags, UCHAR, NBST_DONE);
+    n->value.n_flags &= (UCHAR) (~NBST_DONE);
     return 0;
 }
 
@@ -1359,22 +1275,22 @@ makebind_func(BI_NODE * node, const void *d)
 	return 0;
 
     /* add in the command name */
-    quote_and_pad(NULL, BI_KEY(node));
-    convert_cmdfunc(data->bs, cmd, NULL);
+    quote_and_pad(0, BI_KEY(node));
+    convert_cmdfunc(data->bs, cmd, 0);
 
     node->value.n_flags |= NBST_DONE;
 
-    if (cmd->c_alias != NULL) {
+    if (cmd->c_alias != 0) {
 	const char *top = BI_KEY(node);
 	const char *name;
-	for (n = 0; (name = cmd->c_alias[n]) != NULL; ++n) {
+	for (n = 0; (name = cmd->c_alias[n]) != 0; ++n) {
 	    if (data->min) {
 		if ((isShortCmd(name)
 		     || ((strcmp(name, top) > 0)
 			 && !isShortCmd(top)))
 		    && add_newline()
 		    && bputsn("  or\t", -1)) {
-		    quoted(NULL, name);
+		    quoted(0, name);
 		}
 	    } else {
 		if ((isShortCmd(name)
@@ -1382,7 +1298,7 @@ makebind_func(BI_NODE * node, const void *d)
 		     && strcmp(name, top) > 0)
 		    && add_newline()
 		    && bputsn("  or\t", -1)) {
-		    quoted(NULL, name);
+		    quoted(0, name);
 		}
 	    }
 	}
@@ -1403,10 +1319,9 @@ makebind_func(BI_NODE * node, const void *d)
 static void
 makebindlist(int whichmask, void *mstring)
 {
-    BI_TREE *my_bst = bst_current();
     struct bindlist_data data;
 
-    data.mask = (UINT) whichmask;
+    data.mask = whichmask;
     data.min = SHORT_CMD_LEN;
     data.apropos = (char *) mstring;
     data.bs = bindings_to_describe;
@@ -1415,70 +1330,17 @@ makebindlist(int whichmask, void *mstring)
     mlwrite("[Building binding list]");
 
     /* clear the NBST_DONE flag */
-    btree_walk(&(my_bst->head), clearflag_func, NULL);
+    btree_walk(&namebst.head, clearflag_func, 0);
 
     /* create binding list */
-    if (btree_walk(&(my_bst->head), makebind_func, &data))
+    if (btree_walk(&namebst.head, makebind_func, &data))
 	return;
 
     /* catch entries with no synonym > SHORT_CMD_LEN */
     data.min = 0;
-    if (btree_walk(&(my_bst->head), makebind_func, &data))
+    if (btree_walk(&namebst.head, makebind_func, &data))
 	return;
 
-    mlerase();			/* clear the message line */
-}
-
-/* build a binding list (limited or full) */
-/* ARGSUSED */
-static void
-makebindkeyslist(int whichmask, void *mstring)
-{
-    char outseq[NSTRING];	/* output buffer for command sequence */
-    NTAB temp;			/* name table pointer */
-    int ch;
-    int state;
-
-    (void) mstring;
-
-    /* let us know this is in progress */
-    mlwrite("[Building binding list]");
-    for (state = 0; state < 3; ++state) {
-	int modify = 0;
-	int found = 0;
-	const char *what = "?";
-	switch (state) {
-	case 0:
-	    what = "Normal keys";
-	    break;
-	case 1:
-	    what = "^A-keys";
-	    modify = CTLA;
-	    break;
-	case 2:
-	    what = "^X-keys";
-	    modify = CTLX;
-	    break;
-	}
-	bprintf("%s-- %s", state ? "\n\n" : "", what);
-	for (ch = 0; ch < N_chars; ++ch) {
-	    (void) kcod2prc(ch + modify, outseq);
-	    if (fnc2ntab(&temp, kcod2fnc(bindings_to_describe, ch + modify))) {
-		if (whichmask && !(temp.n_cmd->c_flags & (CMDFLAGS) whichmask))
-		    continue;
-		bputc('\n');
-		bprintf("%d\t%s\t", ch, outseq);
-		quoted(NULL, temp.n_name);
-		++found;
-	    } else if (last_whichmode > 1) {
-		bputc('\n');
-		bprintf("%d\t%s", ch, outseq);
-	    }
-	}
-	if (found) {
-	    bprintf("\n-- %s total: %d", what, found);
-	}
-    }
     mlerase();			/* clear the message line */
 }
 #else /* OPT_NAMEBST */
@@ -1537,7 +1399,7 @@ makebindlist(int whichmask, void *mstring)
     char *listed;
 
     beginDisplay();
-    listed = typecallocn(char, (size_t) nametbl_size);
+    listed = typecallocn(char, (size_t) nametblsize);
     endofDisplay();
 
     if (listed == 0) {
@@ -1680,21 +1542,20 @@ check_file_access(char *fname, UINT mode)
 	     * those as an ordered list.  Hence, setting "home" implies we
 	     * also check "current", since that is the first item in the list.
 	     */
-	    if ((mode & FL_ALWAYS) && !((UINT) check & FL_ALWAYS)) {
+	    if ((mode & FL_ALWAYS) && !(check & FL_ALWAYS)) {
 		doit = FALSE;
 	    } else if ((mode
-			& ((UINT) check * 2 - 1)
+			& (check * 2 - 1)
 			& ~(FL_EXECABLE | FL_WRITEABLE | FL_READABLE)) != 0) {
 		doit = TRUE;
 	    }
 	}
 #endif
-
-	if (doit && !(mode & FL_INSECURE)) {
+	if (doit) {
 	    char *dname = (char *) malloc(NFILEN + strlen(fname) + 10);
 	    char *leaf;
 
-	    if (dname != NULL) {
+	    if (dname != 0) {
 		leaf = pathleaf(lengthen_path(strcpy(dname, fname)));
 		if ((leaf - 1) != dname)
 		    *--leaf = EOS;
@@ -1720,7 +1581,7 @@ locate_fname(char *dir_name, char *fname, UINT mode)
 	&& check_file_access(pathcat(fullpath, dir_name, fname), mode) == TRUE)
 	return (fullpath);
 
-    return NULL;
+    return 0;
 }
 
 static char *
@@ -1729,15 +1590,14 @@ locate_file_in_list(char *list, char *fname, UINT mode)
     const char *cp;
     char *sp;
     char dir_name[NFILEN];
-    int first = TRUE;
 
-    if ((cp = list) != NULL) {
-	while ((cp = parse_pathlist(cp, dir_name, &first)) != NULL) {
-	    if ((sp = locate_fname(dir_name, fname, mode)) != NULL)
+    if ((cp = list) != 0) {
+	while ((cp = parse_pathlist(cp, dir_name)) != 0) {
+	    if ((sp = locate_fname(dir_name, fname, mode)) != 0)
 		return sp;
 	}
     }
-    return NULL;
+    return 0;
 }
 
 #if OPT_PATHLOOKUP
@@ -1755,12 +1615,12 @@ PATH_value(void)
     if (!tb_length(myfiles)) {
 	char mypath[NFILEN];
 
-	(void) vl_strncpy(mypath, NONNULL(prog_arg), sizeof(mypath));
-	if ((tmp = vms_pathleaf(mypath)) == mypath) {
-	    (void) vl_strncpy(mypath, current_directory(FALSE), sizeof(mypath));
-	} else {
+	(void) strcpy(mypath, NONNULL(prog_arg));
+	if ((tmp = vms_pathleaf(mypath)) == mypath)
+	    (void) strcpy(mypath,
+			  current_directory(FALSE));
+	else
 	    *tmp = EOS;
-	}
 
 	if (!tb_init(&myfiles, EOS)
 	    || !tb_sappend(&myfiles, mypath)
@@ -1791,14 +1651,10 @@ char *
 cfg_locate(char *fname, UINT which)
 {
     char *sp;
-    UINT mode = (which & (FL_ALWAYS |
-			  FL_EXECABLE |
-			  FL_WRITEABLE |
-			  FL_READABLE |
-			  FL_INSECURE));
+    UINT mode = (which & (FL_ALWAYS | FL_EXECABLE | FL_WRITEABLE | FL_READABLE));
 
 #define FL_BIT(name) ((which & FL_##name) ? " " #name : "")
-    TRACE((T_CALLED "cfg_locate('%s',%s%s%s%s%s%s%s%s%s%s%s)\n", NonNull(fname),
+    TRACE((T_CALLED "cfg_locate('%s',%s%s%s%s%s%s%s%s%s%s)\n", NonNull(fname),
 	   FL_BIT(EXECABLE),
 	   FL_BIT(WRITEABLE),
 	   FL_BIT(READABLE),
@@ -1808,8 +1664,7 @@ cfg_locate(char *fname, UINT which)
 	   FL_BIT(STARTPATH),
 	   FL_BIT(PATH),
 	   FL_BIT(LIBDIR),
-	   FL_BIT(ALWAYS),
-	   FL_BIT(INSECURE)));
+	   FL_BIT(ALWAYS)));
 
     /* take care of special cases */
     if (!fname || !fname[0] || isSpace(fname[0]))
@@ -1817,34 +1672,32 @@ cfg_locate(char *fname, UINT which)
     else if (isShellOrPipe(fname))
 	returnString(fname);
 
-#if OPT_SHELL
     /* look in the current directory */
-    if (look_in_cwd && (which & FL_CDIR)) {
+    if (which & FL_CDIR) {
 	if (check_file_access(fname, FL_CDIR | mode) == TRUE) {
 	    returnString(fname);
 	}
     }
 
-    if (look_in_home && (which & FL_HOME)	/* look in the home directory */
-	&&((sp = locate_fname(home_dir(), fname, FL_HOME | mode)) != NULL))
+    if ((which & FL_HOME)	/* look in the home directory */
+	&&((sp = locate_fname(home_dir(), fname, FL_HOME | mode)) != 0))
 	returnString(sp);
-#endif
 
     if ((which & FL_EXECDIR)	/* look in vile's bin directory */
-	&&((sp = locate_fname(exec_pathname, fname, FL_EXECDIR | mode)) != NULL))
+	&&((sp = locate_fname(exec_pathname, fname, FL_EXECDIR | mode)) != 0))
 	returnString(sp);
 
     if ((which & FL_STARTPATH)	/* look along "VILE_STARTUP_PATH" */
 	&&(sp = locate_file_in_list(startup_path,
 				    fname,
-				    FL_STARTPATH | mode)) != NULL)
+				    FL_STARTPATH | mode)) != 0)
 	returnString(sp);
 
     if (which & FL_PATH) {	/* look along "PATH" */
 #if OPT_PATHLOOKUP
 	if ((sp = locate_file_in_list(PATH_value(),
 				      fname,
-				      FL_PATH | mode)) != NULL)
+				      FL_PATH | mode)) != 0)
 	    returnString(sp);
 #endif /* OPT_PATHLOOKUP */
 
@@ -1853,7 +1706,7 @@ cfg_locate(char *fname, UINT which)
     if ((which & FL_LIBDIR)	/* look along "VILE_LIBDIR_PATH" */
 	&&(sp = locate_file_in_list(libdir_path,
 				    fname,
-				    FL_LIBDIR | mode)) != NULL)
+				    FL_LIBDIR | mode)) != 0)
 	returnString(sp);
 
     returnString(NULL);
@@ -1884,8 +1737,8 @@ list_one_fname(char *fname, UINT mode)
     if (tag == TRUE) {
 	REGION myRegion;
 	MARK myDot;
-	TBUFF *myBuff = NULL;
-	TBUFF *myFile = NULL;
+	TBUFF *myBuff = 0;
+	TBUFF *myFile = 0;
 
 	memset(&myRegion, 0, sizeof(myRegion));
 	myRegion.r_orig = DOT;
@@ -1925,10 +1778,9 @@ list_which_file_in_list(char *list, char *fname, UINT mode)
 {
     const char *cp;
     char dir_name[NFILEN];
-    int first = TRUE;
 
-    if ((cp = list) != NULL) {
-	while ((cp = parse_pathlist(cp, dir_name, &first)) != NULL) {
+    if ((cp = list) != 0) {
+	while ((cp = parse_pathlist(cp, dir_name)) != 0) {
 	    list_which_fname(dir_name, fname, mode);
 	}
     }
@@ -1937,9 +1789,8 @@ list_which_file_in_list(char *list, char *fname, UINT mode)
 static void
 list_which(LIST_ARGS)
 {
-    UINT uflag = (UINT) flag;
     char *fname = (char *) ptr;
-    UINT mode = (uflag & (FL_EXECABLE | FL_WRITEABLE | FL_READABLE));
+    UINT mode = (flag & (FL_EXECABLE | FL_WRITEABLE | FL_READABLE));
 
     /* take care of special cases */
     if (!fname || !fname[0] || isSpace(fname[0]))
@@ -1951,30 +1802,28 @@ list_which(LIST_ARGS)
 	    (mode & FL_EXECABLE) ? "executable" : "source",
 	    fname);
 
-#if OPT_SHELL
     /* look in the current directory */
-    if (look_in_cwd && (uflag & FL_CDIR)) {
+    if (flag & FL_CDIR) {
 	bprintf("\n$cwd");
 	list_one_fname(fname, FL_CDIR | mode);
     }
 
-    if (look_in_home && (uflag & FL_HOME)) {	/* look in the home directory */
+    if (flag & FL_HOME) {	/* look in the home directory */
 	bprintf("\n$HOME");
 	list_which_fname(home_dir(), fname, FL_HOME | mode);
     }
-#endif
 
-    if (uflag & FL_EXECDIR) {	/* look in vile's bin directory */
+    if (flag & FL_EXECDIR) {	/* look in vile's bin directory */
 	bprintf("\n$exec-path");
 	list_which_fname(exec_pathname, fname, FL_EXECDIR | mode);
     }
 
-    if (uflag & FL_STARTPATH) {	/* look along "VILE_STARTUP_PATH" */
+    if (flag & FL_STARTPATH) {	/* look along "VILE_STARTUP_PATH" */
 	bprintf("\n$startup-path");
 	list_which_file_in_list(startup_path, fname, FL_STARTPATH | mode);
     }
 
-    if (uflag & FL_PATH) {	/* look along "PATH" */
+    if (flag & FL_PATH) {	/* look along "PATH" */
 #if OPT_PATHLOOKUP
 	bprintf("\n$PATH");
 	list_which_file_in_list(PATH_value(), fname, FL_PATH | mode);
@@ -1982,7 +1831,7 @@ list_which(LIST_ARGS)
 
     }
 
-    if (uflag & FL_LIBDIR) {	/* look along "VILE_LIBDIR_PATH" */
+    if (flag & FL_LIBDIR) {	/* look along "VILE_LIBDIR_PATH" */
 	bprintf("\n$libdir-path");
 	list_which_file_in_list(libdir_path, fname, FL_LIBDIR | mode);
     }
@@ -1992,12 +1841,12 @@ static int
 show_which_file(char *fname, UINT mode, int f, int n)
 {
     char *result;
-    if ((result = cfg_locate(fname, mode)) != NULL) {
+    if ((result = cfg_locate(fname, mode)) != 0) {
 	mlwrite("%s", result);
     }
     if (f)
-	liststuff(WHICH_BufName, n > 2, list_which, (int) mode, fname);
-    return (result != NULL);
+	liststuff(WHICH_BufName, n > 2, list_which, mode, fname);
+    return (result != 0);
 }
 
 int
@@ -2032,7 +1881,7 @@ which_exec(int f, int n)
 char *
 kcod2pstr(int c, char *seq, int limit)
 {
-    seq[0] = (char) kcod2escape_seq(c, &seq[1], (size_t) limit - 1);
+    seq[0] = (char) kcod2escape_seq(c, &seq[1], limit - 1);
     return seq;
 }
 
@@ -2055,7 +1904,7 @@ static const struct {
 #endif
 
 #define ADD_KCODE(src) \
-	if (((size_t) (ptr - base) + (len = strlen(src)) + need + 2) < limit) { \
+	if ((ptr - base) + (len = strlen(src)) + 3 < limit) { \
 	    strcpy(ptr, src); \
 	    ptr += len; \
 	}
@@ -2067,34 +1916,15 @@ int
 kcod2escape_seq(int c, char *ptr, size_t limit)
 {
     char *base = ptr;
-    char temp[20];
-    size_t need;
 
-#if OPT_MULTIBYTE
-    int ch = (c & ((1 << MaxCBits) - 1));
-    const char *s;
-
-    if ((ch >= 256)
-	&& (cmd_encoding >= enc_UTF8
-	    || (cmd_encoding <= enc_AUTO && okCTYPE2(vl_wide_enc)))
-	&& (s = vl_mb_to_utf8(ch)) != NULL) {
-	vl_strncpy(temp, s, sizeof(temp));
-    } else
-#endif
-    {
-	temp[0] = (char) c;
-	temp[1] = EOS;
-    }
-    need = strlen(temp);
-
-    if (base != NULL && limit > (4 + need)) {
-	if ((UINT) c & CTLA)
+    if (base != 0 && limit > 5) {
+	if (c & CTLA)
 	    *ptr++ = (char) cntl_a;
-	else if ((UINT) c & CTLX)
+	else if (c & CTLX)
 	    *ptr++ = (char) cntl_x;
 
 #if OPT_KEY_MODIFY
-	if ((UINT) c & mod_KEY) {
+	if (c & mod_KEY) {
 	    size_t len;
 	    unsigned n;
 	    for (n = 0; n < TABLESIZE(key_modifiers); ++n) {
@@ -2116,10 +1946,10 @@ kcod2escape_seq(int c, char *ptr, size_t limit)
 #endif
 	}
 #endif
-	if ((UINT) c & SPEC)
+	if (c & SPEC)
 	    *ptr++ = (char) poundc;
-	strcpy(ptr, temp);
-	ptr += need;
+	*ptr++ = (char) c;
+	*ptr = EOS;
     }
     return (int) (ptr - base);
 }
@@ -2137,7 +1967,7 @@ bytes2prc(char *dst, char *src, int n)
 
 	c = *src;
 
-	tmp = NULL;
+	tmp = 0;
 
 	if (c & HIGHBIT) {
 	    *dst++ = 'M';
@@ -2153,7 +1983,7 @@ bytes2prc(char *dst, char *src, int n)
 	    *dst = (char) c;
 	}
 
-	if (tmp != NULL) {
+	if (tmp != 0) {
 	    while ((*dst++ = *tmp++) != EOS) {
 		;
 	    }
@@ -2175,11 +2005,11 @@ kcod2prc(int c, char *seq)
     char temp[NSTRING];
     int length;
 
-    length = kcod2pstr(c, temp, (int) sizeof(temp))[0];
+    length = kcod2pstr(c, temp, sizeof(temp))[0];
 #if OPT_KEY_MODIFY
-    if (((UINT) c & mod_KEY) != 0 && (length != 0)) {
+    if ((c & mod_KEY) != 0 && (length != 0)) {
 	(void) strcpy(seq, temp + 1);
-	if (length < (int) (1 + strlen(temp + 1) + (size_t) (CharOf(c) == 0))) {
+	if (length < (int) (1 + strlen(temp + 1) + (CharOf(c) == 0))) {
 	    (void) bytes2prc(seq + length - 1, temp + length, 1);
 	}
     } else
@@ -2206,7 +2036,7 @@ cmdfunc2keycode(BINDINGS * bs, const CMDFUNC * f)
 	    return kbp->k_code;
     }
 #endif
-    for (kbp = bs->kb_special; kbp->k_cmd != NULL; kbp++) {
+    for (kbp = bs->kb_special; kbp->k_cmd != 0; kbp++) {
 	if (kbp->k_cmd == f)
 	    return kbp->k_code;
     }
@@ -2219,12 +2049,12 @@ cmdfunc2keycode(BINDINGS * bs, const CMDFUNC * f)
 const CMDFUNC *
 kcod2fnc(const BINDINGS * bs, int c)
 {
-    const CMDFUNC *result = NULL;
+    const CMDFUNC *result = 0;
 
-    if (bs != NULL) {
-	if (!is8Bits(c)) {
+    if (bs != 0) {
+	if (isSpecial(c)) {
 	    KBIND *kp = kcode2kbind(bs, c);
-	    result = (kp != NULL) ? kp->k_cmd : NULL;
+	    result = (kp != 0) ? kp->k_cmd : 0;
 	} else {
 	    result = bs->kb_normal[CharOf(c)];
 	}
@@ -2260,7 +2090,7 @@ fnc2pstr(const CMDFUNC * f)
     if (c == -1)
 	return NULL;
 
-    return kcod2pstr(c, seq, (int) sizeof(seq));
+    return kcod2pstr(c, seq, sizeof(seq));
 }
 #endif
 
@@ -2295,10 +2125,10 @@ fnc2ntab(NTAB * result, const CMDFUNC * cfp)
 
     if (cfp != NULL) {
 #if OPT_NAMEBST
-	result->n_name = NULL;
+	result->n_name = 0;
 	result->n_cmd = cfp;
-	btree_walk(&(bst_current()->head), match_cmdfunc, result);
-	found = (result->n_name != NULL);
+	btree_walk(&namebst.head, match_cmdfunc, result);
+	found = (result->n_name != 0);
 #else
 	switch (cfp->c_flags & CMD_TYPE) {
 	    const NTAB *nptr;
@@ -2352,7 +2182,7 @@ const char *
 fnc2engl(const CMDFUNC * cfp)
 {
     NTAB temp;
-    return fnc2ntab(&temp, cfp) ? temp.n_name : NULL;
+    return fnc2ntab(&temp, cfp) ? temp.n_name : 0;
 }
 
 #endif
@@ -2361,14 +2191,29 @@ fnc2engl(const CMDFUNC * cfp)
 	translate english name to function pointer
 		 return any match or NULL if none
  */
+#define BINARY_SEARCH_IS_BROKEN 0
+
 const CMDFUNC *
 engl2fnc(const char *fname)
 {
 #if OPT_NAMEBST
-    BI_NODE *n = btree_pmatch(BI_RIGHT(&(bst_current()->head)), TRUE, fname);
+    BI_NODE *n = btree_pmatch(BI_RIGHT(&namebst.head), TRUE, fname);
 
     if (n != NULL)
 	return n->value.n_cmd;
+#else
+#if BINARY_SEARCH_IS_BROKEN	/* then use the old linear look-up */
+    NTAB *nptr;			/* pointer to entry in name binding table */
+    size_t len = strlen(fname);
+
+    if (len != 0) {		/* scan through the table, returning any match */
+	nptr = nametbl;
+	while (nptr->n_cmd != NULL) {
+	    if (strncmp(fname, nptr->n_name, len) == 0)
+		return nptr->n_cmd;
+	    ++nptr;
+	}
+    }
 #else
     /* this runs 10 times faster for 'nametbl[]' */
     int lo, hi, cur;
@@ -2379,7 +2224,7 @@ engl2fnc(const char *fname)
 
 	/* scan through the table, returning any match */
 	lo = 0;
-	hi = nametbl_size - 2;	/* don't want last entry -- it's NULL */
+	hi = nametblsize - 2;	/* don't want last entry -- it's NULL */
 
 	while (lo <= hi) {
 	    cur = (lo + hi) >> 1;
@@ -2397,6 +2242,7 @@ engl2fnc(const char *fname)
 	    }
 	}
     }
+#endif /* binary vs linear */
 #endif /* OPT_NAMEBST */
     return NULL;
 }
@@ -2444,7 +2290,7 @@ decode_prefix(const char *kk, UINT * prefix)
 		    bits = CTLX;
 		if (isCntrl(poundc) && ch == (UCHAR) toalpha(poundc))
 		    bits = SPEC;
-	    } else if (!strncmp(kk, "FN", (size_t) 2)) {
+	    } else if (!strncmp(kk, "FN", 2)) {
 		bits = SPEC;
 	    }
 	    if (bits != 0)
@@ -2478,18 +2324,18 @@ prc2kcod(const char *kk)
 	char *s;
 	char temp[NSTRING];
 
-	while ((s = strchr(kk, '+')) != NULL) {
+	while ((s = strchr(kk, '+')) != 0) {
 	    if ((len = (UINT) (s - kk) + 1) >= sizeof(temp))
 		break;
 	    if (s == kk || s[1] == '\n' || s[1] == '\0')
 		break;
-	    mklower(vl_strncpy(temp, kk, (size_t) len + 1));
+	    mklower(vl_strncpy(temp, kk, len + 1));
 	    if (isLower(temp[0]))
 		temp[0] = (char) toUpper(temp[0]);
 	    for (n = 0; n < TABLESIZE(key_modifiers); ++n) {
-		if (!strncmp(key_modifiers[n].name, temp, (size_t) len)) {
+		if (!strncmp(key_modifiers[n].name, temp, len)) {
 		    found = TRUE;
-		    pref |= ((UINT) key_modifiers[n].code | mod_KEY);
+		    pref |= (key_modifiers[n].code | mod_KEY);
 		    break;
 		}
 	    }
@@ -2515,7 +2361,7 @@ prc2kcod(const char *kk)
     }
 #endif
 
-    if (strlen(kk) > 2 && !strncmp(kk, "M-", (size_t) 2)) {
+    if (strlen(kk) > 2 && !strncmp(kk, "M-", 2)) {
 	pref |= HIGHBIT;
 	kk += 2;
     }
@@ -2523,7 +2369,7 @@ prc2kcod(const char *kk)
     if (*kk == '^' && kk[1] != EOS) {	/* control character */
 	kcod = (UCHAR) kk[1];
 	if (isLower(kcod))
-	    kcod = (UINT) toUpper(kcod);
+	    kcod = toUpper(kcod);
 	kcod = tocntrl(kcod);
 	kk += 2;
     } else {			/* any single char, control or not */
@@ -2562,12 +2408,11 @@ prc2engl(const char *kk)
  * we will splice calls.
  */
 char *
-kbd_engl(const char *prompt, char *buffer, UINT which)
+kbd_engl(const char *prompt, char *buffer)
 {
-    char *result = NULL;
-    if (kbd_engl_stat(prompt, buffer, which, 0) == TRUE)
-	result = buffer;
-    return result;
+    if (kbd_engl_stat(prompt, buffer, 0) == TRUE)
+	return buffer;
+    return NULL;
 }
 
 /* sound the alarm! */
@@ -2668,7 +2513,7 @@ kbd_erase(void)
 	kbd_start(&save);
 	if (DOT.o > 0) {
 	    backchar_to_bol(TRUE, 1);
-	    ldel_chars((B_COUNT) 1, FALSE);
+	    ldel_chars(1, FALSE);
 	}
 #ifdef VILE_DEBUG
 	TRACE(("MINI:%2d:%s\n", llength(DOT.l), lp_visible(DOT.l)));
@@ -2687,7 +2532,7 @@ kbd_erase_to_end(int column)
 	if (llength(DOT.l) > 0) {
 	    DOT.o = column;
 	    if (llength(DOT.l) > DOT.o)
-		ldel_bytes((B_COUNT) (llength(DOT.l) - DOT.o), FALSE);
+		ldel_bytes(llength(DOT.l) - DOT.o, FALSE);
 	    TRACE(("NULL:%2d:%s\n", llength(DOT.l), lp_visible(DOT.l)));
 	}
 	kbd_finish(&save);
@@ -2696,7 +2541,8 @@ kbd_erase_to_end(int column)
     return TRUE;
 }
 
-int
+#if OPT_CASELESS
+static int
 cs_strcmp(
 	     int case_insensitive,
 	     const char *s1,
@@ -2707,7 +2553,7 @@ cs_strcmp(
     return strcmp(s1, s2);
 }
 
-int
+static int
 cs_strncmp(
 	      int case_insensitive,
 	      const char *s1,
@@ -2718,6 +2564,7 @@ cs_strncmp(
 	return strnicmp(s1, s2, n);
     return strncmp(s1, s2, n);
 }
+#endif /* OPT_CASELESS */
 
 /* definitions for name-completion */
 #define	NEXT_DATA(p)	((p)+size_entry)
@@ -2733,7 +2580,7 @@ cs_strncmp(
 /*ARGSUSED*/
 static const char *
 skip_partial(
-		int case_insensitive,
+		int case_insensitive GCC_UNUSED,
 		char *buf,
 		size_t len,
 		const char *table,
@@ -2742,7 +2589,7 @@ skip_partial(
     const char *next = NEXT_DATA(table);
     const char *sp;
 
-    while ((sp = THIS_NAME(next)) != NULL) {
+    while ((sp = THIS_NAME(next)) != 0) {
 	if (StrNcmp(buf, sp, len) != 0)
 	    break;
 	next = NEXT_DATA(next);
@@ -2838,7 +2685,7 @@ makecmpllist(int case_insensitive, void *cinfop)
 	    maxlen = l;
     }
 
-    slashcol = (size_t) (pathleaf(buf) - buf);
+    slashcol = (int) (pathleaf(buf) - buf);
     if (slashcol != 0) {
 	char b[NLINE];
 	(void) strncpy(b, buf, slashcol);
@@ -2853,7 +2700,7 @@ makecmpllist(int case_insensitive, void *cinfop)
     if (cmplcols == 0)
 	cmplcols = 1;
 
-    nentries = (int) ((size_t) (last - first) / size_entry);
+    nentries = (int) ((last - first) / size_entry);
     cmplrows = nentries / cmplcols;
     cmpllen = term.cols / cmplcols;
     if (cmplrows * cmplcols < nentries)
@@ -2863,9 +2710,7 @@ makecmpllist(int case_insensitive, void *cinfop)
 	for (j = 0; j < cmplcols; j++) {
 	    int idx = cmplrows * j + i;
 	    if (idx < nentries) {
-		const char *s = (THIS_NAME(first
-					   + ((size_t) idx * size_entry))
-				 + slashcol);
+		const char *s = THIS_NAME(first + (idx * size_entry)) + slashcol;
 		if (j == cmplcols - 1)
 		    bprintf("%s\n", s);
 		else
@@ -2966,7 +2811,7 @@ popdown_completions(const char *old_bname, WINDOW *old_wp)
  */
 static size_t
 fill_partial(
-		int case_insensitive,
+		int case_insensitive GCC_UNUSED,
 		char *buf,
 		size_t pos,
 		const char *first,
@@ -2983,7 +2828,7 @@ fill_partial(
 	   TRACE_NULL(THIS_NAME(first)),
 	   TRACE_NULL(THIS_NAME(last))));
 
-    assert(buf != NULL);
+    assert(buf != 0);
 #if 0				/* case insensitive reply correction doesn't work reliably yet */
     if (!clexec && case_insensitive) {
 	int spos = pos;
@@ -3012,7 +2857,7 @@ fill_partial(
 
 	/* scan through the candidates */
 	for (p = first; p != last; p = NEXT_DATA(p)) {
-	    if (StrNcmp(&THIS_NAME(p)[n], &buf[n], (size_t) 1) != 0) {
+	    if (StrNcmp(&THIS_NAME(p)[n], &buf[n], 1) != 0) {
 		buf[n] = EOS;
 		if (n == pos
 #if OPT_POPUPCHOICE
@@ -3067,8 +2912,8 @@ kbd_init(void)
 int
 kbd_length(void)
 {
-    if (wminip != NULL
-	&& wminip->w_dot.l != NULL
+    if (wminip != 0
+	&& wminip->w_dot.l != 0
 	&& llength(wminip->w_dot.l) > 0)
 	return llength(wminip->w_dot.l);
     return 0;
@@ -3117,7 +2962,7 @@ kbd_complete(DONE_ARGS, const char *table, size_t size_entry)
     buf[cpos] = EOS;		/* terminate it for us */
     nbp = table;		/* scan for matches */
 
-    if (nbp == NULL)
+    if (nbp == 0)
 	return FALSE;
 
     while (THIS_NAME(nbp) != NULL) {
@@ -3228,7 +3073,7 @@ kbd_complete(DONE_ARGS, const char *table, size_t size_entry)
 static int
 is_shift_cmd(const char *buffer, size_t cpos)
 {
-    if (buffer != NULL) {
+    if (buffer != 0) {
 	int c = *buffer;
 	if (isRepeatable(c)) {
 	    while (--cpos != 0)
@@ -3297,11 +3142,11 @@ eol_command(EOL_ARGS)
  * This procedure is invoked from 'kbd_string()' to setup the command-name
  * completion and query displays.
  */
-int
+static int
 cmd_complete(DONE_ARGS)
 {
     int status;
-    if (buf != NULL && pos != NULL) {
+    if (buf != 0 && pos != 0) {
 #if OPT_HISTORY
 	/*
 	 * If the user scrolled back in 'edithistory()', the text may be a
@@ -3334,18 +3179,18 @@ cmd_complete(DONE_ARGS)
 }
 
 int
-kbd_engl_stat(const char *prompt, char *buffer, UINT which, int stated)
+kbd_engl_stat(const char *prompt, char *buffer, int stated)
 {
     KBD_OPTIONS kbd_flags = KBD_EXPCMD | KBD_NULLOK | ((NAMEC != ' ') ? 0 : KBD_MAYBEC);
     int code;
     static TBUFF *temp;
     size_t len = NLINE;
 
-    which_current = which;
-
     tb_scopy(&temp, "");
+#if COMPLETE_FILES
     init_filec(FILECOMPLETION_BufName);
-    kbd_flags |= (KBD_OPTIONS) stated;
+#endif
+    kbd_flags |= stated;
     code = kbd_reply(
 			prompt,	/* no-prompt => splice */
 			&temp,	/* in/out buffer */
@@ -3356,34 +3201,31 @@ kbd_engl_stat(const char *prompt, char *buffer, UINT which, int stated)
     if (len > tb_length(temp))
 	len = tb_length(temp);
     strncpy0(buffer, tb_values(temp), len);
-
-    which_current = 0;
     return code;
 }
 
 #if OPT_NAMEBST
 int
-insert_namebst(const char *name, const CMDFUNC * cmd, int ro, UINT which)
+insert_namebst(const char *name, const CMDFUNC * cmd, int ro)
 {
     int result;
 
-    TRACE2((T_CALLED "insert_namebst(%s,%s)\n", name, ro ? "ro" : "rw"));
-    if (name != NULL) {
-	BI_TREE *my_bst = bst_pointer(which);
+    TRACE((T_CALLED "insert_namebst(%s,%s)\n", name, ro ? "ro" : "rw"));
+    if (name != 0) {
 	BI_DATA temp, *p;
 
-	if ((p = btree_search(my_bst, name)) != NULL) {
+	if ((p = btree_search(&namebst, name)) != 0) {
 	    if ((p->n_flags & NBST_READONLY)) {
-		if (btree_insert(&redefns, p) == NULL) {
+		if (btree_insert(&redefns, p) == 0) {
 		    returnCode(FALSE);
 		} else {
-		    if (!btree_delete(my_bst, name)) {
+		    if (!btree_delete(&namebst, name)) {
 			returnCode(FALSE);
 		    }
 		}
 		mlwrite("[Redefining builtin '%s']", name);
 	    } else {
-		if (!delete_namebst(name, TRUE, TRUE, which)) {
+		if (!delete_namebst(name, TRUE, TRUE)) {
 		    returnCode(FALSE);
 		}
 	    }
@@ -3393,11 +3235,11 @@ insert_namebst(const char *name, const CMDFUNC * cmd, int ro, UINT which)
 	temp.n_cmd = cmd;
 	temp.n_flags = (UCHAR) (ro ? NBST_READONLY : 0);
 
-	result = (btree_insert(my_bst, &temp) != NULL);
+	result = (btree_insert(&namebst, &temp) != 0);
     } else {
 	result = FALSE;
     }
-    return2Code(result);
+    returnCode(result);
 }
 
 static void
@@ -3411,7 +3253,7 @@ remove_cmdfunc_ref(BINDINGS * bs, const CMDFUNC * cmd)
     /* remove ascii bindings */
     for (i = 0; i < N_chars; i++)
 	if (bs->kb_normal[i] == cmd)
-	    bs->kb_normal[i] = NULL;
+	    bs->kb_normal[i] = 0;
 
     /* then look in the multi-key table */
     do {
@@ -3440,15 +3282,14 @@ remove_cmdfunc_ref(BINDINGS * bs, const CMDFUNC * cmd)
  * Lookup a name in the binary-search tree, remove it if found
  */
 int
-delete_namebst(const char *name, int release, int redefining, UINT which)
+delete_namebst(const char *name, int release, int redefining)
 {
-    BI_TREE *my_bst = bst_pointer(which);
-    BI_DATA *p = btree_search(my_bst, name);
+    BI_DATA *p = btree_search(&namebst, name);
     int code = TRUE;
 
-    TRACE((T_CALLED "delete_namebst(%s,%d) %p\n", name, release, (void *) p));
+    TRACE((T_CALLED "delete_namebst(%s,%d) %p\n", name, release, p));
     /* not a named procedure */
-    if ((p = btree_search(my_bst, name)) != NULL) {
+    if ((p = btree_search(&namebst, name)) != 0) {
 
 	/* we may have to free some stuff */
 	if (p && release) {
@@ -3468,14 +3309,14 @@ delete_namebst(const char *name, int release, int redefining, UINT which)
 		free(TYPECAST(char, p->n_cmd));
 		endofDisplay();
 	    }
-	    p->n_cmd = NULL;	/* ...so old_namebst won't free this too */
+	    p->n_cmd = 0;	/* ...so old_namebst won't free this too */
 	}
 
-	if ((code = btree_delete(my_bst, name)) == TRUE) {
+	if ((code = btree_delete(&namebst, name)) == TRUE) {
 	    if (!redefining) {
-		if ((p = btree_search(&redefns, name)) != NULL) {
+		if ((p = btree_search(&redefns, name)) != 0) {
 		    mlwrite("[Restoring builtin '%s']", name);
-		    code = (btree_insert(my_bst, p) != NULL);
+		    code = (btree_insert(&namebst, p) != 0);
 		    (void) btree_delete(&redefns, p->bi_key);
 		}
 	    }
@@ -3490,35 +3331,33 @@ delete_namebst(const char *name, int release, int redefining, UINT which)
  * name-completions.
  */
 int
-rename_namebst(const char *oldname, const char *newname, UINT which)
+rename_namebst(const char *oldname, const char *newname)
 {
     BI_DATA *prior;
     char name[NBUFN];
 
     /* not a named procedure */
-    if ((prior = btree_search(bst_pointer(which), oldname)) == NULL)
+    if ((prior = btree_search(&namebst, oldname)) == 0)
 	return TRUE;
 
     /* remove the entry if the new name is not a procedure (bracketed) */
     if (!is_scratchname(newname))
-	return delete_namebst(oldname, TRUE, FALSE, which);
+	return delete_namebst(oldname, TRUE, FALSE);
 
     /* add the new name */
     strip_brackets(name, newname);
-    if ((insert_namebst(name,
-			prior->n_cmd,
-			prior->n_flags & NBST_READONLY,
-			which)) != TRUE)
+    if ((insert_namebst(name, prior->n_cmd,
+			prior->n_flags & NBST_READONLY)) != TRUE)
 	return FALSE;
 
     /* delete the old (but don't free the data) */
-    return delete_namebst(oldname, FALSE, FALSE, which);
+    return delete_namebst(oldname, FALSE, FALSE);
 }
 
 int
-search_namebst(const char *name, UINT which)
+search_namebst(const char *name)
 {
-    return (btree_search(bst_pointer(which), name) != NULL);
+    return (btree_search(&namebst, name) != 0);
 }
 
 /*
@@ -3526,10 +3365,10 @@ search_namebst(const char *name, UINT which)
  * do this in a binary-search manner to get a balanced tree.
  */
 void
-build_namebst(const NTAB * nptr, int lo, int hi, UINT which)
+build_namebst(const NTAB * nptr, int lo, int hi)
 {
     for (; lo < hi; lo++) {
-	if (!insert_namebst(nptr[lo].n_name, nptr[lo].n_cmd, TRUE, which))
+	if (!insert_namebst(nptr[lo].n_name, nptr[lo].n_cmd, TRUE))
 	    tidy_exit(BADEXIT);
     }
 }
@@ -3539,21 +3378,20 @@ build_namebst(const NTAB * nptr, int lo, int hi, UINT which)
  * contents.
  */
 static int
-kbd_complete_bst(unsigned flags,
-		 int c,		/* TESTC, NAMEC or isreturn() */
-		 char *buf,
-		 size_t *pos)
+kbd_complete_bst(
+		    unsigned flags GCC_UNUSED,
+		    int c,	/* TESTC, NAMEC or isreturn() */
+		    char *buf,
+		    size_t *pos)
 {
-    size_t cpos = *pos;
+    unsigned cpos = (unsigned) *pos;
     int status = FALSE;
     const char **nptr;
-
-    (void) flags;
 
     kbd_init();			/* nothing to erase */
     buf[cpos] = EOS;		/* terminate it for us */
 
-    if ((nptr = btree_parray(bst_current(), buf, cpos)) != NULL) {
+    if ((nptr = btree_parray(&namebst, buf, cpos)) != 0) {
 	status = kbd_complete(0, c, buf, pos, (const char *) nptr,
 			      sizeof(*nptr));
 	beginDisplay();
@@ -3655,7 +3493,6 @@ bind_leaks(void)
 #if OPT_NAMEBST
     btree_freeup(&redefns);
     btree_freeup(&namebst);
-    btree_freeup(&glbsbst);
 #endif
 }
 #endif /* NO_LEAKS */

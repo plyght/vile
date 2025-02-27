@@ -5,7 +5,7 @@
  *	included in main.c
  *
  *	Copyright (c) 1990 by Paul Fox
- *	Copyright (c) 1995-2025 by Paul Fox and Thomas Dickey
+ *	Copyright (c) 1995-2007 by Paul Fox and Thomas Dickey
  *
  *	See the file "cmdtbl" for input data formats, and "estruct.h" for
  *	the output structures.
@@ -15,7 +15,7 @@
  * by Tom Dickey, 1993.    -pgf
  *
  *
- * $Id: mktbls.c,v 1.208 2025/01/26 14:31:27 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/mktbls.c,v 1.168 2010/05/01 14:46:32 tom Exp $
  *
  */
 
@@ -46,10 +46,6 @@
 #define SYS_VMS 0
 #endif
 
-#ifndef HAVE_CONFIG_H
-# define HAVE_STDLIB_H 1
-#endif
-
 #ifndef HAVE_STDLIB_H
 # define HAVE_STDLIB_H 0
 #endif
@@ -66,11 +62,6 @@ extern void free(char *ptr);
 #endif
 
 /*----------------------------------------------------------------------------*/
-#include <stdio.h>
-#include <ctype.h>
-#include <string.h>
-#include <setjmp.h>
-
 #ifndef DOALLOC
 #define DOALLOC 0
 #endif
@@ -79,13 +70,14 @@ extern void free(char *ptr);
 #include "trace.h"
 #endif
 
-#ifndef GCC_NORETURN
-#define GCC_NORETURN		/*nothing */
-#endif
-
 #ifndef NO_LEAKS
 #define NO_LEAKS 0
 #endif
+
+#include <stdio.h>
+#include <ctype.h>
+#include <string.h>
+#include <setjmp.h>
 
 /* argument for 'exit()' or '_exit()' */
 #if	SYS_VMS
@@ -109,8 +101,7 @@ extern void free(char *ptr);
 
 #define MAX_BIND        4	/* maximum # of key-binding types */
 #define	MAX_PARSE	5	/* maximum # of tokens on line */
-#define	LEN_BUFFER	220	/* nominal buffer-length */
-#define LEN_FIELD	((LEN_BUFFER-1)/2)
+#define	LEN_BUFFER	120	/* nominal buffer-length */
 #define	MAX_BUFFER	(LEN_BUFFER*10)
 #define	LEN_CHRSET	256	/* total # of chars in set (ascii) */
 
@@ -136,12 +127,12 @@ extern void free(char *ptr);
 #define	Sprintf	(void)sprintf
 
 #ifdef MISSING_EXTERN_FPRINTF
-extern int fprintf(FILE *fp, const char *fmt, ...);
+extern int fprintf(FILE *fp, const char *fmt,...);
 #endif
 
 #define	SaveEndif(head)	InsertOnEnd(&head, "#endif")
 
-#define	FreeIfNeeded(p) if (p != NULL) { free(p); p = NULL; }
+#define	FreeIfNeeded(p) if (p != 0) { free(p); p = 0; }
 
 /*--------------------------------------------------------------------------*/
 
@@ -151,7 +142,6 @@ typedef struct stringl {
     char *Data;			/* associated data, if any */
     char *Cond;			/* stores ifdef-flags */
     char *Note;			/* stores comment, if any */
-    char *Flag;			/* stores execution flags, if any */
     struct stringl *nst;
 } LIST;
 
@@ -177,7 +167,6 @@ static LIST *all_qmodes;	/* data for QUALIFIER modes */
 static LIST *all_bmodes;	/* data for BUFFER modes */
 static LIST *all_wmodes;	/* data for WINDOW modes */
 
-static GCC_NORETURN void badfmt(const char *);
 static void save_all_modes(const char *type, char *normal, const char
 			   *abbrev, const char *cond);
 static void save_all_submodes(const char *type, char *normal, const char
@@ -239,38 +228,6 @@ static FILE *nefsms;
 static jmp_buf my_top;
 
 /******************************************************************************/
-/*
- * This is probably more efficient for copying short strings into a large
- * fixed-size buffer, because strncpy always zero-pads the destination to
- * the given length.
- */
-static char *
-my_strncpy(char *dest, const char *src, size_t destlen)
-{
-    size_t n;
-
-    if ((src != NULL) && (destlen != 0)) {
-	for (n = 0; n < destlen; ++n) {
-	    if ((dest[n] = src[n]) == EOS)
-		break;
-	}
-	dest[destlen - 1] = EOS;
-    }
-    return dest;
-}
-
-static char *
-my_strncat(char *dest, const char *src, size_t destlen)
-{
-    size_t oldlen = strlen(dest);
-
-    if ((destlen != 0) && (oldlen < destlen)) {
-	my_strncpy(dest + oldlen, src, destlen - oldlen);
-    }
-    return dest;
-}
-
-/******************************************************************************/
 static int
 toUpper(int c)
 {
@@ -324,11 +281,11 @@ badfmt2(const char *s, int col)
 }
 
 /******************************************************************************/
-static void *
-Alloc(size_t len)
+static char *
+Alloc(unsigned len)
 {
-    void *pointer = calloc(len, sizeof(char));
-    if (pointer == NULL)
+    char *pointer = (char *) malloc(len);
+    if (pointer == 0)
 	badfmt("bug: not enough memory");
     return pointer;
 }
@@ -336,7 +293,7 @@ Alloc(size_t len)
 static char *
 StrAlloc(const char *s)
 {
-    return strcpy(Alloc(strlen(s) + 1), s);
+    return strcpy(Alloc((unsigned) strlen(s) + 1), s);
 }
 
 static LIST *
@@ -350,7 +307,7 @@ free_LIST(LIST ** p)
 {
     LIST *q;
 
-    while ((q = *p) != NULL) {
+    while ((q = *p) != 0) {
 	*p = q->nst;
 	if (q->Name != Blank)
 	    FreeIfNeeded(q->Name);
@@ -362,11 +319,9 @@ free_LIST(LIST ** p)
 	    FreeIfNeeded(q->Cond);
 	if (q->Note != Blank)
 	    FreeIfNeeded(q->Note);
-	if (q->Flag != NULL)
-	    FreeIfNeeded(q->Flag);
 	free((char *) q);
     }
-    *p = NULL;
+    *p = 0;
 }
 
 /******************************************************************************/
@@ -387,7 +342,7 @@ OpenHeader(const char *name, char **argv)
     "/* %s: this header file was produced automatically by\n\
  * the %s program, based on input from the file %s\n */\n";
 
-    if ((fp = fopen(name, "w")) == NULL) {
+    if ((fp = fopen(name, "w")) == 0) {
 	Fprintf(stderr, "mktbls: couldn't open header file %s\n", name);
 	longjmp(my_top, 1);
     }
@@ -403,8 +358,7 @@ InsertSorted(
 		const char *func,
 		const char *data,
 		const char *cond,
-		const char *note,
-		const char *flag)
+		const char *note)
 {
     LIST *n, *p, *q;
     int r;
@@ -415,9 +369,8 @@ InsertSorted(
     n->Data = StrAlloc(data);
     n->Cond = StrAlloc(cond);
     n->Note = StrAlloc(note);
-    n->Flag = StrAlloc(flag);
 
-    for (p = *headp, q = NULL; p != NULL; q = p, p = p->nst) {
+    for (p = *headp, q = 0; p != 0; q = p, p = p->nst) {
 	if ((r = strcmp(n->Name, p->Name)) < 0)
 	    break;
 	else if (r == 0 && !strcmp(n->Cond, p->Cond)) {
@@ -426,7 +379,7 @@ InsertSorted(
 	}
     }
     n->nst = p;
-    if (q == NULL)
+    if (q == 0)
 	*headp = n;
     else
 	q->nst = n;
@@ -444,10 +397,10 @@ InsertOnEnd(LIST ** headp, const char *name)
     n->Cond = Blank;
     n->Note = Blank;
 
-    for (p = *headp, q = NULL; p != NULL; q = p, p = p->nst) ;
+    for (p = *headp, q = 0; p != 0; q = p, p = p->nst) ;
 
-    n->nst = NULL;
-    if (q == NULL)
+    n->nst = 0;
+    if (q == 0)
 	*headp = n;
     else
 	q->nst = n;
@@ -544,7 +497,7 @@ set_binding(int btype, int c, char *cond, char *func)
 		    (c == '\'' || c == '\\') ? "\\" : "",
 		    c);
 	}
-	InsertSorted(&all_kbind, name, func, "", cond, "", "");
+	InsertSorted(&all_kbind, name, func, "", cond, "");
     } else {
 	if (bindings[c] != NULL) {
 	    if (!two_conds(c, cond))
@@ -614,25 +567,25 @@ static const char *lastIfdef;
 static void
 BeginIf(void)
 {
-    lastIfdef = NULL;
+    lastIfdef = 0;
 }
 
 static void
 FlushIf(FILE *fp)
 {
-    if (lastIfdef != NULL) {
+    if (lastIfdef != 0) {
 	Fprintf(fp, "#endif\n");
-	lastIfdef = NULL;
+	lastIfdef = 0;
     }
 }
 
 static void
 WriteIf(FILE *fp, const char *cond)
 {
-    if (cond == NULL)
+    if (cond == 0)
 	cond = "";
     if (cond[0] != EOS && strcmp(cond, "1")) {
-	if (lastIfdef != NULL) {
+	if (lastIfdef != 0) {
 	    if (!strcmp(lastIfdef, cond))
 		return;
 	    FlushIf(fp);
@@ -706,7 +659,7 @@ is_majormode(const char *name)
 {
     LIST *p;
 
-    for (p = all_mmodes; p != NULL; p = p->nst) {
+    for (p = all_mmodes; p != 0; p = p->nst) {
 	if (!strcmp(name, p->Name))
 	    return TRUE;
     }
@@ -717,14 +670,14 @@ is_majormode(const char *name)
 static void
 CheckModes(char *name)
 {
-    if (!strncmp(name, "no", (size_t) 2))
+    if (!strncmp(name, "no", 2))
 	badfmt("illegal mode-name");
 }
 
 static char *
 AllocKey(char *normal, int type, char *abbrev)
 {
-    char *tmp = Alloc(4 + strlen(normal) + strlen(abbrev));
+    char *tmp = Alloc((unsigned) (4 + strlen(normal) + strlen(abbrev)));
     Sprintf(tmp, "%s\n%c\n%s", normal, type, abbrev);
     return tmp;
 }
@@ -788,9 +741,7 @@ Vars2Key(char *type, char *name, char *cond)
     /* insert into 'all_modes' to provide for common name-completion
      * table, and into 'all_statevars' to get name/index correspondence.
      */
-    InsertSorted(&all_modes, name, "state", "",
-		 formcond("OPT_EVAL", cond),
-		 "",
+    InsertSorted(&all_modes, name, "state", "", formcond("OPT_EVAL", cond),
 		 "");
 
     tmp = AllocKey(normal, c, abbrev);
@@ -810,7 +761,7 @@ Name2Symbol(char *name)
 
     /* allocate enough for adjustment in 'Name2Address()' */
     /*   "+ 10" for comfort */
-    base = dst = Alloc(strlen(name) + 10);
+    base = dst = Alloc((unsigned) (strlen(name) + 10));
 
     *dst++ = 's';
     *dst++ = '_';
@@ -830,15 +781,14 @@ static char *
 Name2Address(char *name, char *type)
 {
     /*  "+ 10" for comfort */
-    size_t len = strlen(name) + 10;
-    char *base;
+    unsigned len = (unsigned) strlen(name) + 10;
+    char *base = Alloc(len);
     char *temp;
 
     temp = Name2Symbol(name);
     if (strlen(temp) + 1 + (size_t) (isboolean(*type) ? 4 : 0) > len)
 	badfmt("bug: buffer overflow in Name2Address");
 
-    base = Alloc(len);
     (void) strcpy(base, temp);
     if (isboolean(*type))
 	(void) strcat(strcat(strcpy(base + 2, "no"), temp + 2), "+2");
@@ -860,9 +810,9 @@ WriteIndexStruct(FILE *fp, LIST * p, const char *ppref)
      * is ifdef'd out.
      */
     Fprintf(fp, "\tDUMMY_%c_VALUES = -1\n", *ppref);
-    for (; p != NULL; p = p->nst, count++) {
+    for (; p != 0; p = p->nst, count++) {
 	WriteIf(fp, p->Cond);
-	(void) Parse(my_strncpy(line, p->Name, sizeof(line)), vec);
+	(void) Parse(strcpy(line, p->Name), vec);
 	Sprintf(temp, "\t,%s%s", ENUM_PREFIX, s = Name2Symbol(vec[1]));
 	free(s);
 	if (p->Note[0]) {
@@ -891,8 +841,8 @@ WriteModeDefines(LIST * p, const char *ppref)
     char *s;
     BeginIf();
 
-    for (; p != NULL; p = p->nst, count++) {
-	(void) Parse(my_strncpy(line, p->Name, sizeof(line)), vec);
+    for (; p != 0; p = p->nst, count++) {
+	(void) Parse(strcpy(line, p->Name), vec);
 	Sprintf(temp, "#define %.1s%s%s",
 		(*ppref == 'B') ? "" : ppref,
 		(*vec[2] == 'b') ? "MD" : "VAL_",
@@ -919,33 +869,34 @@ WriteModeSymbols(LIST * p)
 
     /* generate the symbol-table */
     BeginIf();
-    while (p != NULL) {
+    while (p != 0) {
 	WriteIf(nemode, p->Cond);
-	(void) Parse(my_strncpy(line, p->Name, sizeof(line)), vec);
+	(void) Parse(strcpy(line, p->Name), vec);
 	Sprintf(temp, "\t%c %s,",
 		L_CURL, s = Name2Address(vec[1], vec[2]));
 	(void) PadTo(32, temp);
 	free(s);
-	s = NULL;
+	s = 0;
 
 	Sprintf(temp + strlen(temp), "%s,",
 		(*vec[3]
 		 ? (s = Name2Address(vec[3], vec[2]))
 		 : "\"X\""));
 	(void) PadTo(48, temp);
-	if (s != NULL)
+	if (s != 0)
 	    free(s);
 
 	Sprintf(temp + strlen(temp), "VALTYPE_%s,", c2TYPE(*vec[2]));
 	(void) PadTo(64, temp);
 	if (!strcmp(p->Data, "0"))
-	    (void) my_strncat(temp, "(ChgdFunc)0 },", sizeof(temp));
+	    (void) strcat(temp, "(ChgdFunc)0 },");
 	else
 	    Sprintf(temp + strlen(temp), "%s },", p->Data);
 	Fprintf(nemode, "%s\n", temp);
 	p = p->nst;
     }
     FlushIf(nemode);
+
 }
 
 /******************************************************************************/
@@ -958,17 +909,17 @@ save_all_modes(
 {
     if (isboolean(*type)) {
 	char t_normal[LEN_BUFFER], t_abbrev[LEN_BUFFER];
-	my_strncat(strcpy(t_normal, "no"), normal, sizeof(t_normal));
+	strcat(strcpy(t_normal, "no"), normal);
 	if (*abbrev) {
-	    my_strncat(strcpy(t_abbrev, "no"), abbrev, sizeof(t_abbrev));
+	    strcat(strcpy(t_abbrev, "no"), abbrev);
 	} else {
 	    strcpy(t_abbrev, "");
 	}
 	save_all_modes("Bool", t_normal, t_abbrev, cond);
     }
-    InsertSorted(&all_modes, normal, type, "", cond, "", "");
+    InsertSorted(&all_modes, normal, type, "", cond, "");
     if (*abbrev && strcmp(normal, abbrev)) {
-	InsertSorted(&all_modes, abbrev, type, "", cond, "", "");
+	InsertSorted(&all_modes, abbrev, type, "", cond, "");
     }
 }
 
@@ -1003,12 +954,12 @@ dump_all_modes(void)
     char temp[MAX_BUFFER], *s;
     LIST *p, *q;
 
-    InsertSorted(&all_modes, "all", "?", "", "", "", "");
+    InsertSorted(&all_modes, "all", "?", "", "", "");
     write_lines(nemode, top);
     BeginIf();
     for (p = all_modes; p; p = p->nst) {
 	if (!isboolean(p->Func[0])) {
-	    for (q = p->nst; q != NULL; q = q->nst)
+	    for (q = p->nst; q != 0; q = q->nst)
 		if (!isboolean(q->Func[0]))
 		    break;
 	    WriteIf(nemode, p->Cond);
@@ -1122,7 +1073,7 @@ dump_bindings(void)
 
 	Fprintf(nebind, "%s/* %s%s%c */\n", PadTo(32, temp),
 		meta, sctl, c);
-	if (conditions[i] != NULL)
+	if (conditions[i] != 0)
 	    Fprintf(nebind, "#else\n\tNULL,\n");
 	FlushIf(nebind);
 
@@ -1176,12 +1127,11 @@ dump_majors(void)
 	if (sscanf(p->Name, "%s\n%s\n%s", norm, type, abbr) != 3)
 	    continue;
 	for (q = all_majors; q; q = q->nst) {
-	    Sprintf(normal, "%.*s-%.*s", LEN_FIELD, q->Name, LEN_FIELD, norm);
+	    Sprintf(normal, "%s-%s", q->Name, norm);
 	    Sprintf(abbrev, "%s%s", q->Name, abbr);
 	    save_all_modes(c2TYPE(*type), normal, abbrev, my_cond);
 	}
     }
-    free_LIST(&all_majors);
 }
 
 /******************************************************************************/
@@ -1190,7 +1140,7 @@ save_mmodes(char *type, char **vec)
 {
     char *key = Mode2Key(type, vec[1], vec[4], TRUE);
 
-    InsertSorted(&all_mmodes, key, vec[2], vec[3], vec[4], vec[0], "");
+    InsertSorted(&all_mmodes, key, vec[2], vec[3], vec[4], vec[0]);
 #if NO_LEAKS
     free(key);
 #endif
@@ -1220,7 +1170,7 @@ dump_mmodes(void)
     static const char *const bottom[] =
     {
 	"",
-	"\t{ NULL,\tNULL,\tVALTYPE_INT, NULL }",
+	"\t{ NULL,\tNULL,\tVALTYPE_INT, 0 }",
 	"};",
 	"#else",
 	"extern const struct VALNAMES m_valnames[MAX_M_VALUES+1];",
@@ -1270,7 +1220,7 @@ save_abbr_in(LIST ** q, LIST * p, char **vec)
 static void
 save_abbrs(char **vec)
 {
-    LIST *p = NULL;
+    LIST *p = 0;
 
     save_abbr_in(&p, all_gmodes, vec);
     save_abbr_in(&p, all_qmodes, vec);
@@ -1278,7 +1228,7 @@ save_abbrs(char **vec)
     save_abbr_in(&p, all_wmodes, vec);
     save_abbr_in(&p, all_mmodes, vec);
     if (p) {
-	InsertSorted(&all_modes, vec[2], p->Data, "", p->Cond, "", "");
+	InsertSorted(&all_modes, vec[2], p->Data, "", p->Cond, "");
     } else {
 	fprintf(stderr, "Did not find \"%s\"\n", vec[1]);
 	longjmp(my_top, 1);
@@ -1295,17 +1245,17 @@ save_all_submodes(
 {
     if (isboolean(*type)) {
 	char t_normal[LEN_BUFFER], t_abbrev[LEN_BUFFER];
-	my_strncat(strcpy(t_normal, "no"), normal, sizeof(t_normal));
+	strcat(strcpy(t_normal, "no"), normal);
 	if (*abbrev) {
-	    my_strncat(strcpy(t_abbrev, "no"), abbrev, sizeof(t_abbrev));
+	    strcat(strcpy(t_abbrev, "no"), abbrev);
 	} else {
 	    strcpy(t_abbrev, "");
 	}
 	save_all_submodes("Bool", t_normal, t_abbrev, cond);
     }
-    InsertSorted(&all_submodes, normal, type, "", cond, "", "");
+    InsertSorted(&all_submodes, normal, type, "", cond, "");
     if (*abbrev && strcmp(normal, abbrev)) {
-	InsertSorted(&all_submodes, abbrev, type, "", cond, "", "");
+	InsertSorted(&all_submodes, abbrev, type, "", cond, "");
     }
 }
 
@@ -1360,7 +1310,7 @@ predefine_submodes(char **vec, int len)
 	    }
 	}
 	if (!found) {
-	    InsertSorted(&all_majors, vec[2], "", "", "", "", "");
+	    InsertSorted(&all_majors, vec[2], "", "", "", "");
 	}
 	if (len > 2) {
 	    for (p = all_bmodes, found = FALSE; p; p = p->nst) {
@@ -1373,10 +1323,10 @@ predefine_submodes(char **vec, int len)
 		}
 	    }
 	    if (found) {
-		Sprintf(temp, "%.*s-%.*s", LEN_FIELD, vec[2], LEN_FIELD, norm);
-		my_strncpy(norm, temp, sizeof(norm));
+		Sprintf(temp, "%s-%s", vec[2], norm);
+		strcpy(norm, temp);
 		Sprintf(temp, "%s%s", vec[2], abbr);
-		my_strncpy(abbr, temp, sizeof(abbr));
+		strcpy(abbr, temp);
 		save_all_modes(c2TYPE(*type), norm, abbr,
 			       formcond(p->Cond, "OPT_MAJORMODE"));
 	    }
@@ -1389,7 +1339,7 @@ static void
 save_qmodes(char *type, char **vec)
 {
     char *key = Mode2Key(type, vec[1], vec[4], TRUE);
-    InsertSorted(&all_qmodes, key, vec[2], vec[3], vec[4], vec[0], "");
+    InsertSorted(&all_qmodes, key, vec[2], vec[3], vec[4], vec[0]);
 #if NO_LEAKS
     free(key);
 #endif
@@ -1418,7 +1368,7 @@ dump_qmodes(void)
     static const char *const bottom[] =
     {
 	"",
-	"\t{ NULL,\tNULL,\tVALTYPE_INT, NULL }",
+	"\t{ NULL,\tNULL,\tVALTYPE_INT, 0 }",
 	"};",
 	"#else",
 	"extern const struct VALNAMES q_valnames[MAX_Q_VALUES+1];",
@@ -1444,7 +1394,7 @@ static void
 save_bmodes(char *type, char **vec)
 {
     char *key = Mode2Key(type, vec[1], vec[4], ok_submode(vec[3]));
-    InsertSorted(&all_bmodes, key, vec[2], vec[3], vec[4], vec[0], "");
+    InsertSorted(&all_bmodes, key, vec[2], vec[3], vec[4], vec[0]);
 #if NO_LEAKS
     free(key);
 #endif
@@ -1473,7 +1423,7 @@ dump_bmodes(void)
     static const char *const bottom[] =
     {
 	"",
-	"\t{ NULL,\tNULL,\tVALTYPE_INT, NULL }",
+	"\t{ NULL,\tNULL,\tVALTYPE_INT, 0 }",
 	"};",
 	"#else",
 	"extern const struct VALNAMES b_valnames[];",
@@ -1561,8 +1511,7 @@ save_statevars(char *type, char **vec)
     char *cond = vec[3];
     char *key = Vars2Key(type, name, cond);
 
-    InsertSorted(&all_statevars, key, vars, "", cond, vec[4], "");
-    free(key);
+    InsertSorted(&all_statevars, key, vars, "", cond, vec[0]);
 }
 
 static void
@@ -1577,6 +1526,7 @@ dump_statevars(void)
 	"extern const char *const statevars[];",
 	"#endif",
 	"",
+	""
 	"typedef enum {",
     };
     static const char *const middle1[] =
@@ -1591,29 +1541,15 @@ dump_statevars(void)
 	"",
 	"typedef int (StateFunc)(TBUFF **resultp, const char *valuep);",
 	"",
-	"typedef struct {",
-	"\tStateFunc *func;",
-	"\tchar type;",
-	"#if OPT_ONLINEHELP",
-	"\tconst char* help;",
-	"#endif",
-	"} StateVars;",
+	"typedef struct { StateFunc *func; char type; } StateVars;",
 	"",
 	"#ifdef realdef",
-	"",
-	"#undef DATA",
-	"#if OPT_ONLINEHELP",
-	"#define DATA(func,type,help) { func, type, help }",
-	"#else",
-	"#define DATA(func,type,help) { func, type}",
-	"#endif",
-	"",
 	"DECL_EXTERN(const StateVars statevar_funcs[]) = {",
 	""
     };
     static const char *const tail[] =
     {
-	"\tDATA( (StateFunc *)NULL, 0, NULL )",
+	"\t{ (StateFunc *)NULL, 0 }",
 	"};",
 	"#else",
 	"extern const StateVars statevar_funcs[];",
@@ -1626,7 +1562,7 @@ dump_statevars(void)
     int first = 1;
 
     BeginIf();
-    for (p = all_statevars; p != NULL; p = p->nst) {
+    for (p = all_statevars; p != 0; p = p->nst) {
 	if (sscanf(p->Name, "%s\n%s", norm, type) != 2)
 	    continue;
 	if (first) {
@@ -1640,7 +1576,7 @@ dump_statevars(void)
     FlushIf(nevars);
     write_lines(nevars, middle);
 
-    for (p = all_statevars; p != NULL; p = p->nst) {
+    for (p = all_statevars; p != 0; p = p->nst) {
 	WriteIf(nevars, p->Cond);
 	Fprintf(nevars, "\tVAR_%s,\n", p->Func);
     }
@@ -1648,7 +1584,7 @@ dump_statevars(void)
 
     write_lines(nevars, middle1);
     /* emit the variable get/set routine prototypes */
-    for (p = all_statevars; p != NULL; p = p->nst) {
+    for (p = all_statevars; p != 0; p = p->nst) {
 	WriteIf(nevars, p->Cond);
 	Fprintf(nevars, "int var_%s(TBUFF **resp, const char *valp);\n",
 		p->Func);
@@ -1656,15 +1592,13 @@ dump_statevars(void)
     FlushIf(nevars);
     write_lines(nevars, middle2);
     /* emit the variable get/set routine table */
-    for (p = all_statevars; p != NULL; p = p->nst) {
+    for (p = all_statevars; p != 0; p = p->nst) {
 	if (sscanf(p->Name, "%s\n%s", norm, type) != 2)
 	    continue;
 	WriteIf(nevars, p->Cond);
-	Sprintf(temp, "\tDATA( var_%s,", p->Func);
+	Sprintf(temp, "\t{ var_%s,", p->Func);
 	(void) PadTo(32, temp);
-	Sprintf(temp + strlen(temp), "VALTYPE_%s,", c2TYPE(*type));
-	(void) PadTo(50, temp);
-	Sprintf(temp + strlen(temp), "\"%s\" ),", p->Note);
+	Sprintf(temp + strlen(temp), "VALTYPE_%s },", c2TYPE(*type));
 	Fprintf(nevars, "%s\n", temp);
     }
     FlushIf(nevars);
@@ -1675,13 +1609,7 @@ dump_statevars(void)
 static void
 save_fsms(char **vec)
 {
-    InsertSorted(&all_fsms,
-		 lowercase(vec[1]),
-		 "",
-		 vec[2],
-		 vec[3],
-		 vec[0],
-		 "");
+    InsertSorted(&all_fsms, lowercase(vec[1]), "", vec[2], vec[3], vec[0]);
 }
 
 static void
@@ -1689,7 +1617,7 @@ init_fsms(void)
 {
     int n;
 
-    if (fsm_uc_name == NULL) {
+    if (fsm_uc_name == 0) {
 	badfmt("Missing table name");
     } else {
 
@@ -1719,9 +1647,9 @@ dump_fsms(void)
     LIST *p;
     int count;
 
-    if (all_fsms != NULL) {
+    if (all_fsms != 0) {
 	BeginIf();
-	for (p = all_fsms, count = 0; p != NULL; p = p->nst) {
+	for (p = all_fsms, count = 0; p != 0; p = p->nst) {
 	    if (!count++)
 		init_fsms();
 	    WriteIf(nefsms, p->Cond);
@@ -1743,10 +1671,10 @@ dump_fsms(void)
 	free_LIST(&all_fsms);
 
 	free(fsm_uc_name);
-	fsm_uc_name = NULL;
+	fsm_uc_name = 0;
 
 	free(fsm_lc_name);
-	fsm_lc_name = NULL;
+	fsm_lc_name = 0;
     }
 }
 
@@ -1826,8 +1754,8 @@ save_funcs(
 
     s = append(s, "static const char *syn_");
     s = append(s, func);
-    s = append(s, "[] =\n{\n");
-    for (p = all_aliases; p != NULL; p = p->nst) {
+    s = append(s, "[] = \n{\n");
+    for (p = all_aliases; p != 0; p = p->nst) {
 	if (p->Cond[0]) {
 	    s = append(s, "#if ");
 	    s = append(s, p->Cond);
@@ -1840,7 +1768,7 @@ save_funcs(
 	    s = append(s, "#endif\n");
 	}
     }
-    s = append(s, "\tNULL\n};\n");
+    s = append(s, "\t0\n};\n");
     s = append(s, "\n");
 
     s = append(s, "DECL_EXTERN_CONST(CMDFUNC f_");
@@ -1853,7 +1781,7 @@ save_funcs(
     s = append(s, flags);
     s = append(s, "\n\t,syn_");
     s = append(s, func);
-    s = append(s, "\n#if OPT_MACRO_ARGS\n\t,NULL\n#endif");
+    s = append(s, "\n#if OPT_MACRO_ARGS\n\t,0\n#endif");
     s = append(s, "\n#if OPT_TRACE\n\t,\"");
     s = append(s, func);
     s = append(s, "\"\n#endif");
@@ -1873,7 +1801,7 @@ static void
 dump_funcs(FILE *fp, LIST * head)
 {
     LIST *p;
-    for (p = head; p != NULL; p = p->nst)
+    for (p = head; p != 0; p = p->nst)
 	Fprintf(fp, "%s\n", p->Name);
 }
 
@@ -1883,7 +1811,7 @@ save_gmodes(char *type, char **vec)
 {
     char *key = Mode2Key(type, vec[1], vec[4], FALSE);
 
-    InsertSorted(&all_gmodes, key, vec[2], vec[3], vec[4], vec[0], "");
+    InsertSorted(&all_gmodes, key, vec[2], vec[3], vec[4], vec[0]);
 #if NO_LEAKS
     free(key);
 #endif
@@ -1912,7 +1840,7 @@ dump_gmodes(void)
     static const char *const bottom[] =
     {
 	"",
-	"\t{ NULL,\tNULL,\tVALTYPE_INT, NULL }",
+	"\t{ NULL,\tNULL,\tVALTYPE_INT, 0 }",
 	"};",
 	"#else",
 	"extern const struct VALNAMES g_valnames[];",
@@ -1929,15 +1857,15 @@ dump_gmodes(void)
 
 /******************************************************************************/
 static void
-save_names(char *name, char *func, char *cond, char *flags)
+save_names(char *name, char *func, char *cond)
 {
-    InsertSorted(&all_names, name, func, "", cond, "", flags);
+    InsertSorted(&all_names, name, func, "", cond, "");
 }
 
 static void
-save_aliases(char *name, char *func, char *cond, char *flags)
+save_aliases(char *name, char *func, char *cond)
 {
-    InsertSorted(&all_aliases, name, func, "", cond, "", flags);
+    InsertSorted(&all_aliases, name, func, "", cond, "");
 }
 
 static void
@@ -1946,13 +1874,11 @@ dump_names(void)
     LIST *m;
     char temp[MAX_BUFFER];
 
-    Fprintf(nename, "#include <blist.h>\n");
-    Fprintf(nename, "\n");
-    Fprintf(nename, "extern BLIST blist_nametbl;\n");
-    Fprintf(nename, "extern BLIST blist_glbstbl;\n");
-    Fprintf(nename, "\n");
-    Fprintf(nename, "#ifdef real_NAMETBL\n");
-    Fprintf(nename, "\n");
+    Fprintf(nename, "\n/* if you maintain this by hand, keep it in */\n");
+    Fprintf(nename, "/* alphabetical order!!!! */\n\n");
+    Fprintf(nename, "#include <blist.h>\n\n");
+    Fprintf(nename, "extern BLIST blist_nametbl;\n\n");
+    Fprintf(nename, "#ifdef real_NAMETBL\n\n");
     Fprintf(nename, "EXTERN_CONST NTAB nametbl[] = {\n");
 
     BeginIf();
@@ -1962,26 +1888,9 @@ dump_names(void)
 	Fprintf(nename, "%s&f_%s },\n", PadTo(40, temp), m->Func);
     }
     FlushIf(nename);
-    Fprintf(nename, "\t{ NULL, NULL }\n};\n");
-    Fprintf(nename, "\n");
-    Fprintf(nename, "BLIST blist_nametbl = init_blist(nametbl);\n");
-    Fprintf(nename, "\n");
-    Fprintf(nename, "EXTERN_CONST NTAB glbstbl[] = {\n");
-    BeginIf();
-    for (m = all_names; m != NULL; m = m->nst) {
-	if (m->Flag != NULL && strstr(m->Flag, "GLOBOK") != NULL) {
-	    WriteIf(nename, m->Cond);
-	    Sprintf(temp, "\t{ \"%s\",", m->Name);
-	    Fprintf(nename, "%s&f_%s },\n", PadTo(40, temp), m->Func);
-	}
-    }
-    FlushIf(nename);
-    Fprintf(nename, "\t{ NULL, NULL }\n};\n");
-    Fprintf(nename, "\n");
-    Fprintf(nename, "BLIST blist_glbstbl = init_blist(glbstbl);\n");
-    Fprintf(nename, "\n");
-    Fprintf(nename, "#else\n");
-    Fprintf(nename, "\n");
+    Fprintf(nename, "\t{ NULL, NULL }\n};\n\n");
+    Fprintf(nename, "BLIST blist_nametbl = init_blist(nametbl);\n\n");
+    Fprintf(nename, "#else\n\n");
     Fprintf(nename, "#endif\n");
 }
 
@@ -2018,7 +1927,6 @@ init_ufuncs(void)
 	"",
 	"#ifdef realdef",
 	"",
-	"#undef DATA",
 	"#if OPT_ONLINEHELP",
 	"#define DATA(name,code,help) {name,(unsigned)(code),help}",
 	"#else",
@@ -2033,7 +1941,7 @@ init_ufuncs(void)
 
     if (!done++) {
 	write_lines(nevars, head);
-	for (p = all_ufuncs, count = 0; p != NULL; p = p->nst) {
+	for (p = all_ufuncs, count = 0; p != 0; p = p->nst) {
 	    if (!count++)
 		Fprintf(nevars, "\t UF%s = 0\n", p->Func);
 	    else
@@ -2047,7 +1955,7 @@ init_ufuncs(void)
 static void
 save_ufuncs(char **vec)
 {
-    InsertSorted(&all_ufuncs, vec[1], vec[2], vec[3], "", vec[4], "");
+    InsertSorted(&all_ufuncs, vec[1], vec[2], vec[3], "", vec[4]);
 }
 
 static void
@@ -2074,7 +1982,7 @@ dump_ufuncs(void)
     int count;
 
     write_lines(nevars, head);
-    for (p = all_ufuncs, count = 0; p != NULL; p = p->nst) {
+    for (p = all_ufuncs, count = 0; p != 0; p = p->nst) {
 	if (!count++)
 	    init_ufuncs();
 	Sprintf(temp, "\tDATA(\"%s\",", p->Name);
@@ -2092,7 +2000,7 @@ static void
 save_wmodes(char *type, char **vec)
 {
     char *key = Mode2Key(type, vec[1], vec[4], FALSE);
-    InsertSorted(&all_wmodes, key, vec[2], vec[3], vec[4], vec[0], "");
+    InsertSorted(&all_wmodes, key, vec[2], vec[3], vec[4], vec[0]);
 #if NO_LEAKS
     free(key);
 #endif
@@ -2124,7 +2032,7 @@ dump_wmodes(void)
     static const char *bottom[] =
     {
 	"",
-	"\t{ NULL,\tNULL,\tVALTYPE_INT, NULL }",
+	"\t{ NULL,\tNULL,\tVALTYPE_INT, 0 }",
 	"};",
 	"#else",
 	"extern const struct VALNAMES w_valnames[];",
@@ -2207,7 +2115,6 @@ mkw32binding(char *key, char *conditional, char *func, char *fcond)
 		 func,
 		 "",
 		 formcond(fcond, conditional),
-		 "",
 		 "");
 #undef KEYTOKEN
 }
@@ -2373,8 +2280,8 @@ main(int argc, char *argv[])
 		    if (r < 1 || r > 2)
 			badfmt("looking for english name");
 
-		    save_names(vec[1], func, formcond(fcond, vec[2]), flags);
-		    save_aliases(vec[1], func, formcond(fcond, vec[2]), flags);
+		    save_names(vec[1], func, formcond(fcond, vec[2]));
+		    save_aliases(vec[1], func, formcond(fcond, vec[2]));
 		    break;
 
 		case '\'':	/* then it's a key */
@@ -2384,8 +2291,8 @@ main(int argc, char *argv[])
 		    if (strcmp("W32KY", vec[2]) == 0) {
 			mkw32binding(vec[1], vec[3], func, fcond);
 		    } else {
-			if (strncmp("KEY_", vec[2], (size_t) 4) == 0) {
-			    if (strncmp("FN-", vec[1], (size_t) 3) != 0)
+			if (strncmp("KEY_", vec[2], 4) == 0) {
+			    if (strncmp("FN-", vec[1], 3) != 0)
 				badfmt("KEY_xxx definition must for FN- binding");
 			    if (!nefkeys)
 				nefkeys = OpenHeader("nefkeys.h", argv);
@@ -2399,7 +2306,7 @@ main(int argc, char *argv[])
 
 		case '<':	/* then it's a help string */
 		    /* put code here. */
-		    (void) my_strncpy(funchelp, vec[1], sizeof(funchelp));
+		    (void) strcpy(funchelp, vec[1]);
 		    break;
 
 		default:
@@ -2461,9 +2368,9 @@ main(int argc, char *argv[])
 		    save_funcs(func, flags, fcond, old_fcond, funchelp);
 		    funchelp[0] = EOS;
 		}
-		(void) my_strncpy(func, vec[1], sizeof(func));
-		(void) my_strncpy(flags, vec[2], sizeof(flags));
-		(void) my_strncpy(fcond, vec[3], sizeof(fcond));
+		(void) strcpy(func, vec[1]);
+		(void) strcpy(flags, vec[2]);
+		(void) strcpy(fcond, vec[3]);
 		break;
 
 	    case SECT_FSMS:
@@ -2472,13 +2379,13 @@ main(int argc, char *argv[])
 
 	    case SECT_VARS:
 		if (r != 1
-		    || (strcmp(vec[1], "bool")
-			&& strcmp(vec[1], "enum")
-			&& strcmp(vec[1], "int")
-			&& strcmp(vec[1], "string")
-			&& strcmp(vec[1], "regex")))
+		    || (!strcmp(vec[1], "bool")
+			&& !strcmp(vec[1], "enum")
+			&& !strcmp(vec[1], "int")
+			&& !strcmp(vec[1], "string")
+			&& !strcmp(vec[1], "regex")))
 		    badfmt("looking for mode datatype");
-		(void) my_strncpy(modetype, vec[1], sizeof(modetype));
+		(void) strcpy(modetype, vec[1]);
 		break;
 
 	    case SECT_FUNC:
@@ -2493,13 +2400,13 @@ main(int argc, char *argv[])
 	    case SECT_BUFF:
 	    case SECT_WIND:
 		if (r != 1
-		    || (strcmp(vec[1], "bool")
-			&& strcmp(vec[1], "enum")
-			&& strcmp(vec[1], "int")
-			&& strcmp(vec[1], "string")
-			&& strcmp(vec[1], "regex")))
+		    || (!strcmp(vec[1], "bool")
+			&& !strcmp(vec[1], "enum")
+			&& !strcmp(vec[1], "int")
+			&& !strcmp(vec[1], "string")
+			&& !strcmp(vec[1], "regex")))
 		    badfmt("looking for mode datatype");
-		(void) my_strncpy(modetype, vec[1], sizeof(modetype));
+		(void) strcpy(modetype, vec[1]);
 		break;
 
 	    default:
@@ -2507,7 +2414,6 @@ main(int argc, char *argv[])
 	    }
 	}
     }
-    fclose(cmdtbl);
 
     if (func[0]) {		/* flush the old one */
 	save_funcs(func, flags, fcond, old_fcond, funchelp);
@@ -2557,23 +2463,6 @@ main(int argc, char *argv[])
 	dump_bmodes();
 	dump_wmodes();
     }
-
-    if (nebind != NULL)
-	fclose(nebind);
-    if (nefkeys != NULL)
-	fclose(nefkeys);
-    if (nefsms != NULL)
-	fclose(nefsms);
-    if (nefunc != NULL)
-	fclose(nefunc);
-    if (nemode != NULL)
-	fclose(nemode);
-    if (nename != NULL)
-	fclose(nename);
-    if (neprot != NULL)
-	fclose(neprot);
-    if (nevars != NULL)
-	fclose(nevars);
 
     free_mktbls();
     return (GOODEXIT);

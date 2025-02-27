@@ -2,9 +2,8 @@
 %state NORMAL PREPRO COMMENT
 
 %{
-
 /*
- * $Id: rc-filt.l,v 1.18 2016/12/16 01:01:39 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/rc-filt.l,v 1.14 2010/07/13 13:45:03 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of Windows
  * resource files.
@@ -12,7 +11,7 @@
 
 #include <filters.h>
 
-DefineFilter(rc);
+DefineFilter("rc");
 
 static char *Comment_attr;
 static char *Number_attr;
@@ -27,9 +26,9 @@ show_prepro(char *text)
     flt_puts(text, (int) (s - text), "");
     flt_puts(s, 1, Preproc_attr);
     s = skip_blanks(text = ++s);
-    flt_puts(text, (int) (s - text - 1), "");
+    flt_puts(text, (int) (s - text), "");
     set_symbol_table("cpre");
-    flt_puts(text, (int) strlen(text), get_keyword_attr(text));
+    flt_puts(text, (int) strlen(text), keyword_attr(text));
     set_symbol_table(default_table);
 }
 
@@ -48,7 +47,7 @@ NUMBER		({DECIMAL}|{OCTAL}|{HEXADECIMAL})[L]?
 %%
 
 ^[ \t]*#[ \t]*{IDENT}	{ show_prepro(yytext); }
-{IDENT}			{ WriteToken(get_keyword_attr(yytext)); }
+{IDENT}			{ WriteToken(keyword_attr(yytext)); }
 {STRING}		{ WriteToken(String_attr); }
 {NUMBER}		{ WriteToken(Number_attr); }
 
@@ -68,9 +67,9 @@ do_filter(FILE *inputs)
     InitLEX(inputs);
 
     Comment_attr = class_attr(NAME_COMMENT);
-    Number_attr = class_attr(NAME_NUMBER);
+    Number_attr  = class_attr(NAME_NUMBER);
     Preproc_attr = class_attr(NAME_PREPROC);
-    String_attr = class_attr(NAME_LITERAL);
+    String_attr  = class_attr(NAME_LITERAL);
 
     RunLEX();
 }

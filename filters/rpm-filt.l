@@ -1,24 +1,21 @@
 %pointer
-%x META sTEXT NORMAL ONELINE HEREDOC SSTRING DSTRING QUOTED2 SUBST NOTE
+%x META sTEXT NORMAL ONELINE HEREDOC SSTRING DSTRING QUOTED2 SUBST
 
-%e 2000
-%p 3000
 %o 10000
 %a 10000
 
 %{
-
 /*
- * $Id: rpm-filt.l,v 1.42 2025/01/26 11:36:23 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/rpm-filt.l,v 1.31 2010/07/13 13:45:53 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of rpm spec-file.
  */
 
 #include <filters.h>
 
-DefineFilter(rpm);
+DefineFilter("rpm");
 
-#define isQuote(ch) (ch != 0 && strchr("\\'\"", ch) != NULL)
+#define isQuote(ch) (ch != 0 && strchr("\\'\"", ch) != 0)
 
 static char *Action_attr;
 static char *Comment_attr;
@@ -34,8 +31,8 @@ static int here_exp;
 
 #include <fltstack.h>
 
-static const char *meta_variable(char *name, int len);
-static const char *my_keyword_attr(char *name, int len);
+static const char * meta_variable(char *name, int len);
+static const char * my_keyword_attr(char *name, int len);
 static int embed_or_append(char *text, int length);
 static int got_here(char *text, int length);
 static void begin_section(char *name, int length);
@@ -57,7 +54,7 @@ FILENAME	(([./]{WILDNAME}+)|({WILDNAME}+[./]{WILDNAME}*)|({NAME}*{WILDCARD})|\.+
 
 ACTION		[\.`{}]
 IDENT		[[:alpha:]_]{NAME}*
-QIDENT		{SSTRING}|{DSTRING}|[^ \"'$\t\r\n]+
+QIDENT		({SSTRING}|{DSTRING}|[^ \"'$\t\r\n])+
 IDENT0		[-]+[[:digit:]]*[[:alpha:]_-]+[[:alnum:]_-]*
 
 SH_IDENT1	[$]{NAME}+
@@ -77,15 +74,15 @@ IDENT2R		\}
 IDENTEQLS	[[:alpha:]_]{NAME}*=
 IDENTX		\$[\*@#\?\$!-]
 
-NUMBER		[-+]?([[:digit:]]+)?([[:digit:].-]+)?([[:digit:]]+)
+INTEGER		[-+]?([[:digit:]]+)
 
 SECTION		%{IDENT}
 
 %%
 
-<sTEXT,NORMAL>"%%"	{ WriteToken(String_attr); }
-
 <NORMAL>{SECTION}	{ begin_section(yytext, yyleng); }
+
+<sTEXT,NORMAL>"%%"	{ WriteToken(String_attr); }
 
 <sTEXT,NORMAL>^{IDENT}:	{
 			  const char *attr;
@@ -94,7 +91,7 @@ SECTION		%{IDENT}
 			  yytext[len] = 0;
 			  attr = my_keyword_attr(yytext, len);
 			  yytext[len] = (char) save;
-			  if (cur_state == sTEXT && (attr == NULL || *attr == 0)) {
+			  if (cur_state == sTEXT && (attr == 0 || *attr == 0)) {
 			      WriteToken(String_attr);
 			  } else {
 			      WriteToken3(attr, len);
@@ -136,16 +133,13 @@ SECTION		%{IDENT}
 			  WriteToken(my_keyword_attr(yytext, yyleng));
 			}
 
-<NORMAL>"#"		{
-			  push_state(NOTE);
-			  BeginQuote(NOTE, Comment_attr);
-			}
+<NORMAL>"#"[^\r\n]*	{ WriteToken(Comment_attr); }
 
 <NORMAL>^{SPACE}*:	{ color_delimiter(yytext, yyleng, Action_attr); }
 
 <NORMAL>{ACTION}	{ WriteToken(Action_attr); }
 
-<NORMAL>{NUMBER}	{ WriteToken(Number_attr); }
+<NORMAL>{INTEGER}	{ WriteToken(Number_attr); }
 
 <NORMAL>{IDENT1}	|
 <NORMAL>{IDENT2}	{ WriteToken(meta_variable(yytext, yyleng)); }
@@ -170,20 +164,10 @@ SECTION		%{IDENT}
 			  BeginQuote(DSTRING, String_attr);
 			}
 
-<NOTE>"%%"		{ flt_bfr_append(yytext, yyleng); }
-<NOTE>{MY_IDENT1}	|
-<NOTE>{MY_IDENT2}	|
-<NOTE>{MY_IDENT2L}	{
-			  flt_error("%%TOKENs cannot be commented-out");
-			  flt_bfr_embed(yytext, yyleng, Error_attr);
-			}
-<NOTE>[\r\n]+		{ flt_bfr_finish(); pop_state(); ECHO; }
-<NOTE>.			{ flt_bfr_append(yytext, yyleng); }
-
 <NORMAL>\<\<[-]?{SPACE}*{QIDENT} {
 			    int n;
 			    strip_tabs = 0;
-			    for (n = 0; n < (int) yyleng; n++) {
+			    for (n = 0; n < yyleng; n++) {
 				if (yytext[n] != '<'
 				 && !isspace(CharOf(yytext[n]))) {
 				    strip_tabs = (yytext[n] == '-');
@@ -192,7 +176,7 @@ SECTION		%{IDENT}
 			    }
 			    save_here(yytext, yyleng);
 			    push_state(HEREDOC);
-			    if (strchr(yytext, '\n') != NULL) {
+			    if (strchr(yytext, '\n') != 0) {
 				flt_error("unexpected end of line");
 				BeginQuote(HEREDOC, Error_attr);
 			    } else {
@@ -238,7 +222,7 @@ SECTION		%{IDENT}
 <SSTRING>[\r\n%]	{ flt_bfr_append(yytext, yyleng); }
 <SSTRING>\'		{ FinishQuote(NORMAL); pop_state(); }
 
-<QUOTED2>(.|[\n])	{ flt_bfr_embed(yytext, yyleng, Action_attr); pop_state(); }
+<QUOTED2>(.|\n)		{ flt_bfr_embed(yytext, yyleng, Action_attr); pop_state(); }
 
 <SUBST>{IDENT2R}	{ flt_bfr_embed(yytext, yyleng, meta_variable(yytext, yyleng)); pop_state(); }
 <SUBST>\"		{ push_state(DSTRING); BeginQuote(DSTRING, String_attr); }
@@ -253,22 +237,17 @@ begin_section(char *name, int len)
 {
     const char *flags = ci_keyword_flag(name);
 
-    if (flags == NULL)
+    if (flags == 0)
 	flags = "";
 
-    if (keyword_attr(name) == NULL && FLT_STATE == sTEXT) {
-	flt_error("unexpected keyword in text: %s", name);
-	flt_bfr_embed(name, len, Error_attr);
+    WriteToken(my_keyword_attr(name, len));
+    if (strchr(flags, 'o') != 0) {
+	push_state(ONELINE);
+	flt_bfr_begin(String_attr);
+    } else if (strchr(flags, 'q') != 0) {
+	new_state(sTEXT);
     } else {
-	WriteToken(my_keyword_attr(name, len));
-	if (strchr(flags, 'o') != NULL) {
-	    push_state(ONELINE);
-	    flt_bfr_begin(String_attr);
-	} else if (strchr(flags, 'q') != NULL) {
-	    new_state(sTEXT);
-	} else {
-	    new_state(NORMAL);
-	}
+	new_state(NORMAL);
     }
 }
 
@@ -276,41 +255,35 @@ static const char *
 meta_variable(char *name, int len)
 {
     const char *attr = my_keyword_attr(name, len);
-    return (attr != NULL) ? attr : Ident_attr;
+    return (attr != 0) ? attr : Ident_attr;
 }
 
 static const char *
 my_keyword_attr(char *name, int len)
 {
-    const char *attr = get_keyword_attr(name);
-    if (attr == NULL) {
+    const char *attr = ci_keyword_attr(name);
+    if (attr == 0) {
 	int try = len;
 	char save;
 	const char *flags;
 
-	while (try > 0 && isdigit(CharOf(name[try - 1]))) {
+	while (try > 0 && isdigit(CharOf(name[try-1]))) {
 	    --try;
 	}
 	if (try < len) {
 	    save = name[try];
 	    name[try] = 0;
-	    attr = get_keyword_attr(name);
+	    attr = ci_keyword_attr(name);
 	    flags = ci_keyword_flag(name);
 	    name[try] = save;
-	    if (attr != NULL) {
-		if (flags != NULL) {
-		    if (strchr(flags, 'n') == NULL) {
-			attr = NULL;
+	    if (attr != 0) {
+		if (flags != 0) {
+		    if (strchr(flags, 'n') == 0) {
+			attr = 0;
 		    }
 		} else {
-		    attr = NULL;
+		    attr = 0;
 		}
-	    }
-	} else if (*name == '%') {
-	    if (name[1] == '{') {
-		attr = meta_variable(name + 2, len - 3);
-	    } else {
-		attr = meta_variable(name + 1, len - 1);
 	    }
 	}
     }
@@ -323,15 +296,15 @@ save_here(char *text, int length)
     char *s;
 
     here_exp = 1;
-    if ((here_tag = do_alloc(here_tag, (size_t) length, &here_len)) != NULL) {
+    if ((here_tag = do_alloc(here_tag, (size_t) length, &here_len)) != 0) {
 	s = here_tag;
 	while (length--) {
 	    if (isQuote(*text)) {
 		here_exp = 0;
-	    } else if (strchr(" \t", *text) != NULL) {
+	    } else if (strchr(" \t", *text) != 0) {
 		if (s != here_tag)
 		    break;
-	    } else if (strchr("<->", *text) == NULL) {
+	    } else if (strchr("<->", *text) == 0) {
 		*s++ = *text;
 	    }
 	    text++;
@@ -364,7 +337,7 @@ got_here(char *text, int length)
 		    flt_bfr_embed(text + j, 1, Error_attr);
 		}
 	    } else {
-		if (here_tag != NULL && (text[j] != here_tag[k++]))
+		if (here_tag != 0 && (text[j] != here_tag[k++]))
 		    return 0;
 		if (pass)
 		    flt_bfr_append(text + j, 1);
@@ -384,10 +357,10 @@ color_delimiter(char *text, int size, char *attr)
 {
     char delim[2];
 
-    delim[0] = text[--size];	/* save the trailing delimiter */
-    delim[1] = text[size] = '\0';	/* chop the trailing delimiter */
+    delim[0] = text[--size];       /* save the trailing delimiter */
+    delim[1] = text[size] = '\0';  /* chop the trailing delimiter */
     if (size)
-	flt_puts(text, size, "");
+	flt_puts(text, size , "");
     flt_puts(delim, 1, attr);
 }
 
@@ -402,12 +375,12 @@ do_filter(FILE *inputs)
 {
     InitLEX(inputs);
 
-    Action_attr = class_attr(NAME_ACTION);
+    Action_attr  = class_attr(NAME_ACTION);
     Comment_attr = class_attr(NAME_COMMENT);
-    Error_attr = class_attr(NAME_ERROR);
-    Ident_attr = class_attr(NAME_IDENT2);
-    Number_attr = class_attr(NAME_NUMBER);
-    String_attr = class_attr(NAME_LITERAL);
+    Error_attr   = class_attr(NAME_ERROR);
+    Ident_attr   = class_attr(NAME_IDENT2);
+    Number_attr  = class_attr(NAME_NUMBER);
+    String_attr  = class_attr(NAME_LITERAL);
 
     here_exp = 0;
     begin_state(NORMAL);

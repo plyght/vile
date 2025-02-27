@@ -5,7 +5,7 @@
  * functions that adjust the top line in the window and invalidate the
  * framing, are hard.
  *
- * $Id: basic.c,v 1.182 2025/01/26 20:55:32 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/basic.c,v 1.165 2010/02/12 10:41:40 tom Exp $
  *
  */
 
@@ -19,15 +19,15 @@
  */
 #if OPT_MULTIBYTE
 #define lp_bytes_at0(lp, off) bytes_at0(lvalue(lp), llength(lp), off)
-#define tb_bytes_at0(tb, off) bytes_at0(tb_values(tb), (int) tb_length(tb), off)
+#define tb_bytes_at0(tb, off) bytes_at0(tb_values(tb), tb_length(tb), off)
 
 static int
 bytes_at0(const char *value, int length, int off)
 {
-    return ((length > off && off >= 0)
+    return ((length > off)
 	    ? vl_conv_to_utf32((UINT *) 0,
 			       value + off,
-			       (B_COUNT) (length - off))
+			       length - off)
 	    : 0);
 }
 
@@ -163,8 +163,8 @@ mb_cellwidth(WINDOW *wp, const char *text, int limit)
     UINT value;
     int rc = COLS_UTF8;		/* "\uXXXX" */
 
-    vl_conv_to_utf32(&value, text, (B_COUNT) limit);
-    if (isPrint(value) && FoldTo8bits((int) value)) {
+    vl_conv_to_utf32(&value, text, limit);
+    if (isPrint(value) && FoldTo8bits(value)) {
 	rc = 1;
 	if (w_val(wp, WMDUNICODE_AS_HEX)) {
 	    rc = COLS_UTF8;
@@ -172,7 +172,7 @@ mb_cellwidth(WINDOW *wp, const char *text, int limit)
 	    rc = COLS_8BIT;
 	}
     } else if (term_is_utfXX()) {
-	rc = vl_wcwidth((int) value);
+	rc = vl_wcwidth(value);
 	if (rc <= 0)
 	    rc = COLS_UTF8;
     }
@@ -215,17 +215,15 @@ half_pages(int f, int n)
 static void
 skipblanksf(void)
 {
-    while (lforw(DOT.l) != buf_head(curbp) && is_empty_line(DOT)) {
-	dot_next_bol();
-    }
+    while (lforw(DOT.l) != buf_head(curbp) && is_empty_line(DOT))
+	DOT.l = lforw(DOT.l);
 }
 
 static void
 skipblanksb(void)
 {
-    while (lback(DOT.l) != buf_head(curbp) && is_empty_line(DOT)) {
-	dot_prev_bol();
-    }
+    while (lback(DOT.l) != buf_head(curbp) && is_empty_line(DOT))
+	DOT.l = lback(DOT.l);
 }
 
 /*
@@ -446,7 +444,7 @@ gotoline(int f, int n)
     } else {
 	status = vl_gotoline(n);
 	if (status != TRUE)
-	    mlwarn("[Not that many lines in buffer: %ld]", absol((long) n));
+	    mlwarn("[Not that many lines in buffer: %d]", absol(n));
     }
     return status;
 }
@@ -487,6 +485,7 @@ int
 gotobos(int f, int n)
 {
     LINE *last = DOT.l;
+    int nn = curwp->w_ntrows;
 
     n = need_at_least(f, n, 1);
 
@@ -494,7 +493,8 @@ gotobos(int f, int n)
     while (--n != 0) {
 	if (is_last_line(DOT, curbp))
 	    break;
-	dot_next_bol();
+	nn -= line_height(curwp, DOT.l);
+	DOT.l = lforw(DOT.l);
     }
 
     if (DOT.l != last)
@@ -555,7 +555,7 @@ gotoeos(int f, int n)
     while ((nn -= line_height(curwp, DOT.l)) > 0) {
 	if (is_last_line(DOT, curbp))
 	    break;
-	dot_next_bol();
+	DOT.l = lforw(DOT.l);
     }
 #ifdef WMDLINEWRAP
     /* adjust if we pointed to a line-fragment */
@@ -978,7 +978,7 @@ gotoeosent(int f, int n)
     exp = b_val_rexp(curbp, VAL_SENTENCES)->reg;
     /* if we're on the end of a sentence now, don't bother scanning
        further, or we'll miss the immediately following sentence */
-    if (!(lregexec(exp, DOT.l, DOT.o, llength(DOT.l), FALSE) &&
+    if (!(lregexec(exp, DOT.l, DOT.o, llength(DOT.l)) &&
 	  exp->startp[0] - lvalue(DOT.l) == DOT.o)) {
 	if (findpat(f, n, exp, FORWARD) != TRUE) {
 	    DOT = curbp->b_line;
@@ -1061,7 +1061,7 @@ next_column(LINE *lp, int off, int col)
 	    }
 	}
 #endif
-	else if (!isPrint(CharOf(c))) {
+	else if (!isPrint(c)) {
 	    rc = NonPrintingCols(c);
 	}
     } else {
@@ -1083,11 +1083,11 @@ column_after(int c, int col, int list)
     }
 #if OPT_MULTIBYTE
     else if (b_is_utfXX(curbp)) {
-	if (vl_conv_to_utf8((UCHAR *) 0, (UINT) c, (B_COUNT) MAX_UTF8) > 1)
+	if (vl_conv_to_utf8((UCHAR *) 0, c, 10) > 1)
 	    rc = col + COLS_UTF8;	/* "\uXXXX" */
     }
 #endif
-    else if (!isPrint(CharOf(c))) {
+    else if (!isPrint(c)) {
 	rc = col + NonPrintingCols(c);
     }
     return rc;
@@ -1103,17 +1103,17 @@ column_after(int c, int col, int list)
 int
 column_sizes(WINDOW *wp, const char *text, unsigned limit, int *used)
 {
-    int rc = NonPrintingCols(CharOf(*text));
+    int rc = NonPrintingCols(*text);
 
     *used = 1;
 #if OPT_MULTIBYTE
     if (b_is_utfXX(wp->w_bufp)) {
-	*used = vl_conv_to_utf32((UINT *) 0, text, (B_COUNT) limit);
+	*used = vl_conv_to_utf32((UINT *) 0, text, limit);
 	if (*used > 1) {
 	    rc = COLS_UTF8;	/* "\uXXXX" */
 	} else if (*used < 1) {
 	    *used = 1;		/* probably a broken character... */
-	} else if (isPrint(CharOf(*text))) {
+	} else if (isPrint(*text)) {
 	    rc = 1;
 	}
     } else
@@ -1121,7 +1121,7 @@ column_sizes(WINDOW *wp, const char *text, unsigned limit, int *used)
     (void) wp;
     (void) limit;
 #endif
-    if (isPrint(CharOf(*text))) {
+    if (isPrint(*text)) {
 	rc = 1;
     }
     return rc;
@@ -1421,7 +1421,7 @@ makemarkslist(int value GCC_UNUSED, void *dummy GCC_UNUSED)
 	    done += show_mark(done, bp, wp->w_lastdot, SQUOTE);
 	}
     }
-    if (bp->b_nmmarks != NULL) {
+    if (bp->b_nmmarks != 0) {
 	for (n = 0; n < NMARKS; n++) {
 	    done += show_mark(done, bp, bp->b_nmmarks[n], inx2nmark(n));
 	}
@@ -1447,17 +1447,7 @@ makemarkslist(int value GCC_UNUSED, void *dummy GCC_UNUSED)
 int
 showmarks(int f, int n GCC_UNUSED)
 {
-    WINDOW *wp = curwp;
-    int s;
-
-    TRACE((T_CALLED "showmarks(f=%d)\n", f));
-
-    s = liststuff(MARKS_BufName, FALSE, makemarkslist, f, (void *) curbp);
-    /* back to the buffer whose modes we just listed */
-    if (swbuffer(wp->w_bufp))
-	curwp = wp;
-
-    returnCode(s);
+    return liststuff(MARKS_BufName, FALSE, makemarkslist, f, (void *) curbp);
 }
 
 #if OPT_UPBUFF
@@ -1501,10 +1491,6 @@ get_nmmark(int c, MARK *markp)
     *markp = nullmark;
     if (c == SQUOTE) {		/* use the 'last dot' mark */
 	*markp = curwp->w_lastdot;
-	if (markp->l == NULL) {
-	    markp->l = lforw(buf_head(curbp));
-	    markp->o = 0;
-	}
     } else {
 #if OPT_SELECTIONS
 	if (c == '<') {
@@ -1527,21 +1513,10 @@ get_nmmark(int c, MARK *markp)
 int
 show_mark_is_set(int c)
 {
-    int rc = TRUE;
-#if OPT_SHOW_MARKS
-    int ignore = (curbp != NULL && eql_bname(curbp, MARKS_BufName));
-    if (isLower(c)) {
-	mlwrite("[Mark '%c' %s]", c, ignore ? "ignored" : "set");
-    }
-    if (ignore) {
-	rc = FALSE;
-    } else {
-	update_scratch(MARKS_BufName, update_marklist);
-    }
-#else
-    (void) c;
-#endif
-    return rc;
+    if (isLower(c))
+	mlwrite("[Mark '%c' set]", c);
+    update_scratch(MARKS_BufName, update_marklist);
+    return TRUE;
 }
 
 /*
@@ -1726,18 +1701,15 @@ godotplus(int f, int n)
     int s;
 
     if (!f || n == 1) {
-	s = firstnonwhite(FALSE, 1);
-    } else if (n < 1) {
-	s = FALSE;
-    } else {
-	s = forwline(TRUE, n - 1);
-	if (s && is_header_line(DOT, curbp)) {
-	    s = backline(FALSE, 1);
-	}
-	if (s == TRUE) {
-	    (void) firstnonwhite(FALSE, 1);
-	}
+	return firstnonwhite(FALSE, 1);
     }
+    if (n < 1)
+	return (FALSE);
+    s = forwline(TRUE, n - 1);
+    if (s && is_header_line(DOT, curbp))
+	s = backline(FALSE, 1);
+    if (s == TRUE)
+	(void) firstnonwhite(FALSE, 1);
     return s;
 }
 
@@ -1838,7 +1810,7 @@ setcursor(int row, int col)
     MARK saveMK;
 
     TRACE((T_CALLED "setcursor(%d,%d)\n", row, col));
-    if ((wp1 = row2window(row)) != NULL) {
+    if ((wp1 = row2window(row)) != 0) {
 	if (!(doingsweep && curwp != wp1)) {
 	    saveMK = MK;
 	    if (set_curwp(wp1)

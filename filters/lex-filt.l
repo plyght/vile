@@ -7,9 +7,8 @@
 %p 25000
 
 %{
-
 /*
- * $Id: lex-filt.l,v 1.89 2025/01/26 21:48:59 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/lex-filt.l,v 1.76 2010/07/13 13:43:04 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of LEX program.
  */
@@ -17,7 +16,7 @@
 #include <filters.h>
 #include <fltstack.h>
 
-DefineFilter(lex);
+DefineFilter("lex");
 
 #define NAME_LEX_PATTERN "LexPattern"
 #define NAME_LEX_SECTION "LexSection"
@@ -57,7 +56,7 @@ DIRECTIVE	^%([{}+*-]|{IDENT})
 INTEGER		[-+]?([[:digit:]]+)
 
 SSTRING		\'(\\.|[^'\\])*\'
-DSTRING		\"(\\.|[^"\\]|\\\r?\n)*\"
+DSTRING		\"(\\.|[^"\\])*\"
 STRINGS		({SSTRING}|{DSTRING})
 
 ESCAPED		(\\[^\r\n])
@@ -76,10 +75,6 @@ RANGE		("["{RANGE0}?{RANGE1}*"]")
 LIMITED		([[:digit:]]+([,][[:digit:]]+)*)
 BRACED		("{"({IDENT}|{LIMITED}+)"}")
 
-		/*
-		 * Combining all of these pieces makes the lex filter much
-		 * larger than the other lex-based filters.
-		 */
 PATTERN0	({ESCAPED}|{BRACED}|{QUOTED}|{RANGE}|{UNQUOTED0})
 PATTERN1	({ESCAPED}|{BRACED}|{QUOTED}|{RANGE}|{UNQUOTED1})
 PATTERN		(({PATTERN0}|"("{PATTERN1}")")+|"<<EOF>>")
@@ -89,39 +84,19 @@ STATES		("<"("*"|({IDENT}|\,)+)">")
 
 %%
 
-		/*
-		 * An entirely blank line should not affect the state.
-		 */
-^{SPACE}+$	{ ECHO; }
-
-		/*
-		 * Lines in the patterns section beginning with whitespace
-		 * are passed through to the output as-is.  The main use for
-		 * that is to allow inline comments.  However, variables also
-		 * can be declared.
-		 */
-<RULES>^{SPACE}+	{
+<RULES>^[\t]+	{
     			ECHO;
 			new_state(CODE1);
 		}
 
-		/*
-		 * Handle comments.  flex actually pays attention only to
-		 * newlines and C-style comments.  We handle "//" here to
-		 * help with compiling its output.
-		 */
-<RULES,ACTION0,ACTION3,CODE,CODE1>"//"[^\r\n]* {
-			WriteToken(Comment_attr);
-		}
-<RULES,ACTION0,ACTION3,CODE,CODE1>"/*" {
-			PushQuote(COMMENT, Comment_attr);
-		}
 <RULES,ACTIONS,CODE>^"%%"{SPACE}*[^[:space:]]+[^\r\n]*	{
 			WriteToken(Comment_attr);
 		}
 
 <RULES,ACTIONS,CODE>^"%%"{SPACE}*	|
 <RULES,ACTIONS,CODE>{DIRECTIVE}	{
+		    int keep_state = 0;
+
 		    WriteToken(Section_attr);
 		    switch(yytext[1]) {
 		    case '%':
@@ -143,6 +118,7 @@ STATES		("<"("*"|({IDENT}|\,)+)">")
 		    case '+':
 		    case '-':
 		    case '*':
+			keep_state = 1;
 			break;
 		    default:
 			break;
@@ -151,9 +127,9 @@ STATES		("<"("*"|({IDENT}|\,)+)">")
 
 <STATES>{IDENT}		{
 			  const char *attr = class_attr(yytext);
-			  if (attr == NULL) {
+			  if (attr == 0) {
 			    insert_keyword(yytext, NAME_LEX_STATES, 0);
-			    attr = get_keyword_attr(yytext);
+			    attr = keyword_attr(yytext);
 			  } else {
 			    attr = Error_attr;
 			    flt_error("Keyword \"%s\" is already a classname", yytext);
@@ -169,9 +145,9 @@ STATES		("<"("*"|({IDENT}|\,)+)">")
 <RULES>^{IDENT}		{
 			  if (set_symbol_table(NAME_LEX_PATTERN)) {
 			      const char *attr = class_attr(yytext);
-			      if (attr == NULL) {
+			      if (attr == 0) {
 				  insert_keyword(yytext, Pattern_attr, 0);
-				  attr = get_keyword_attr(yytext);
+				  attr = keyword_attr(yytext);
 			      } else {
 				  attr = Error_attr;
 				  flt_error("Keyword \"%s\" is already a classname", yytext);
@@ -183,6 +159,8 @@ STATES		("<"("*"|({IDENT}|\,)+)">")
 			  }
 			  new_state(RULE1);
 			}
+<RULES>"//"[^\r\n]*	{ WriteToken(Comment_attr); }
+<RULES>"/*"		{ PushQuote(COMMENT, Comment_attr); }
 
 <RULE1>{SPACE}+		{ ECHO; new_state(RULEX); }
 <RULEX>{PATTERNS}	{ write_patterns(yytext, yyleng); new_state(RULER); }
@@ -196,8 +174,10 @@ STATES		("<"("*"|({IDENT}|\,)+)">")
 <ACTIONS>^{STATES}	{ write_states(yytext, yyleng); new_state(ACTION1); }
 <ACTIONS>^{PATTERN}	{ write_patterns(yytext, yyleng); new_state(ACTION2); }
 
+<ACTION0>"//"[^\r\n]*	{ WriteToken(Comment_attr); }
 <ACTION0>^{SPACE}+	{ ECHO; }
 <ACTION0>{STATES}	{ write_states(yytext, yyleng); new_state(ACTION1); }
+<ACTION0>"/*"		{ PushQuote(COMMENT, Comment_attr); }
 <ACTION0>{PATTERN}	{ write_patterns(yytext, yyleng); new_state(ACTION2); }
 
 <ACTION1>"{"		{ WriteToken(Action_attr); ++bracket; new_state(ACTION0); }
@@ -209,17 +189,21 @@ STATES		("<"("*"|({IDENT}|\,)+)">")
 <ACTION2>{SPACE}+	{ ECHO; new_state(ACTION3); }
 <ACTION2>[\n]		{ ECHO; end_action(); }
 
-<ACTION3>{IDENT}	{ WriteToken(get_keyword_attr(yytext)); new_state(CODE1); }
+<ACTION3>{IDENT}	{ WriteToken(keyword_attr(yytext)); new_state(CODE1); }
+<ACTION3>"//"[^\r\n]*	{ WriteToken(Comment_attr); }
+<ACTION3>"/*"		{ PushQuote(COMMENT, Comment_attr); }
 <ACTION3>\{		{ ECHO; nesting = 1; new_state(CODE); }
 <ACTION3>[\n]		{ ECHO; end_action(); }
 
-<CODE,CODE1>{IDENT}	{ WriteToken(get_keyword_attr(yytext)); }
+<CODE,CODE1>{IDENT}	{ WriteToken(keyword_attr(yytext)); }
 <CODE,CODE1>{STRINGS}	{ WriteToken(String_attr); }
 <CODE,CODE1>{INTEGER}	{ WriteToken(Number_attr); }
-<CODE1>[\n]		{ ECHO; set_state(); }
-<CODE>\{		{ ECHO; nesting++; }
-<CODE>\}		{ ECHO; if (--nesting <= 0) { nesting = 0; set_rules(); } }
+<CODE1>[\n]		{ ECHO; set_rules(); }
+<CODE,CODE1>\{		{ ECHO; nesting++; }
+<CODE,CODE1>\}		{ ECHO; if (--nesting <= 0) { nesting = 0; set_rules(); } }
 
+<CODE,CODE1>"//"[^\r\n]*	{ WriteToken(Comment_attr); }
+<CODE,CODE1>"/*"	{ PushQuote(COMMENT, Comment_attr); }
 <COMMENT>[^*]*		{ flt_bfr_append(yytext, yyleng); }
 <COMMENT>"*"+[^*/]*	{ flt_bfr_append(yytext, yyleng); }
 <COMMENT>"*"+"/"	{ PopQuote(); }
@@ -265,8 +249,8 @@ set_rules(void)
 static void
 write_1state(char *text, int len)
 {
-    const char *attr = get_keyword_attr(text);
-    if (attr == NULL) {
+    const char *attr = keyword_attr(text);
+    if (attr == 0) {
 	if (len == 1 && *text == '*') {
 	    attr = Keyword_attr;
 	} else {
@@ -293,10 +277,10 @@ write_states(char *text, int len)
 	++text;
 	--len;
 
-	if ((last = strchr(text, '>')) != NULL)
+	if ((last = strchr(text, '>')) != 0)
 	    *last = 0;
 
-	while (len >= 0 && (next = strchr(text, ',')) != NULL) {
+	while ((next = strchr(text, ',')) != 0) {
 	    *next = 0;
 	    write_1state(text, (int) (next - text));
 	    *next = ',';
@@ -307,7 +291,7 @@ write_states(char *text, int len)
 	    ++text;
 	    --len;
 	}
-	if (last != NULL) {	/* ...or is confused with a {PATTERN} */
+	if (last != 0) {	/* ...or is confused with a {PATTERN} */
 	    n = (int) (1 + last - text);
 	    write_1state(text, n - 1);
 	    *last = '>';
@@ -320,11 +304,11 @@ write_states(char *text, int len)
 static int
 ok_to_embed(char *text, int first, int last, int value)
 {
-    return ((value != first
-	     && value < last
-	     && text[value] == R_CURLY)
-	    ? (value + 1)
-	    : -1);
+    return (value != first
+    	 && value < last
+	 && text[value] == R_CURLY)
+	     ? (value + 1)
+	     : -1;
 }
 
 static int
@@ -410,7 +394,7 @@ write_patterns(char *text, int len)
 		     * it is more likely to be useful.
 		     */
 		    flt_bfr_append(text + first, last - first);
-		    if ((attr = get_keyword_attr(text + last + 1)) == NULL) {
+		    if ((attr = keyword_attr(text + last + 1)) == 0) {
 			attr = Error_attr;
 			flt_error("Undefined name \"%s\"", text + last + 1);
 		    }
@@ -445,31 +429,30 @@ do_filter(FILE *inputs)
     section = 0;
     nesting = 0;
 
-    Action_attr = class_attr(NAME_ACTION);
+    Action_attr  = class_attr(NAME_ACTION);
     Comment_attr = class_attr(NAME_COMMENT);
-    Error_attr = class_attr(NAME_ERROR);
-    Ident_attr = class_attr(NAME_IDENT);
+    Error_attr   = class_attr(NAME_ERROR);
+    Ident_attr   = class_attr(NAME_IDENT);
     Keyword_attr = class_attr(NAME_KEYWORD);
-    Number_attr = class_attr(NAME_NUMBER);
+    Number_attr  = class_attr(NAME_NUMBER);
     Preproc_attr = class_attr(NAME_PREPROC);
-    String_attr = class_attr(NAME_LITERAL);
+    String_attr  = class_attr(NAME_LITERAL);
 
-    if ((Section_attr = class_attr(NAME_LEX_SECTION)) == NULL)
+    if ((Section_attr = class_attr(NAME_LEX_SECTION)) == 0)
 	Section_attr = Keyword_attr;
 
-    if ((States_attr = class_attr(NAME_LEX_STATES)) == NULL)
+    if ((States_attr = class_attr(NAME_LEX_STATES)) == 0)
 	insert_keyword(NAME_LEX_STATES, Keyword_attr, 0);
 
     flt_make_symtab(NAME_LEX_PATTERN);
     set_symbol_table(NAME_LEX_PATTERN);
-    if ((Pattern_attr = class_attr(NAME_LEX_PATTERN)) == NULL)
+    if ((Pattern_attr = class_attr(NAME_LEX_PATTERN)) == 0)
 	Pattern_attr = String_attr;
 
     set_symbol_table(default_table);
 
     begin_state(RULES);
     RunLEX();
-    flt_bfr_error();
     end_state();
 }
 

@@ -4,14 +4,14 @@
 %{
 
 /*
- * $Id: tbl-filt.l,v 1.18 2013/12/02 01:32:53 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/tbl-filt.l,v 1.14 2008/11/19 23:11:46 tom Exp $
  *
  * Filter to add vile "attribution" sequences to a vile mktbls datafile.
  */
 
 #include <filters.h>
 
-DefineFilter(tbl);
+DefineFilter("tbl");
 
 static char *Comment_attr;
 static char *Ident2_attr;
@@ -37,7 +37,7 @@ NUMBER		{SIGN}?({DECIMAL}|{OCTAL}|{HEXADECIMAL}|{REAL})
 
 %%
 
-<NORMAL>{KEYWORD}	{ WriteToken(mixedcase(yytext) ? get_keyword_attr(yytext) : Preproc_attr); }
+<NORMAL>{KEYWORD}	{ WriteToken(mixedcase(yytext) ? keyword_attr(yytext) : Preproc_attr); }
 
 <NORMAL>{COMMENT}	{ WriteToken(Comment_attr); }
 
@@ -90,11 +90,11 @@ do_filter(FILE *inputs)
     InitLEX(inputs);
 
     Comment_attr = class_attr(NAME_COMMENT);
-    Ident2_attr = class_attr(NAME_IDENT2);
+    Ident2_attr  = class_attr(NAME_IDENT2);
     Keyword_attr = class_attr(NAME_KEYWORD);
-    Number_attr = class_attr(NAME_NUMBER);
+    Number_attr  = class_attr(NAME_NUMBER);
     Preproc_attr = class_attr(NAME_PREPROC);
-    String_attr = class_attr(NAME_LITERAL);
+    String_attr  = class_attr(NAME_LITERAL);
 
     BEGIN(NORMAL);
     RunLEX();

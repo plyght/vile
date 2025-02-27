@@ -4,46 +4,38 @@
  *
  *   Created: Thu May 14 15:44:40 1992
  *
- * $Id: proto.h,v 1.762 2025/01/26 10:41:55 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/proto.h,v 1.708 2010/07/25 09:23:41 tom Exp $
+ *
  */
 
 #ifndef VILE_PROTO_H
 #define VILE_PROTO_H 1
-/* *INDENT-OFF* */
+
+#if !CHECK_PROTOTYPES
+extern int main (int argc, char **argv);
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#undef vl_strncat
-#undef vl_strncpy
-
-#ifndef SIG_ATOMIC_T
-#define SIG_ATOMIC_T char
-#endif
-
-typedef void (*SIGNAL_HANDLER) (int ACTUAL_SIG_ARGS);
-
 extern SIGT catchintr (int ACTUAL_SIG_ARGS);
 extern char *init_state_value (int n);
 extern char *strncpy0 (char *t, const char *f, size_t l);
-extern char *sys_getenv (const char *name);
 extern char *vile_getenv (const char *name);
-extern char *vl_strncat (char *dest, const char *src, size_t destlen);
 extern char *vl_strncpy (char *dest, const char *src, size_t destlen);
 extern int call_cmdfunc (const CMDFUNC *p, int f, int n);
-extern SIGNAL_HANDLER original_sighandler(int sig);
 extern int no_memory (const char *s);
 extern int rdonly (void);
 extern int writeall (int f, int n, int promptuser, int leaving, int autowriting, int all);
 extern void do_repeats (int *cp, int *fp, int *np);
-extern GCC_NORETURN void exit_program (int code);
+extern void exit_program (int code);
 extern void init_mode_value (struct VAL *, MODECLASS c, int n);
 extern void not_interrupted (void);
-extern SIGNAL_HANDLER setup_handler (int sig, SIGNAL_HANDLER disp);
+extern void setup_handler (int sig, void (*disp) (int ACTUAL_SIG_ARGS));
 extern void tcap_init_fkeys (void);
 extern void tcap_setup_locale (char *real_locale, char *fake_locale);
-extern GCC_NORETURN void tidy_exit (int code);
+extern void tidy_exit (int code);
 
 #ifndef interrupted
 extern int interrupted (void);
@@ -190,19 +182,17 @@ extern int gotoeob (int f, int n);
 /* bind.c */
 extern BINDINGS * vl_get_binding (const char *name);
 extern char *cfg_locate (char *fname, UINT hflag);
-extern char *kbd_engl (const char *prompt, char *buffer, UINT which);
+extern char *kbd_engl (const char *prompt, char *buffer);
 extern char *kcod2prc (int c, char *seq);
 extern char *kcod2pstr (int c, char *seq, int limit);
 extern const CMDFUNC *engl2fnc (const char *fname);
 extern const CMDFUNC *kcod2fnc (const BINDINGS *bs, int c);
-extern int cmd_complete (DONE_ARGS);
-extern int cs_strcmp (int case_insensitive, const char *s1, const char *s2);
-extern int cs_strncmp (int case_insensitive, const char *s1, const char *s2, size_t len);
+extern const char * fnc2engl(const CMDFUNC * cfp);
 extern int eol_command (EOL_ARGS);
 extern int fnc2kcod (const CMDFUNC *);
 extern int fnc2kins (const CMDFUNC *);
 extern int kbd_complete (DONE_ARGS, const char *table, size_t size_entry);
-extern int kbd_engl_stat (const char *prompt, char *buffer, UINT which, int stated);
+extern int kbd_engl_stat (const char *prompt, char *buffer, int stated);
 extern int kbd_erase_to_end (int column);
 extern int kbd_length (void);
 extern int kbd_putc (int c);
@@ -224,22 +214,16 @@ extern char *fnc2pstr (const CMDFUNC *f);
 extern const char *prc2engl (const char *skey);
 #endif
 
-#if OPT_EVAL || OPT_REBIND
-extern const char * fnc2engl(const CMDFUNC * cfp);
-#else
-#define fnc2engl(cfp) ""
-#endif
-
 #if OPT_MENUS
 extern char *give_accelerator ( char * );
 #endif
 
 #if OPT_NAMEBST
-extern int delete_namebst(const char *name, int release, int redefining, UINT which);
-extern int insert_namebst(const char *name, const CMDFUNC *cmd, int ro, UINT which);
-extern int rename_namebst(const char *oldname, const char *newname, UINT which);
-extern int search_namebst(const char *name, UINT which);
-extern void build_namebst(const NTAB *nametbl, int lo, int hi, UINT which);
+extern int delete_namebst(const char *name, int release, int redefining);
+extern int insert_namebst(const char *name, const CMDFUNC *cmd, int ro);
+extern int rename_namebst(const char *oldname, const char *newname);
+extern int search_namebst(const char *name);
+extern void build_namebst(const NTAB *nametbl, int lo, int hi);
 #endif
 
 #if OPT_TRACE
@@ -260,7 +244,6 @@ extern BUFFER *find_bp (BUFFER *bp1);
 extern BUFFER *getfile2bp (const char *fname, int ok_to_ask, int cmdline);
 extern BUFFER *make_bp (const char *fname, UINT flags);
 extern BUFFER *make_ro_bp(const char *bname, UINT flags);
-extern BUFFER *zotbuf2 (BUFFER *bp);
 extern WINDOW *bp2any_wp (BUFFER *bp);
 extern char *add_brackets(char *dst, const char *src);
 extern char *hist_lookup (int c);
@@ -272,13 +255,11 @@ extern int any_changed_buf (BUFFER **bpp);
 extern int any_unread_buf (BUFFER **bpp);
 extern int ask_for_bname(const char *prompt, char *bufn, size_t len);
 extern int bclear (BUFFER *bp);
-extern int bname_complete (DONE_ARGS);
 extern int bsizes (BUFFER *bp);
 extern int buffer_in_use (BUFFER *bp);
 extern int buffer_is_solo (BUFFER *bp);
 extern int buffer_is_visible (BUFFER *bp);
 extern int delink_bp (BUFFER *bp);
-extern int eql_bname (BUFFER *bp, const char *name);
 extern int kill_that_buffer (BUFFER *bp);
 extern int popupbuff (BUFFER *bp);
 extern int renamebuffer(BUFFER *rbp, char *bufname);
@@ -289,14 +270,13 @@ extern int tabstop_val (BUFFER *bp);
 extern int zotbuf (BUFFER *bp);
 extern int zotwp (BUFFER *bp);
 extern void buffer_flags (char *dst, BUFFER *bp);
-extern void chg_buff (BUFFER *bp, unsigned flag);
+extern void chg_buff (BUFFER *bp, USHORT flag);
 extern void imply_alt (char *fname, int copy, int lockfl);
 extern void make_current (BUFFER *nbp);
 extern void set_bname (BUFFER *bp, const char *name);
 extern void set_editor_title(void);
-extern void set_last_bp (BUFFER *nbp);
 extern void sortlistbuffers (void);
-extern void unchg_buff (BUFFER *bp, unsigned flag);
+extern void unchg_buff (BUFFER *bp, USHORT flag);
 extern void undispbuff (BUFFER *bp, WINDOW *wp);
 
 #if !OPT_MAJORMODE
@@ -323,7 +303,6 @@ extern int vl_wcwidth(int code);
 extern int aligned_charset (BUFFER *bp, UCHAR *buffer, B_COUNT *length);
 extern int check_utf8 (UCHAR * buffer, B_COUNT length);
 extern int cleanup_charset (BUFFER *bp, UCHAR *buffer, B_COUNT *length);
-extern int vl_check_utf8 (const char *source, B_COUNT limit);
 extern int vl_conv_to_utf32 (UINT * target, const char *source, B_COUNT limit);
 extern int vl_conv_to_utf8 (UCHAR * target, UINT source, B_COUNT limit);
 extern void found_utf8 (BUFFER *bp);
@@ -453,14 +432,12 @@ extern char * vl_get_encoding (char **target, const char *locale);
 extern char * vl_get_locale (char **target);
 extern char * vl_narrowed (const char *wide);
 extern const char * vl_mb_to_utf8 (int code);
-extern int vl_8bit_builtin (void);
 extern int vl_8bit_to_ucs(int *result, int code);
 extern int vl_is_8bit_encoding (const char * value);
 extern int vl_is_latin1_encoding (const char * value);
 extern int vl_is_utf8_encoding (const char * value);
 extern int vl_mb_is_8bit (int value);
 extern int vl_ucs_to_8bit (int *result, int code);
-extern void vl_8bit_ctype_init (int wide, int ch);
 extern void vl_close_mbterm (void);
 extern void vl_init_8bit (const char *wide, const char *narrow);
 extern void vl_open_mbterm (void);
@@ -501,12 +478,12 @@ extern char * render_int (TBUFF **rp, int i);
 extern char * render_long (TBUFF **rp, long i);
 extern char * render_ulong (TBUFF **rp, ULONG i);
 extern char * skip_space_tab(char *src);
-extern const char * status2s (int val);
 extern const char * skip_cblanks (const char *str);
 extern const char * skip_cnumber (const char *str);
 extern const char * skip_cstring (const char *str);
 extern const char * skip_ctext (const char *str);
 extern const char * tokval (const char *tokn);
+extern int absol (int x);
 extern int eval_fchanged (BUFFER *bp);
 extern int is_falsem (const char *val);
 extern int is_truem (const char *val);
@@ -514,11 +491,9 @@ extern int mac_literalarg (TBUFF **tok);
 extern int mac_token (TBUFF **tok);
 extern int macroize (TBUFF **p, TBUFF *src, int skip);
 extern int must_quote_token (const char * values, size_t last);
-extern int s2status (const char *val);
 extern int scan_bool (const char *s );
 extern int toktyp (const char *tokn);
 extern int vl_lookup_statevar(const char *vname);
-extern long absol (long x);
 extern void append_quoted_token (TBUFF ** dst, const char * values, size_t last);
 extern void path_quote (TBUFF **result, const char *path);
 
@@ -538,6 +513,7 @@ extern char *skip_text (char *str);
 extern LINE *label2lp (BUFFER *bp, const char *label);
 extern int rmv_tempvar (const char *name);
 extern int set_state_variable (const char *name, const char *value);
+extern int vl_lookup_func (const char *name);
 extern long scan_long (const char *s);
 #define scan_int(s) (int)scan_long(s)
 #else
@@ -546,8 +522,6 @@ extern long scan_long (const char *s);
 #define scan_int(s) atoi(s)
 #define set_state_variable(name, value) /* nothing */
 #endif
-
-extern int vl_lookup_func (const char *name);
 
 #if OPT_EVAL || DISP_X11
 extern int stol (const char *val);
@@ -610,7 +584,7 @@ extern int more_named_cmd (void);
 extern int user_operator (void);
 
 /* file.c */
-extern GCC_NORETURN SIGT imdying (int ACTUAL_SIG_ARGS);
+extern SIGT imdying (int ACTUAL_SIG_ARGS);
 extern int bp2readin (BUFFER *bp, int lockfl);
 extern int fileuid_compare (FUID *fuid1, FUID *fuid2);
 extern int fileuid_get (const char *fname, FUID *fuid);
@@ -663,8 +637,6 @@ extern int mlreply_file (const char *prompt, TBUFF **buf, UINT flag, char *resul
 extern int fill_directory_buffer(BUFFER *bp, char *path, size_t dots);
 extern int path_completion (DONE_ARGS);
 extern void init_filec(const char *buffer_name);
-#else
-#define init_filec(buffer_name) /* nothing */
 #endif
 
 /* fileio.c */
@@ -755,7 +727,7 @@ extern int kbd_replaying (int match);
 extern int kbd_reply (const char *prompt, TBUFF **extbuf, int (*efunc)(EOL_ARGS), int eolchar, KBD_OPTIONS options, int (*cfunc)(DONE_ARGS));
 extern int kbd_seq (void);
 extern int kbd_seq_nomap (void);
-extern int kbd_show_response (TBUFF **dst, const char *src, size_t bufn, int eolchar, KBD_OPTIONS options);
+extern int kbd_show_response (TBUFF **dst, char *src, size_t bufn, int eolchar, KBD_OPTIONS options);
 extern int kbd_string (const char *prompt, char *extbuf, size_t bufn, int eolchar, KBD_OPTIONS options, int (*func)(DONE_ARGS));
 extern int kbd_string2 (const char *prompt, TBUFF **result, int eolchar, KBD_OPTIONS options, int (*complete)(DONE_ARGS));
 extern int kbm_started (int macnum, int force);
@@ -770,7 +742,7 @@ extern int mlreply2 (const char *prompt, TBUFF **buf);
 extern int mlreply_no_bs (const char *prompt, char *buf, UINT bufn);
 extern int mlreply_no_opts (const char *prompt, char *buf, UINT bufn);
 extern int mlreply_reg (const char *prompt, char *cbuf, int *retp, int at_dft);
-extern int mlreply_reg_count (const char *cmd, int state, int *retp, int *next);
+extern int mlreply_reg_count (int state, int *retp, int *next);
 extern int mlyesno (const char *prompt);
 extern int no_completion (DONE_ARGS);
 extern int read_msgline (int flag);
@@ -786,7 +758,7 @@ extern int vl_regex2tbuff (TBUFF **buf, REGEXVAL *expr, int whole_line);
 extern void dotcmdstop (void);
 extern void get_kbd_macro (TBUFF **rp);
 extern void incr_dot_kregnum (void);
-extern TBUFF * kbd_kill_response (TBUFF *buf, size_t *position, int c);
+extern void kbd_kill_response (TBUFF *buf, size_t *position, int c);
 extern void kbd_mac_check (void);
 extern void kbd_pushback (TBUFF *buf, int skip);
 extern void set_end_string (int c);
@@ -873,7 +845,6 @@ extern void kregcirculate (int killing);
 extern void ksetup (void);
 extern void lfree (LINE *lp, BUFFER *bp);
 extern void lremove (BUFFER *bp, LINE *lp);
-extern void lremove2 (BUFFER *bp, LINE *lp);
 extern void ltextfree (LINE *lp, BUFFER *bp);
 
 #if OPT_EVAL
@@ -886,15 +857,7 @@ extern int ldel_chars (B_COUNT n, int kflag);
 extern int lins_chars (int n, int c);
 #else
 #define ldel_chars(n, kflag) ldel_bytes(n, kflag)
-#define lins_chars(n, c)  lins_bytes(n, c)
-#endif
-
-#if OPT_REGS_CMPL
-extern KBD_OPTIONS regs_kbd_options(void);
-extern int regs_completion(DONE_ARGS);
-#else
-#define regs_kbd_options() 0
-#define regs_completion no_completion
+#define lins_chars(n, c)     lins_bytes(n, c)
 #endif
 
 #if SMALLER	/* cancel neproto.h */
@@ -913,10 +876,6 @@ extern void delfromsysmap (const char *seq, int seqlen);
 extern void map_drain (void);
 extern void mapungetc (int c);
 
-#if OPT_MULTIBYTE
-extern int map_to_command_char (int c);
-#endif
-
 /* menu.c */
 #if OPT_MENUS
 extern ActionFunc vlmenu_action_func(char *action);
@@ -926,8 +885,8 @@ extern int vlmenu_is_bind (char *action);
 extern void init_menus (void);
 	/* driver-specific interface */
 extern int gui_create_menus (void);
-extern void * gui_add_menu_item (void * pm, const char *nom, char *accel, int the_class);
-extern void * gui_make_menu (void * menubar, const char *nom, int the_class);
+extern void * gui_add_menu_item (void * pm, char *nom, char *accel, int the_class);
+extern void * gui_make_menu (void * menubar, char *nom, int the_class);
 extern void gui_add_func_callback (void * w, void * closure);
 extern void gui_add_list_callback (void *pm);
 #endif
@@ -962,9 +921,9 @@ extern void copy_mvals (int maximum, struct VAL *dst, struct VAL *src);
 extern void free_local_vals (const struct VALNAMES *names, struct VAL *gbl, struct VAL *val);
 extern void free_val (const struct VALNAMES *names, struct VAL *values);
 extern void set_buf_fname_expr (BUFFER *bp);
-extern void set_bufflags (int glob_vals, unsigned flags);
+extern void set_bufflags (int glob_vals, USHORT flags);
 extern void set_record_sep (BUFFER *bp, RECORD_SEP value);
-extern void set_winflags (int glob_vals, unsigned flags);
+extern void set_winflags (int glob_vals, USHORT flags);
 
 #if OPT_COLOR_SCHEMES
 extern void init_scheme (void);
@@ -999,11 +958,9 @@ extern void infer_majormode (BUFFER *bp);
 extern void set_majormode_rexp (const char *name, int n, const char *pat);
 extern void set_submode_val (const char *name, int n, int value);
 extern void set_submode_txt (const char *name, int n, const char * value);
-extern void set_tagsmode (BUFFER *bp);
 extern void set_vilemode (BUFFER *bp);
 #else
 #define infer_majormode(bp) fix_cmode(bp, (global_b_val(MDCMOD) && has_C_suffix(bp)))
-#define set_tagsmode(bp) /*nothing*/
 #define set_vilemode(bp) /*nothing*/
 #endif
 
@@ -1064,7 +1021,7 @@ extern char * lengthen_path (char *path);
 extern char * pathcat (char *dst, const char *path, const char *leaf);
 extern char * pathleaf (char *path);
 extern char * shorten_path (char *path, int keep_cwd);
-extern const char *parse_pathlist (const char *list, char *result, int *first);
+extern const char *parse_pathlist (const char *list, char *result);
 extern int find_in_path_list (const char *path_list, char *path);
 extern int is_abs_pathname(char *path);
 extern int is_directory (const char *path);
@@ -1090,7 +1047,7 @@ extern char * sl_to_bsl (const char *p);
 extern char * bsl_to_sl_inplace (char *p);
 #endif
 
-#if SYS_OS2
+#if OPT_CASELESS && SYS_OS2
 extern int is_case_preserving (const char *name);
 #endif
 
@@ -1144,10 +1101,6 @@ extern ULONG vl_atoul (const char *str, int base, int *failed);
 extern int vl_stricmp (const char *a, const char *b);
 #endif
 
-#ifndef vl_strnicmp
-extern int vl_strnicmp (const char *a, const char *b, size_t n);
-#endif
-
 #if (OPT_AUTOCOLOR || OPT_ELAPSED) && defined(VL_ELAPSED)
 extern double vl_elapsed(VL_ELAPSED * first, int begin);
 #endif
@@ -1162,8 +1115,8 @@ extern char * previous_directory (void);
 #if OPT_HOOKS
 extern int run_a_hook (HOOK *hook);
 extern int run_readhook (void);
-#define DisableHook(hook) ((hook)->latch)++
-#define EnableHook(hook)  --((hook)->latch)
+#define DisableHook(hook) (hook)->latch += 1
+#define EnableHook(hook)  (hook)->latch -= 1
 #else
 #define run_a_hook(hook)  /*nothing*/
 #define run_readhook()    /*nothing*/
@@ -1191,22 +1144,19 @@ extern void update_dos_drv_dir (char * cwd);
 
 /* regexp.c */
 #define lregexec vl_lregexec
-extern int cregexec (regexp *prog, LINE *lp, int startoff, int endoff, int at_bol, int ic);
-extern int lregexec (regexp *prog, LINE *lp, int startoff, int endoff, int ic);
-extern int nregexec (regexp *prog, char *string, char *stringend, int startoff, int endoff, int ic);
+extern int lregexec (regexp *prog, LINE *lp, int startoff, int endoff);
+extern int nregexec (regexp *prog, char *string, char *stringend, int startoff, int endoff);
 
 /* region.c */
 typedef int (*DORGNLINES)(int (*)(REGN_ARGS), void *, int);
 
 extern DORGNLINES get_do_lines_rgn (void);
 extern int        blank_region (void);
-extern int        del_emptylines_region (void);
 extern int        detab_region (void);
 extern int        detabline (void *flagp, int l, int r);
 extern int        entab_region (void);
 extern int        entabline (void *flagp, int l, int r);
 extern int        flipregion (void);
-extern int        frc_emptylines_region (void);
 extern int        get_fl_region (BUFFER *bp, REGION *rp);
 extern int        getregion (BUFFER *bp, REGION *rp);
 extern int        kill_line (void *flagp, int l, int r);
@@ -1232,7 +1182,7 @@ extern TBUFF * encode_attributes (LINE *lp, BUFFER *bp, REGION * top_region);
 extern int findpat (int f, int n, regexp *exp, int direc);
 extern int fsearch (int f, int n, int marking, int fromscreen);
 extern int readpattern (const char *prompt, TBUFF **apat, regexp **srchexpp, int c, int fromscreen);
-extern int scanner (regexp *exp, int direct, int wrapok, int at_bol, int ic, int *wrappedp);
+extern int scanner (regexp *exp, int direct, int wrapok, int *wrappedp);
 extern void attrib_matches (void);
 extern void scanboundry (int wrapok, MARK dot, int dir);
 
@@ -1249,7 +1199,7 @@ extern	int	assign_attr_id	(void);
 extern	int	attribute_cntl_a_seqs_in_region (REGION *rp, REGIONSHAPE shape);
 extern	int	attributeregion (void);
 extern	int	attributeregion_in_region (REGION *rp, REGIONSHAPE shape,
-					    unsigned vattr, char *hc);
+					    VIDEO_ATTR vattr, char *hc);
 extern	int	decode_attribute (char *text, size_t length, size_t offset, int *countp);
 extern	int	sel_begin	(void);
 extern	int	sel_extend	(int wiping, int include_dot);
@@ -1258,7 +1208,7 @@ extern	int	sel_get_rightmark (MARK *result);
 extern	int	sel_setshape	(REGIONSHAPE shape);
 extern	void	do_sweep	(int flag);
 extern	void	find_release_attr (BUFFER *bp, REGION *rp);
-extern	void	free_attrib2	(BUFFER *bp, AREGION **rpp);
+extern	void	free_attrib	(BUFFER *bp, AREGION *ap);
 extern	void	free_attribs	(BUFFER *bp);
 extern	void	sel_reassert_ownership (BUFFER *bp);
 extern	void	sel_release	(void);
@@ -1321,10 +1271,6 @@ extern int open_region_filter (void);
 #define pressreturn() (void)keystroke()
 #endif
 
-/* tags.c */
-extern KBD_OPTIONS tags_kbd_options (void);
-extern int tags_completion (DONE_ARGS);
-
 /* tbuff.c */
 TBUFF *	tb_alloc (TBUFF **p, size_t n);
 TBUFF *	tb_append (TBUFF **p, int c);
@@ -1375,7 +1321,6 @@ extern void dumb_set_encoding(ENC_CHOICES);
 extern ENC_CHOICES dumb_get_encoding(void);
 
 extern int  nullterm_setdescrip (const char *res);
-extern int  nullterm_setpal (const char *p);
 extern int  nullterm_watchfd (int fd, WATCHTYPE type, long *idp);
 extern void nullterm_clean (int flag);
 extern void nullterm_cursorvis (int flag);
@@ -1391,6 +1336,7 @@ extern void nullterm_scroll (int f, int t, int n);
 extern void nullterm_setback (int b);
 extern void nullterm_setccol (int c);
 extern void nullterm_setfore (int f);
+extern void nullterm_setpal (const char *p);
 extern void nullterm_settitle (const char *t);
 extern void nullterm_unclean (void);
 extern void nullterm_unwatchfd (int fd, long id);
@@ -1398,17 +1344,10 @@ extern void nullterm_unwatchfd (int fd, long id);
 /* ucrypt.c */
 #if	OPT_ENCRYPT
 extern	int	vl_encrypt_char(int c);
-extern	int	vl_resetkey (BUFFER * /* bp */, const char * /* fname */);
-extern	void	vl_encrypt_blok (char * /* bptr */, UINT /* len */);
-extern	void	vl_make_encrypt_key (char * /* dst */, const char * /* src */);
-extern	void	vl_setup_encrypt (char * /* pw */, int /* seed */);
-
-#if defined(MISSING_EXTERN_CRYPT) || !defined(HAVE_CRYPT)
-extern	char *	crypt	(const char *key, const char *salt);
-extern	void	encrypt	(char *nachr, int decr);
-extern	void	setkey	(const char *schl);
-#endif
-
+extern	int	vl_resetkey (BUFFER *bp, const char *fname);
+extern	void	vl_encrypt_blok (char *bptr, UINT len);
+extern	void	vl_make_encrypt_key (char *dst, const char *src);
+extern	void	vl_setup_encrypt (char *pw);
 #endif	/* OPT_ENCRYPT */
 
 /* undo.c */
@@ -1435,7 +1374,7 @@ extern void toss_to_undo (LINE *lp);
 /* version.c */
 extern const char * getversion (void);
 extern const char * non_filename (void);
-extern GCC_NORETURN void print_usage (int code);
+extern void print_usage (int code);
 
 /* vms2unix.c */
 #if OPT_VMS_PATH
@@ -1515,7 +1454,7 @@ extern int  is_winnt(void);
 extern char *mk_shell_cmd_str(const char *cmd, int *allocd_mem, int prepend_shc);
 extern char *ntwinio_current_font(void);
 extern int  ntwinio_font_frm_str(const char *fontstr, int use_mb);
-extern GCC_NORETURN void ntwinio_oleauto_reg(void);
+extern void ntwinio_oleauto_reg(void);
 extern void ntwinio_redirect_hwnd(int redirect);
 extern void oleauto_exit(int code);
 extern int  oleauto_init(OLEAUTO_OPTIONS *opts);
@@ -1549,7 +1488,6 @@ extern void winvile_start(void);
  */
 #ifdef DECLARE_HANDLE
 extern void w32_close_handle(HANDLE handle);
-extern int  w32_wait_handle(HANDLE handle);
 #endif
 
 /*
@@ -1562,7 +1500,7 @@ extern int  w32_get_reg_sz(HKEY hkey, const char *name, char *value, unsigned le
 extern int  w32_set_reg_sz(HKEY hkey, const char *name, const char *value);
 #endif
 
-#if DISP_NTCONS
+#if DISP_NTCONS	
 extern void w32_set_console_title(const char *title);
 #endif
 
@@ -1632,8 +1570,8 @@ extern BUFFER * pop_fake_win(WINDOW *oldwp, BUFFER *oldbp);
 #endif
 
 #if OPT_PERL
-extern WIN_ID win2id (WINDOW *wp);
-extern WINDOW * id2win (WIN_ID id);
+extern ULONG win2id (WINDOW *wp);
+extern WINDOW * id2win (ULONG id);
 extern WINDOW * index2win (int idx);
 #endif
 
@@ -1660,7 +1598,7 @@ extern void setchartype (void);
 extern	char *	x_current_fontname	(void);
 extern	char *	x_get_display_name	(void);
 extern	char *	x_get_icon_name		(void);
-extern	const char * x_get_window_name	(void);
+extern	char *	x_get_window_name	(void);
 extern	int	x_preparse_args		(int *pargc, char ***pargv);
 extern	int	x_setfont		(const char *fname);
 extern	int	x_milli_sleep		(int milli);
@@ -1707,7 +1645,6 @@ extern	void	gui_update_scrollbar	(WINDOW *uwp);
 #if NO_LEAKS
 extern	void	bind_leaks (void);
 extern	void	bp_leaks (void);
-extern	void	curses_leaks (void);
 extern	void	eightbit_leaks (void);
 extern	void	ev_leaks (void);
 extern	void	fileio_leaks (void);
@@ -1722,7 +1659,6 @@ extern	void	onel_leaks (void);
 extern	void	path_leaks (void);
 extern	void	tags_leaks (void);
 extern	void	tb_leaks (void);
-extern	void	tcap_leaks (void);
 extern	void	trace_leaks (void);
 extern	void	vars_leaks (void);
 extern	void	vl_ctype_leaks(void);
@@ -1737,6 +1673,7 @@ extern	void	x11_leaks (void);
 #define vl_mkdtemp(path) mkdtemp(path)
 #endif
 
+#if SYS_UNIX
 #ifdef MISSING_EXTERN_ACCESS
 extern	int	access	(const char *path, int mode);
 #endif
@@ -1751,6 +1688,9 @@ extern	int	chdir	(const char *path);
 #endif
 #ifdef MISSING_EXTERN_CLOSE
 extern	int	close	(int fd);
+#endif
+#ifdef MISSING_EXTERN_CRYPT
+extern	char *	crypt	(const char *key, const char *salt);
 #endif
 #ifdef MISSING_EXTERN_DUP
 extern	int	dup	(int fd);
@@ -1824,7 +1764,7 @@ extern	int	kill	(int pid, int sig);
 #if defined(MISSING_EXTERN_KILLPG) && defined(HAVE_KILLPG)
 extern	int	killpg	(int pgrp, int sig);
 #endif
-#if defined(MISSING_EXTERN_LONGJMP) && !defined(longjmp)
+#ifdef MISSING_EXTERN_LONGJMP
 extern	void	longjmp	(jmp_buf env, int val);
 #endif
 #ifdef MISSING_EXTERN_LSTAT
@@ -1939,11 +1879,10 @@ extern	int	write	(int fd, const char *buffer, int size);
 #ifdef MISSING_EXTERN__NC_FREEALL
 extern	void	_nc_freeall (void);
 #endif
+#endif
 
 #ifdef __cplusplus
 }
 #endif
-
-/* *INDENT-ON* */
 
 #endif /* VILE_PROTO_H */

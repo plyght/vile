@@ -11,7 +11,7 @@
  *    Subsequent copies do not show this cursor.  On an NT host, this
  *    phenomenon does not occur.
  *
- * $Id: w32cbrd.c,v 1.45 2022/08/04 21:16:11 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/w32cbrd.c,v 1.37 2010/02/10 12:05:43 tom Exp $
  */
 
 #include "estruct.h"
@@ -186,12 +186,8 @@ cbrd_copy_and_xlate(int len, W32_CHAR ** cbrd_ptr, UCHAR * src)
 	    UINT target;
 	    int rc = vl_conv_to_utf32(&target, (const char *) src, len);
 
-	    if (rc > 1) {
-		*dst++ = (W32_CHAR) target;
-		src += ((size_t) rc - 1);
-	    } else {
-		*dst++ = (W32_CHAR) * src;
-	    }
+	    *dst++ = (W32_CHAR) target;
+	    src += (rc - 1);
 	}
 #else
 	else if ((c >= _SPC_ && c <= _TILDE_) || (c == _TAB_))
@@ -259,8 +255,7 @@ cbrd_reg_copy(void)
     KILL *kp;			/* pointer into [un]named register */
     UINT nbyte;
     UINT nline;
-    UCHAR *copy;
-    int rc;
+    W32_CHAR *dst;
 
     TRACE((T_CALLED "cbrd_reg_copy()\n"));
     /* make sure there is something to put */
@@ -297,34 +292,14 @@ cbrd_reg_copy(void)
     hClipMem = GlobalAlloc(GMEM_MOVEABLE | GMEM_DDESHARE, nbyte * sizeof(W32_CHAR));
     if (hClipMem == NULL) {
 	mlforce(CLIPBOARD_COPY_MEM);
-	rc = FALSE;
-    } else {
-	copy = malloc(nbyte);
-	if (copy != 0) {
-	    UCHAR *tmp = copy;
-	    W32_CHAR *dst;
-	    if ((dst = GlobalLock(hClipMem)) != NULL) {
-		W32_CHAR *old = dst;
-		for (kp = kbs[ukb].kbufh; kp; kp = kp->d_next) {
-		    int size = KbSize(ukb, kp);
-		    memcpy(tmp, kp->d_chunk, size);
-		    tmp += size;
-		}
-		cbrd_copy_and_xlate((int) (tmp - copy), &dst, copy);
-		*dst = '\0';
-		GlobalUnlock(hClipMem);
-		rc = setclipboard(hClipMem, (UINT) (dst - old), nline);
-	    } else {
-		mlforce("[Cannot copy]");
-		rc = FALSE;
-	    }
-	    free(copy);
-	} else {
-	    mlforce("[Cannot copy]");
-	    rc = FALSE;
-	}
+	returnCode(FALSE);
     }
-    returnCode(rc);
+    dst = GlobalLock(hClipMem);
+    for (kp = kbs[ukb].kbufh; kp; kp = kp->d_next)
+	cbrd_copy_and_xlate((int) KbSize(ukb, kp), &dst, kp->d_chunk);
+    *dst = '\0';
+    GlobalUnlock(hClipMem);
+    returnCode(setclipboard(hClipMem, nbyte, nline));
 }
 
 /*
@@ -386,21 +361,19 @@ cbrdcpy_region(void)
     cpyarg.nbyte++;		/* Terminating nul */
 
     /* 2nd pass -- alloc storage for data and copy to clipboard. */
-    hClipMem = GlobalAlloc(GMEM_MOVEABLE | GMEM_DDESHARE, cpyarg.nbyte);
-    if (hClipMem == NULL) {
+    if ((hClipMem = GlobalAlloc(GMEM_MOVEABLE | GMEM_DDESHARE,
+				cpyarg.nbyte)) == NULL) {
 	mlforce(CLIPBOARD_COPY_MEM);
 	returnCode(FALSE);
     }
-    if ((cpyarg.dst = GlobalLock(hClipMem)) != NULL) {
-	/*
-	 * Pass #2 -> The actual copy.  Don't need to restore DOT, that
-	 * is handled by opercbrdcpy().
-	 */
-	rc = dorgn(copy_rgn_data, &cpyarg, TRUE);
-	GlobalUnlock(hClipMem);
-    } else {
-	rc = FALSE;
-    }
+    cpyarg.dst = GlobalLock(hClipMem);
+
+    /*
+     * Pass #2 -> The actual copy.  Don't need to restore DOT, that
+     * is handled by opercbrdcpy().
+     */
+    rc = dorgn(copy_rgn_data, &cpyarg, TRUE);
+    GlobalUnlock(hClipMem);
     if (!rc) {
 	GlobalFree(hClipMem);
 	returnCode(FALSE);
@@ -412,7 +385,7 @@ cbrdcpy_region(void)
 /*
  * Copy contents of specified region or register to Windows clipboard.
  * This command is an operator and mimics the functionality of ^W, but
- * mimics operyank()'s implementation.
+ * mimics operyank()'s implemenation.
  *
  * Bound to Ctrl+Insert.
  */
@@ -482,7 +455,7 @@ static MAP cbrdmap[] =
 static int
 map_compare(const void *elem1, const void *elem2)
 {
-    return (((const MAP *) elem1)->val - ((const MAP *) elem2)->val);
+    return (((MAP *) elem1)->val - ((MAP *) elem2)->val);
 }
 
 static int
@@ -514,6 +487,7 @@ paste_to_minibuffer(W32_CHAR * cbrddata)
 {
     int rc = TRUE;
     W32_CHAR *cp = cbrddata;
+    W32_CHAR *eol = NULL;
 #if !USE_UNICODE
     W32_CHAR one_char[2];
     W32_CHAR map_str[MAX_MAPPED_STR + 1];
@@ -521,7 +495,7 @@ paste_to_minibuffer(W32_CHAR * cbrddata)
 
     while (*cp) {
 	if (*cp == '\r' && *(cp + 1) == '\n') {
-	    *cp = '\0';
+	    eol = cp;
 
 	    /*
 	     * Don't allow more than one line of data to be pasted into the
@@ -536,6 +510,8 @@ paste_to_minibuffer(W32_CHAR * cbrddata)
 	}
 	cp++;
     }
+    if (eol)
+	*eol = '\0';		/* chop delimiter */
 #if USE_UNICODE
     rc = w32_keybrd_write(cbrddata);
 #else
@@ -553,6 +529,8 @@ paste_to_minibuffer(W32_CHAR * cbrddata)
 #endif
     return (rc);
 }
+
+#define MAX_UTF8 8		/* buffer-size big enough for any UTF-8 conversion */
 
 /*
  * Paste contents of windows clipboard (if TEXT) to current buffer.
@@ -676,7 +654,7 @@ cbrdpaste(int f GCC_UNUSED, int n GCC_UNUSED)
 		memcpy(dst, target, len);
 		dst += len;
 	    }
-	    data += ((size_t) chunk - 1);
+	    data += (chunk - 1);
 #else
 	    /* sizeof(W32_CHAR) == 1 */
 

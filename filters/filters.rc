@@ -1,4 +1,4 @@
-; $Id: filters.rc,v 1.256 2020/05/09 09:27:17 tom Exp $
+; $Id: filters.rc,v 1.230 2010/07/11 18:12:26 Rick.Sladkey Exp $
 ; majormodes in this file are ordered alphabetically for convenience - the
 ; precedence used by vile is strictly alphabetic, counting case.
 
@@ -11,54 +11,14 @@
 ~endif
 unsetv %filters-modes
 
-define-mode ada
-~with define-submode ada
-	filtername	'vile-ada-filt -i'
-~endwith
-
 define-mode ant
 ~with define-submode ant
-	filtername	'vile-xml-filt -A -k ant'
-~endwith
-
-define-mode as
-~with define-submode as
-	filtername	'vile-as-filt -i'
-~endwith
-
-define-mode asm
-~with define-submode asm
-	filtername	'vile-asm-filt -i'
+	filtername	'vile-xml-filt -k ant'
 ~endwith
 
 define-mode asp
 ~with define-submode asp
 	filtername	'vile-html-filt -a'
-~endwith
-
-define-mode au3
-~with define-submode au3
-	filtername	'vile-au3-filt -i'
-~endwith
-
-define-mode basic
-~with define-submode basic
-	filtername	'vile-basic-filt -i'
-~endwith
-
-define-mode bash
-~with define-submode bash
-	filtername	'vile-sh-filt -K -k bash'
-~endwith
-
-define-mode bat
-~with define-submode bat
-	filtername	'vile-bat-filt -i'
-~endwith
-
-define-mode bnf
-~with define-submode bnf
-	filtername	'vile-bnf-filt -i'
 ~endwith
 
 define-mode cpp
@@ -69,11 +29,6 @@ define-mode cpp
 define-mode cs
 ~with define-submode cs
 	filtername	'vile-c-filt -# -k cs'
-~endwith
-
-define-mode css
-~with define-submode css
-	filtername	'vile-css-filt -i'
 ~endwith
 
 define-mode csh
@@ -87,24 +42,9 @@ define-mode csv
 	filtername	'vile-txt-filt'
 ~endwith
 
-define-mode def
-~with define-submode def
-	filtername	'vile-def-filt -i'
-~endwith
-
 define-mode delphi
 ~with define-submode delphi
-	filtername	'vile-pas-filt -i -k delphi'
-~endwith
-
-define-mode dcl
-~with define-submode dcl
-	filtername	'vile-dcl-filt -i'
-~endwith
-
-define-mode desktop
-~with define-submode desktop
-	filtername	'vile-ini-filt'
+	filtername	'vile-pas-filt -k delphi'
 ~endwith
 
 define-mode docbook
@@ -117,34 +57,9 @@ define-mode dtd
 	filtername	'vile-xml-filt -k xsl'
 ~endwith
 
-define-mode erb
-~with define-submode erb
-	filtername	'vile-ruby-filt -e -k rb'
-~endwith
-
-define-mode esql
-~with define-submode esql
-	filtername	'vile-esql-filt -i'
-~endwith
-
-define-mode go
-~with define-submode go
-	filtername	'vile-c-filt -k go'
-~endwith
-
 define-mode haskell
 ~with define-submode haskell
 	filtername	'vile-hs-filt'
-~endwith
-
-define-mode ini
-~with define-submode ini
-	filtername	'vile-ini-filt -i'
-~endwith
-
-define-mode iss
-~with define-submode iss
-	filtername	'vile-iss-filt -i'
 ~endwith
 
 define-mode java
@@ -162,39 +77,24 @@ define-mode jsp
 	filtername	'vile-html-filt -j'
 ~endwith
 
-define-mode ksh
-~with define-submode ksh
-	filtername	'vile-sh-filt -K -k ksh'
-~endwith
-
 define-mode latex
 ~with define-submode latex
 	filtername	'vile-latex-filt -a'
 ~endwith
 
-define-mode lisp
-~with define-submode lisp
-	filtername	'vile-lisp-filt -i'
-~endwith
-
-define-mode lua
-~with define-submode lua
-	filtername	'vile-lua-filt -i'
-~endwith
-
 define-mode mvn
 ~with define-submode mvn
-	filtername	'vile-xml-filt -M -k mvn'
+	filtername	'vile-xml-filt -k mvn'
 ~endwith
 
 define-mode nmake
 ~with define-submode nmake
-	filtername	'vile-nmake-filt'
+	filtername	'vile-make-filt'
 ~endwith
 
 define-mode nsis
 ~with define-submode nsis
-	filtername	'vile-conf-filt -i -k nsis'
+	filtername	'vile-conf-filt -k nsis'
 ~endwith
 
 define-mode objc
@@ -202,19 +102,9 @@ define-mode objc
 	filtername	'vile-c-filt -o -k objc'
 ~endwith
 
-define-mode pas
-~with define-submode pas
-	filtername	'vile-pas-filt -i'
-~endwith
-
 define-mode pc
 ~with define-submode pc
 	filtername	'vile-tc-filt -k pc'
-~endwith
-
-define-mode powershell
-~with define-submode powershell
-	filtername	'vile-ps1-filt -k ps1 -i'
 ~endwith
 
 define-mode prolog
@@ -232,29 +122,9 @@ define-mode RCS
 	filtername	'vile-rcs-filt'
 ~endwith
 
-define-mode rexx
-~with define-submode rexx
-	filtername	'vile-rexx-filt -i'
-~endwith
-
-define-mode rpm
-~with define-submode rpm
-	filtername	'vile-rpm-filt -i'
-~endwith
-
 define-mode SCCS
 ~with define-submode SCCS
 	filtername	'vile-sccs-filt'
-~endwith
-
-define-mode scheme
-~with define-submode scheme
-	filtername	'vile-scheme-filt -i'
-~endwith
-
-define-mode sql
-~with define-submode sql
-	filtername	'vile-sql-filt -i'
 ~endwith
 
 define-mode tex
@@ -262,49 +132,24 @@ define-mode tex
 	filtername	'vile-latex-filt -k tex'
 ~endwith
 
-define-mode tpu
-~with define-submode tpu
-	filtername	'vile-tpu-filt -i'
-~endwith
-
-define-mode typescript
-~with define-submode typescript
-	filtername	'vile-c-filt -j -s -p -k ts'
-~endwith
-
 define-mode vb
 ~with define-submode vb
-	filtername	'vile-basic-filt -i -k vb'
+	filtername	'vile-basic-filt -k vb'
 ~endwith
 
 define-mode vb6
 ~with define-submode vb6
-	filtername	'vile-basic-filt -i -k vb6'
+	filtername	'vile-basic-filt -k vb6'
 ~endwith
 
 define-mode vbs
 ~with define-submode vbs
-	filtername	'vile-basic-filt -i -k vbs'
-~endwith
-
-define-mode vcproj
-~with define-submode vcproj
-	filtername	'vile-xml-filt -k vcproj'
-~endwith
-
-define-mode vcxproj
-~with define-submode vcxproj
-	filtername	'vile-xml-filt -k vcxproj'
+	filtername	'vile-basic-filt -k vbs'
 ~endwith
 
 define-mode vim
 ~with define-submode vim
 	filtername	'vile-vile-filt -k vim'
-~endwith
-
-define-mode wbt
-~with define-submode wbt
-	filtername	'vile-wbt-filt -i'
 ~endwith
 
 define-mode xpm
@@ -315,11 +160,6 @@ define-mode xpm
 define-mode xsl
 ~with define-submode xsl
 	filtername	'vile-xml-filt -k xsl'
-~endwith
-
-define-mode zsh
-~with define-submode zsh
-	filtername	'vile-sh-filt -K -k zsh'
 ~endwith
 
 store-procedure HighlightFilter 'Invoke syntax-highlighting filter on the current buffer'

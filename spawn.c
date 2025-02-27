@@ -1,7 +1,8 @@
 /*	Spawn:	various DOS access commands
  *		for MicroEMACS
  *
- * $Id: spawn.c,v 1.221 2025/01/26 16:31:43 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/spawn.c,v 1.207 2010/05/03 09:23:20 tom Exp $
+ *
  */
 
 #ifdef _WIN32
@@ -79,13 +80,13 @@ VMSVT_DATA short iochan;
 static void
 x_window_SHELL(const char *cmd)
 {
-    TBUFF *tmp = NULL;
+    TBUFF *tmp = 0;
 
 #ifdef HAVE_WAITPID
     int pid;
 
     if ((pid = fork()) > 0) {
-	waitpid(pid, NULL, 0);
+	waitpid(pid, 0, 0);
     } else if (pid == 0) {
 	if (fork() == 0) {
 #endif
@@ -97,16 +98,16 @@ x_window_SHELL(const char *cmd)
 #ifdef HAVE_PUTENV
 	    static char *display_env;
 	    char *env = get_xdisplay();
-	    if (display_env != NULL)
+	    if (display_env != 0)
 		free(display_env);
-	    if ((display_env = typeallocn(char, 20 + strlen(env))) != NULL) {
+	    if ((display_env = typeallocn(char, 20 + strlen(env))) != 0) {
 		lsprintf(display_env, "DISPLAY=%s", env);
 		putenv(display_env);
 	    }
 #endif
 
 	    tmp = tb_scopy(&tmp, get_xshell());
-	    if (cmd != NULL) {
+	    if (cmd != 0) {
 		tb_unput(tmp);
 		tmp = tb_sappend(&tmp, " ");
 		tmp = tb_sappend(&tmp, get_xshellflags());
@@ -114,7 +115,7 @@ x_window_SHELL(const char *cmd)
 		tmp = tb_sappend(&tmp, cmd);
 		tmp = tb_append(&tmp, EOS);
 	    }
-	    if (tmp != NULL) {
+	    if (tmp != 0) {
 		char *result = tb_values(tmp);
 		TRACE(("executing '%s'\n", result));
 		IGNORE_RC(system(result));
@@ -144,7 +145,7 @@ spawncli(int f GCC_UNUSED, int n GCC_UNUSED)
 #if	SYS_UNIX
 #define	OK_SPAWN
     term.clean(TRUE);
-    (void) file_stat(NULL, NULL);
+    file_stat(0, 0);
     term.openup();
 #if	DISP_X11 && !SMALLER
     (void) x_window_SHELL((char *) 0);
@@ -230,7 +231,7 @@ bktoshell(int f, int n)		/* suspend and wait to wake up */
 
     beginDisplay();
     term.clean(TRUE);
-    (void) file_stat(NULL, NULL);
+    file_stat(0, 0);
 
 /* #define simulate_job_control_for_debug */
 # ifdef simulate_job_control_for_debug
@@ -404,7 +405,7 @@ spawn1(int rerun, int pressret)
 #endif
 #else
     term.clean(TRUE);
-    (void) file_stat(NULL, NULL);
+    file_stat(0, 0);
 
     (void) system_SHELL(line);
 
@@ -561,7 +562,8 @@ capturecmd(int f, int n)
     set_bname(curbp, OUTPUT_BufName);
 
     /* make this window in VIEW mode, update buffer's mode lines */
-    set_local_b_val(curwp->w_bufp, MDVIEW, TRUE);
+    make_local_b_val(curwp->w_bufp, MDVIEW);
+    set_b_val(curwp->w_bufp, MDVIEW, TRUE);
     curwp->w_flag |= WFMODE;
 
 #if OPT_FINDERR
@@ -590,10 +592,7 @@ write_kreg_to_pipe(void *writefp)
     kregcirculate(FALSE);
     kp = kbs[ukb].kbufh;
     while (kp != NULL) {
-	IGNORE_RC(fwrite((char *) kp->d_chunk,
-			 (size_t) 1,
-			 (size_t) KbSize(ukb, kp),
-			 fw));
+	IGNORE_RC(fwrite((char *) kp->d_chunk, 1, (size_t) KbSize(ukb, kp), fw));
 	kp = kp->d_next;
     }
 #if SYS_UNIX && ! TEST_DOS_PIPES
@@ -774,7 +773,7 @@ filterregion(void)
 #endif
 	    }
 #if ! ((SYS_OS2 && CC_CSETPP) || SYS_WINNT)
-	    if (fw != NULL)
+	    if (fw != 0)
 		(void) fclose(fw);
 #endif
 	    DOT.l = lback(DOT.l);
@@ -783,9 +782,6 @@ filterregion(void)
 	    (void) firstnonwhite(FALSE, 1);
 	    (void) setmark();
 	    end_kill();
-	} else {
-	    fclose(fw);
-	    npclose(fr);
 	}
     }
 #else
@@ -826,9 +822,7 @@ open_region_filter(void)
 		 * support.
 		 */
 		if (global_g_val(GMDW32PIPES)) {
-		    ULONG code = (ULONG) _beginthread(write_region_to_pipe,
-						      0,
-						      fw);
+		    ULONG code = _beginthread(write_region_to_pipe, 0, fw);
 
 		    /*
 		     * w32pipes mode enabled -- create child thread to blast
@@ -922,7 +916,7 @@ vile_filter(int f GCC_UNUSED, int n GCC_UNUSED)
 #if	SYS_UNIX
     bottomleft();
     term.clean(TRUE);
-    (void) file_stat(0, 0);
+    file_stat(0, 0);
     if ((t = strchr(line, '|')) != 0) {
 	char temp[NLINE];
 	(void) strcpy(temp, t);
@@ -1019,9 +1013,9 @@ set_envvar(int f GCC_UNUSED, int n GCC_UNUSED)
 
 	    if (len_var != 0
 		&& len_val != 0
-		&& (both = typeallocn(char, len_var + len_val + 1)) != NULL) {
+		&& (both = typeallocn(char, len_var + len_val + 1)) != 0) {
 		lsprintf(both, "%s=%s", tb_values(var), tb_values(val));
-		rc = (putenv(both) == 0);	/* this will leak.  i think it has to. */
+		putenv(both);	/* this will leak.  i think it has to. */
 	    } else {
 		rc = no_memory("set_envvar");
 	    }
@@ -1136,18 +1130,6 @@ parse_findcfg_mode(FINDCFG * pcfg, char *inputstr)
     return (rc);
 }
 
-static void
-free_vector(char ***vec, size_t vec_elements)
-{
-    char **base;
-    ULONG i;
-
-    base = *vec;
-    for (i = 0; i < vec_elements; i++, base++)
-	(void) free(*base);
-    (void) free(*vec);
-}
-
 /*
  * Cruise through the user's shell command, stripping out unquoted tokens
  * that include wildcard characters.   Save each token in a vector.  Return
@@ -1156,11 +1138,7 @@ free_vector(char ***vec, size_t vec_elements)
 static char *
 extract_wildcards(char *cmd, char ***vec, size_t *vecidx, const char *fnname)
 {
-    char **temp;
-    char **base;
-    char *cp;
-    char *anchor;
-    char buf[NFILEN * 2];
+    char **base, *cp, *anchor, buf[NFILEN * 2];
     int delim;
     size_t idx, len;
 
@@ -1177,38 +1155,33 @@ extract_wildcards(char *cmd, char ***vec, size_t *vecidx, const char *fnname)
 	if (*cp == '\'' || *cp == '"') {
 	    delim = *cp++;
 	    while (*cp) {
-		if (*cp == '\\' && cp[1] == delim) {
+		if (*cp == '\\' && cp[1] == delim)
 		    cp += 2;
-		} else if (*cp == delim) {
+		else if (*cp == delim) {
 		    cp++;
 		    break;
-		} else {
+		} else
 		    cp++;
-		}
 	    }
 	} else {
 	    cp++;
 	    while (*cp && (!isSpace(*cp)))
 		cp++;
-	    len = (size_t) (cp - anchor);
+	    len = cp - anchor;
 	    strncpy(buf, anchor, len);
 	    buf[len] = EOS;
 	    if (string_has_wildcards(buf)) {
 		memset(anchor, ' ', len);	/* blank out wildcard in cmd */
 		if (idx >= len) {
 		    len *= 2;
-		    temp = castrealloc(char *, base, sizeof(*base));
-		    if (temp == NULL) {
-			free_vector(&base, idx);
+		    base = castrealloc(char *, base, sizeof(*base));
+		    if (base == NULL) {
 			(void) no_memory(fnname);
 			return (NULL);
-		    } else {
-			base = temp;
 		    }
 		}
 		base[idx] = castalloc(char, len + 1);
 		if (base[idx] == NULL) {
-		    free_vector(&base, idx);
 		    (void) no_memory(fnname);
 		    return (NULL);
 		}
@@ -1221,6 +1194,18 @@ extract_wildcards(char *cmd, char ***vec, size_t *vecidx, const char *fnname)
     *vec = base;
     *vecidx = idx;
     return (cmd);
+}
+
+static void
+free_vector(char ***vec, size_t vec_elements)
+{
+    char **base;
+    ULONG i;
+
+    base = *vec;
+    for (i = 0; i < vec_elements; i++, base++)
+	(void) free(*base);
+    (void) free(*vec);
 }
 
 static const char *
@@ -1276,30 +1261,24 @@ add_token_to_cmd(char **cmd,
 		 const char *funcname)
 {
     int rc = TRUE;
-    char *tmp;
     size_t toklen = strlen(token);
 
-    if ((tmp = *cmd) != NULL) {
-	if (*cmdidx + toklen + 2 > *cmdlen) {
-	    *cmdlen *= 2;
-	    tmp = castrealloc(char, tmp, *cmdlen);
-	    if (tmp == NULL) {
-		(void) free(*cmd);
-		*cmd = NULL;
-	    } else {
-		*cmd = tmp;
-	    }
+    if (*cmdidx + toklen + 2 > *cmdlen) {
+	char *tmp = *cmd;
+
+	*cmdlen *= 2;
+	tmp = castrealloc(char, tmp, *cmdlen);
+	if (tmp == NULL) {
+	    (void) free(*cmd);
+	    rc = no_memory(funcname);
+	    return (rc);
 	}
+	*cmd = tmp;
     }
-    if (*cmd != NULL) {
-	strcpy(*cmd + *cmdidx, token);
-	*cmdidx += toklen;
-	(*cmd)[*cmdidx] = ' ';
-	(*cmdidx)++;
-	rc = TRUE;
-    } else {
-	rc = no_memory(funcname);
-    }
+    strcpy(*cmd + *cmdidx, token);
+    *cmdidx += toklen;
+    (*cmd)[*cmdidx] = ' ';
+    (*cmdidx)++;
     return (rc);
 }
 
@@ -1396,14 +1375,6 @@ ck_find_cmd(char *cmd, int *allocd_storage, int prepend_bang)
     return (cmd);
 }
 
-#if SYS_UNIX
-#define EGREP_OPT_CASELESS ""
-#define EGREP_TAG_CASELESS "[Tt][Aa][Gg][Ss]"
-#else
-#define EGREP_OPT_CASELESS "i"
-#define EGREP_TAG_CASELESS "tags"
-#endif
-
 /*
  * FUNCTION
  *   find_dirs_only(char *cmd, FINDINFO *pinfo, int prepend_bang)
@@ -1413,7 +1384,7 @@ ck_find_cmd(char *cmd, int *allocd_storage, int prepend_bang)
  *
  *   pinfo        - contains info about the user's various "find" parameters.
  *
- *   prepend_bang - Boolean, T -> prepend '!' to beginning of shell cmd
+ *   prepend_bang - Boolean, T -> prepend '!' to beginning of shell cmd 
  *                  synthesized by this routine.
  *
  * DESCRIPTION
@@ -1424,7 +1395,7 @@ ck_find_cmd(char *cmd, int *allocd_storage, int prepend_bang)
  *     [!]find <$findpath_dir_list> -type d -print | \
  *          egrep -v <RE that elides CVS & RCS dirs> | xargs cmdstr
  *
- *   - if executing on a host that supports case insensitive file names,
+ *   - if executing on a host that supports case insensitive file names, 
  *     modify the above shell command to include option modifiers that as
  *     required.
  *
@@ -1443,7 +1414,6 @@ find_dirs_only(char *cmd, FINDINFO * pinfo, int prepend_bang)
     const char *path, *fnname;
     char *rslt, buf[NFILEN * 2];
     const char *qdelim;
-    int first = TRUE;
 
     fnname = "find_dirs_only";
     outlen = sizeof(buf);
@@ -1464,7 +1434,7 @@ find_dirs_only(char *cmd, FINDINFO * pinfo, int prepend_bang)
     path = pinfo->dir_list;
 
     /* add directory list to find command */
-    while ((path = parse_pathlist(path, buf, &first)) != NULL) {
+    while ((path = parse_pathlist(path, buf)) != NULL) {
 	if (!add_token_to_cmd(&rslt, &outidx, &outlen, buf, fnname))
 	    return (NULL);
     }
@@ -1488,7 +1458,7 @@ find_dirs_only(char *cmd, FINDINFO * pinfo, int prepend_bang)
     qdelim = determine_quoted_delimiter();
 
     /*
-     * filter out RCS/CVS directories and tags files.  we make the
+     * filter out RCS/CVS directories and tags files.  we make the 
      * assumption that the user's "find" creates filenames with
      * '/' as a path delimiter.
      *
@@ -1498,16 +1468,23 @@ find_dirs_only(char *cmd, FINDINFO * pinfo, int prepend_bang)
      * ========================== FIXME ==================================
      */
     sprintf(buf,
-	    "| egrep -v" EGREP_OPT_CASELESS " %s(RCS|CVS)/%s",
+	    "| egrep -v%s %s(RCS|CVS)/%s",
+#if SYS_UNIX
+	    "",
+#else
+	    "i",
+#endif
 	    qdelim,
 	    qdelim);
-    if (!add_token_to_cmd(&rslt, &outidx, &outlen, buf, fnname)) {
+    if (!add_token_to_cmd(&rslt, &outidx, &outlen, buf, fnname))
+	return (NULL);
+
+    /* finish off with xargs */
+    if (!add_token_to_cmd(&rslt, &outidx, &outlen, "| xargs", fnname))
+	return (NULL);
+    if (!add_token_to_cmd(&rslt, &outidx, &outlen, cmd, fnname))
 	rslt = NULL;
-    } else if (!add_token_to_cmd(&rslt, &outidx, &outlen, "| xargs", fnname)) {
-	rslt = NULL;
-    } else if (!add_token_to_cmd(&rslt, &outidx, &outlen, cmd, fnname)) {
-	rslt = NULL;
-    } else if (rslt != NULL) {
+    else {
 	rslt[outidx] = EOS;	/* terminate cmd string */
 	if (outidx != 0) {
 	    char *cp;
@@ -1537,7 +1514,7 @@ find_dirs_only(char *cmd, FINDINFO * pinfo, int prepend_bang)
  *
  *   pinfo        - contains info about the user's various "find" parameters.
  *
- *   prepend_bang - Boolean, T -> prepend '!' to beginning of shell cmd
+ *   prepend_bang - Boolean, T -> prepend '!' to beginning of shell cmd 
  *                  synthesized by this routine.
  *
  * DESCRIPTION
@@ -1556,10 +1533,10 @@ find_dirs_only(char *cmd, FINDINFO * pinfo, int prepend_bang)
  *          egrep -v <RE that elides CVS & RCS dirs and tags files> | \
  *          xargs cmdstr
  *
- *   - if executing on a host that supports case insensitive file names,
+ *   - if executing on a host that supports case insensitive file names, 
  *     modify the above shell command to include option modifiers that as
  *     required.  Note that the find options used in this case (i.e., -iname)
- *     may only be supported by the GNU version of find.
+ *     may only be supported by the GNU version of find. 
  *
  *   - if a nonrecursive find is requested, add an appropriate option
  *     (i.e., -maxdepth 1) to the find cmdline (again, this syntax used may
@@ -1576,14 +1553,13 @@ find_all_files(char *cmd, FINDINFO * pinfo, int prepend_bang)
     const char *path, *fnname;
     char *xargstr, **vec, *rslt, buf[NFILEN * 2];
     const char *qdelim;
-    int first = TRUE;
 
     fnname = "find_all_files";
     if ((xargstr = extract_wildcards(cmd, &vec, &vecidx, fnname)) == NULL)
 	return (NULL);
     if (vecidx == 0) {
-	/* No wild cards were found on the command line.  No sense
-	 * continuing.  Why?  With no wild cards, the find command
+	/* No wild cards were found on the command line.  No sense 
+	 * continuing.  Why?  With no wild cards, the find command 
 	 * will search for all files by default, this may or may not
 	 * be what the user wants.  It's certainly not what the user
 	 * wants if s/he types this by mistake:
@@ -1619,7 +1595,7 @@ find_all_files(char *cmd, FINDINFO * pinfo, int prepend_bang)
     path = pinfo->dir_list;
 
     /* add directory list to find command */
-    while ((path = parse_pathlist(path, buf, &first)) != NULL) {
+    while ((path = parse_pathlist(path, buf)) != NULL) {
 	if (!add_token_to_cmd(&rslt, &outidx, &outlen, buf, fnname)) {
 	    free_vector(&vec, vecidx);
 	    return (NULL);
@@ -1654,8 +1630,13 @@ find_all_files(char *cmd, FINDINFO * pinfo, int prepend_bang)
     /* add wildcards (if any) to find command */
     for (i = 0; i < vecidx; i++) {
 	sprintf(buf,
-		"%s-" EGREP_OPT_CASELESS "name %s%s%s",
+		"%s-%sname %s%s%s",
 		(i != 0) ? "-o " : "",
+#if SYS_UNIX
+		"",
+#else
+		"i",		/* find uses case insensitive filename search */
+#endif
 		qdelim,
 		vec[i],
 		qdelim);
@@ -1676,7 +1657,7 @@ find_all_files(char *cmd, FINDINFO * pinfo, int prepend_bang)
 	return (NULL);
 
     /*
-     * filter out RCS/CVS directories and tags files.  we make the
+     * filter out RCS/CVS directories and tags files.  we make the 
      * assumption that the user's "find" creates filenames with
      * '/' as a path delimiter.
      *
@@ -1686,17 +1667,28 @@ find_all_files(char *cmd, FINDINFO * pinfo, int prepend_bang)
      * ========================== FIXME ==================================
      */
     sprintf(buf,
-	    "| egrep -v" EGREP_OPT_CASELESS
-	    " %s((RCS|CVS)/|/" EGREP_TAG_CASELESS "$)%s",
+	    "| egrep -v%s %s((RCS|CVS)/|/%s$)%s",
+#if SYS_UNIX
+	    "",
+#else
+	    "i",
+#endif
 	    qdelim,
+#if SYS_UNIX
+	    "[Tt][Aa][Gg][Ss]",
+#else
+	    "tags",
+#endif
 	    qdelim);
-    if (!add_token_to_cmd(&rslt, &outidx, &outlen, buf, fnname)) {
+    if (!add_token_to_cmd(&rslt, &outidx, &outlen, buf, fnname))
+	return (NULL);
+
+    /* finish off with xargs */
+    if (!add_token_to_cmd(&rslt, &outidx, &outlen, "| xargs", fnname))
+	return (NULL);
+    if (!add_token_to_cmd(&rslt, &outidx, &outlen, xargstr, fnname))
 	rslt = NULL;
-    } else if (!add_token_to_cmd(&rslt, &outidx, &outlen, "| xargs", fnname)) {
-	rslt = NULL;
-    } else if (!add_token_to_cmd(&rslt, &outidx, &outlen, xargstr, fnname)) {
-	rslt = NULL;
-    } else if (rslt != NULL) {
+    else {
 	rslt[outidx] = EOS;	/* terminate cmd string */
 	if (outidx != 0) {
 	    char *cp;

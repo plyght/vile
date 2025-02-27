@@ -2,29 +2,28 @@
 %x XMLTAG XMLATTR XMLCDATA XMLPI COMMENT INLINE XQ_NOTE
 
 %{
-
 /*
- * $Id: xq-filt.l,v 1.22 2025/01/26 17:07:24 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/xq-filt.l,v 1.15 2010/07/13 13:25:02 tom Exp $
  *
  * XQuery is case-sensitive
  * XQuery elements, attributes, and variables must be valid XML names
  * An XQuery string value can be in single or double quotes
  * An XQuery variable is defined with a $ followed by a name, e.g. $bookstore
  * XQuery comments are delimited by (: and :), e.g. (: XQuery Comment :)
- *
+ * 
  * The URI of the XQuery function namespace is:
  *    http://www.w3.org/2005/02/xpath-functions
  *
  *  The default prefix for the function namespace is fn:.
  *
- *  Tip:  Functions are often called with the fn:  prefix, such as fn:string().
+ *  Tip:  Functions are often called with the fn:  prefix, such as fn:string(). 
  *  However, since fn:  is the default prefix of the namespace, the function
  *  names do not need to be prefixed when called.
  */
 
 #include <filters.h>
 
-DefineFilter(xq);
+DefineFilter("xq");
 
 #define SYMS_XMLNS	"xmlns"
 
@@ -35,7 +34,7 @@ DefineFilter(xq);
 #ifdef FLEX_DEBUG
 #define DBG_HTML(params) if (yy_flex_debug) fprintf params
 #else
-#define DBG_HTML(params)	/* nothing */
+#define DBG_HTML(params) /* nothing */
 #endif
 
 static char *Action_attr;
@@ -51,7 +50,8 @@ typedef struct {
     char *name;
     int line;
     int col;
-} XMLTAGS;
+}
+XMLTAGS;
 
 static XMLTAGS *Tags;
 static unsigned Num_tags = 0;
@@ -60,9 +60,9 @@ static unsigned curly_braces;
 
 #include <fltstack.h>
 
-static const char *prefixed_attr(const char *, char **, int);
-static const char *unprefixed_attr(char *);
-static const char *xml_keyword_attr(const char *name);
+static const char * prefixed_attr(char *, char **);
+static const char * unprefixed_attr(char *);
+static const char * xml_keyword_attr(const char *name);
 static void xml_close(char *text);
 static void xml_command(char *text);
 static void xml_prefixed_property(char *text, int len);
@@ -118,13 +118,13 @@ VALUE		#{IDENT}
 <XMLCDATA>[\n]		|
 <XMLCDATA>.		{ flt_bfr_append(yytext, yyleng); }
 
-<INITIAL,INLINE>{XMLTAG}	{
+<INITIAL,INLINE>{XMLTAG}	{ 
 			  char *text = yytext;
 			  const char *attr = "";
 			  if (Num_tags <= 0 || curly_braces > Num_tags) {
-			      attr = get_keyword_attr(yytext);
+			      attr = keyword_attr(yytext);
 			      if (isEmpty(attr)) {
-				  attr = prefixed_attr(yytext, &text, 0);
+				  attr = prefixed_attr(yytext, &text);
 				  if (isEmpty(attr)) {
 				      attr = unprefixed_attr(yytext);
 				      if (isEmpty(attr)) {
@@ -197,7 +197,7 @@ VALUE		#{IDENT}
 static const char *
 xml_keyword_attr(const char *name)
 {
-    const char *attr = get_keyword_attr(name);
+    const char *attr = keyword_attr(name);
 
     if (isEmpty(attr))
 	attr = Ident_attr;
@@ -210,7 +210,7 @@ xml_prefixed_property(char *text, int len)
 #define STR_XMLNS "xmlns:"
 #define LEN_XMLNS 6
 
-    if (len > LEN_XMLNS && !strncmp(text, STR_XMLNS, (size_t) LEN_XMLNS)) {
+    if (len > LEN_XMLNS && !strncmp(text, STR_XMLNS, LEN_XMLNS)) {
 	const char *old_table = get_symbol_table();
 	char *marker = (text + LEN_XMLNS - 1);
 
@@ -235,22 +235,20 @@ xml_property(char *text, int len)
 }
 
 static const char *
-prefixed_attr(const char *name, char **text, int ending)
+prefixed_attr(char *name, char **text)
 {
     const char *attr = "";
     char *marker = strchr(name, ':');
 
-    if (marker != NULL && marker[1] != '\0') {
+    if (marker != 0 && marker[1] != '\0') {
 	const char *old_table = get_symbol_table();
 	char new_table[LEN_TABLENAME];
 
 	*marker = '\0';
 	set_symbol_table(SYMS_XMLNS);
-	attr = get_keyword_attr(name);
+	attr = keyword_attr(name);
 	if (isEmpty(attr))
 	    attr = Ident_attr;
-	if (ending)
-	    flt_puts("/", 1, attr);
 	flt_puts(name, (int) strlen(name), attr);
 	set_symbol_table(old_table);
 
@@ -260,7 +258,7 @@ prefixed_attr(const char *name, char **text, int ending)
 
 	*text = marker + 1;
 	set_symbol_table(new_table);
-	attr = get_keyword_attr(*text);
+	attr = keyword_attr(*text);
 	*marker = ':';
 
 	set_symbol_table(old_table);
@@ -279,7 +277,7 @@ unprefixed_attr(char *name)
     sprintf(new_table, FMT_XMLNS, "fn");
 
     set_symbol_table(new_table);
-    attr = get_keyword_attr(name);
+    attr = keyword_attr(name);
 
     set_symbol_table(old_table);
 
@@ -307,7 +305,7 @@ xml_command(char *text)
 	int bad = 0;
 
 	if (Num_tags == 0
-	    || strcmp(text + 1, Tags[Num_tags - 1].name) != 0) {
+	|| strcmp(text + 1, Tags[Num_tags - 1].name) != 0) {
 	    /*
 	     * If we already reported an error, and this (new erroneous) tag
 	     * does, in fact, correctly match a non-current opening tag, then
@@ -347,7 +345,7 @@ xml_command(char *text)
 	    free(Tags[--Num_tags].name);
     }
     if (isEmpty(attr)) {
-	attr = prefixed_attr(name, &text, ending);
+	attr = prefixed_attr(name, &text);
     }
     flt_puts(text, (int) strlen(text), attr);
 }
@@ -376,14 +374,14 @@ do_filter(FILE *inputs)
 {
     InitLEX(inputs);
 
-    Action_attr = class_attr(NAME_ACTION);
+    Action_attr  = class_attr(NAME_ACTION);
     Comment_attr = class_attr(NAME_COMMENT);
-    Ident_attr = class_attr(NAME_IDENT);
-    Ident2_attr = class_attr(NAME_IDENT2);
+    Ident_attr   = class_attr(NAME_IDENT);
+    Ident2_attr  = class_attr(NAME_IDENT2);
     Keyword_attr = class_attr(NAME_KEYWORD);
-    Number_attr = class_attr(NAME_NUMBER);
-    String_attr = class_attr(NAME_LITERAL);
-    Error_attr = class_attr(NAME_ERROR);
+    Number_attr  = class_attr(NAME_NUMBER);
+    String_attr  = class_attr(NAME_LITERAL);
+    Error_attr   = class_attr(NAME_ERROR);
 
     set_symbol_table(default_table);
     curly_braces = 0;
@@ -393,14 +391,14 @@ do_filter(FILE *inputs)
     RunLEX();
     flt_bfr_error();
 
-    if (Tags != NULL) {
+    if (Tags != 0) {
 	if (Num_tags > 1)
 	    flt_error("expected tag:%s", Tags[Num_tags - 1].name);
 	while (Num_tags > 0)
 	    free(Tags[--Num_tags].name);
 #if NO_LEAKS
 	free(Tags);
-	Tags = NULL;
+	Tags = 0;
 #endif
     }
     end_state();

@@ -1,11 +1,10 @@
+#
 # makefile for vile filters on WIN32 using Microsoft Visual C++
 #
-# $Id: makefile.wnt,v 1.41 2018/10/16 23:46:55 tom Exp $
+# $Header: /usr/build/vile/vile/filters/RCS/makefile.wnt,v 1.35 2009/03/21 16:09:16 root Exp $
 #
-# Do this to prevent Visual C++ from creating a program database (".pdb" file)
-NODEBUG=1
-
-!include "../makeflag.wnt"
+#
+!include <ntwin32.mak>
 
 # set DBG=yes to get debugging info (and a larger executable)
 !if "$(DBG)" != ""
@@ -19,7 +18,7 @@ x	= .exe
 o	= .obj
 
 # Other vars
-CON_LDFLAGS  = $(LD_DEBUG) $(conlflags) $(conlibsmt) user32.lib comdlg32.lib ole32.lib shell32.lib -nologo
+CON_LDFLAGS  = $(LD_DEBUG) $(conlflags) $(conlibsmt) user32.lib comdlg32.lib ole32.lib shell32.lib -nologo -pdb:none
 
 UTILS	= \
 	atr2ansi$x \
@@ -31,7 +30,7 @@ UTILS	= \
 SCRIPTS = \
 	filters.rc
 
-CFLAGS   = $(cvarsmt) $(CC_DEBUG) -nologo -DWIN32_LEAN_AND_MEAN -I. -I..
+CFLAGS   = $(cvarsmt) $(CC_DEBUG) -nologo -DWIN32_LEAN_AND_MEAN -G4 -I. -I..
 
 # special definition for spell-filter
 !if "$(SCREEN)" == "ntconio"
@@ -100,8 +99,8 @@ FLTOBJ = $(FLTOBJ) $(OBJ_LEX)
 
 all ::	genmake.exe
 
-genmake.exe:  genmake.c $(RC_DEPS)
-	$(cc) $(CFLAGS) genmake.c $(RC_ARGS) -Fogenmake -link $(CON_LDFLAGS)
+genmake.exe:  genmake.c
+	$(cc) $(CFLAGS) genmake.c -Fogenmake -link $(CON_LDFLAGS)
 
 all :: $(FLTOBJ) $(FLTLIB)
 
@@ -168,8 +167,6 @@ uninstall :: $(KEYS)
 .c$o:
 	$(cc) $(CFLAGS) -c $< -Fo$@
 
-w32info.res :	..\w32info.rc
-	$(RC) ..\w32info.rc
 
 LF_DEPS = filterio$o filters$o
 LF_ARGS = $(LF_DEPS) $(LEXLIB)
@@ -177,28 +174,22 @@ LF_ARGS = $(LF_DEPS) $(LEXLIB)
 CF_DEPS	= filterio$o filters$o
 CF_ARGS	= $(CF_DEPS)
 
-RC_DEPS	= ..\w32info.res
-RC_ARGS	= ..\w32info.res
-
 !include mk-2nd.tmp
 
-atr2ansi$x : atr2ansi$o unfilter$o $(RC_DEPS)
-	$(link) -out:$@ $(CON_LDFLAGS) atr2ansi$o unfilter$o $(RC_ARGS)
+atr2ansi$x : atr2ansi$o unfilter$o
+	$(link) -out:$@ $(CON_LDFLAGS) atr2ansi$o unfilter$o
 
-atr2html$x : atr2html$o unfilter$o $(RC_DEPS)
-	$(link) -out:$@ $(CON_LDFLAGS) atr2html$o unfilter$o $(RC_ARGS)
+atr2html$x : atr2html$o unfilter$o
+	$(link) -out:$@ $(CON_LDFLAGS) atr2html$o unfilter$o
 
-atr2text$x : atr2text$o unfilter$o $(RC_DEPS)
-	$(link) -out:$@ $(CON_LDFLAGS) atr2text$o unfilter$o $(RC_ARGS)
+atr2text$x : atr2text$o unfilter$o
+	$(link) -out:$@ $(CON_LDFLAGS) atr2text$o unfilter$o
 
-vile-crypt$x : ecrypt$o encrypt$o $(RC_DEPS)
-	$(link) -out:$@ $(CON_LDFLAGS) ecrypt$o encrypt$o $(RC_ARGS)
+vile-crypt$x : ecrypt$o
+	$(link) -out:$@ $(CON_LDFLAGS) ecrypt$o
 
-vile-manfilt$x : manfilt$o $(RC_DEPS)
-	$(link) -out:$@ $(CON_LDFLAGS) manfilt$o $(RC_ARGS)
-
-encrypt$o : ..\encrypt.c
-	$(cc) $(CFLAGS) -c ..\encrypt.c -Fo$@
+vile-manfilt$x : manfilt$o
+	$(link) -out:$@ $(CON_LDFLAGS) manfilt$o
 
 !endif # "$(RECUR_FILTERS)" == ""
 
@@ -211,7 +202,6 @@ clean:
 	- del *$o
 	- del *.lib
 	- del *.map
-	- del *.res
 
 distclean: clean
 	- del *.zip

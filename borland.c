@@ -9,7 +9,7 @@
  * Note: Visual flashes are not yet supported.
  *
  *
- * $Id: borland.c,v 1.43 2020/01/17 23:12:22 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/borland.c,v 1.41 2010/02/14 18:40:30 tom Exp $
  *
  */
 
@@ -51,7 +51,7 @@ set_reverse(void)
 
 static void borflush(void);
 
-static int cfcolor = -1;	/* current foreground color */
+static int cfcolor = -1;	/* current forground color */
 static int cbcolor = -1;	/* current background color */
 /* ansi to ibm color translation table */
 static const char *initpalettestr = "0 4 2 6 1 5 3 7 8 12 10 14 9 13 11 15";

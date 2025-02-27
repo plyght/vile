@@ -6,7 +6,7 @@
  *		string literal ("Literal") support --  ben stoltz
  *		factor-out hashing and file I/O - tom dickey
  *
- * $Id: c-filt.c,v 1.103 2025/01/26 17:00:27 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/c-filt.c,v 1.86 2010/07/13 13:25:50 tom Exp $
  *
  * Usage: refer to vile.hlp and doc/filters.doc .
  *
@@ -20,7 +20,7 @@
 
 #include <filters.h>
 
-DefineOptFilter(c, "jops#");
+DefineOptFilter("c", "jops#");
 
 #define UPPER(c) isalpha(CharOf(c)) ? toupper(CharOf(c)) : c
 
@@ -30,12 +30,11 @@ DefineOptFilter(c, "jops#");
 		     || (FltOptions('o') && (c) == '@'))
 #define isNamex(c)  (isIdent(c) || isdigit(CharOf(c)))
 
-#define isQuote(c)  ((c) == DQUOTE || (c) == SQUOTE || (FltOptions('j') && (c) == BQUOTE))
+#define isQuote(c)  ((c) == DQUOTE || (c) == SQUOTE)
 
 static char *Comment_attr;
 static char *Error_attr;
 static char *Ident_attr;
-static char *Ident2_attr;
 static char *Literal_attr;
 static char *Number_attr;
 static char *Preproc_attr;
@@ -55,10 +54,10 @@ extract_identifier(char *s)
 	s++;
     if (base != s) {
 	need = (size_t) (s - base);
-	if ((name = do_alloc(name, need, &have)) != NULL) {
+	if ((name = do_alloc(name, need, &have)) != 0) {
 	    strncpy(name, base, need);
 	    name[need] = 0;
-	    if ((attr = get_keyword_attr(name)) != NULL) {
+	    if ((attr = keyword_attr(name)) != 0) {
 		flt_puts(base, (int) need, attr);
 		found = 1;
 	    }
@@ -68,7 +67,7 @@ extract_identifier(char *s)
 	}
 #if NO_LEAKS
 	free(name);
-	name = NULL;
+	name = 0;
 	have = 0;
 #endif
     }
@@ -90,20 +89,16 @@ has_endofcomment(char *s)
 }
 
 static int
-has_endofliteral(char *s, int delim, int verbatim, int *escaped)
+has_endofliteral(char *s, int delim, int verbatim)
 {				/* points to '"' */
     int i = 0;
-    int result = -1;
-    char *base = s;
-
     while (*s) {
 	if (*s == delim) {
 	    if (verbatim && s[1] == delim) {
 		++i;
 		++s;
 	    } else {
-		result = i + 2;	/* include quote chars */
-		break;
+		return (i);
 	    }
 	}
 	if (!verbatim && s[0] == BACKSLASH && (s[1] == delim || s[1] == BACKSLASH)) {
@@ -113,17 +108,7 @@ has_endofliteral(char *s, int delim, int verbatim, int *escaped)
 	++i;
 	++s;
     }
-
-    if (*escaped
-	&& !verbatim
-	&& (s > base)
-	&& (s[1] == '\0')
-	&& isreturn(s[0])
-	&& (s[-1] != BACKSLASH)) {
-	*escaped = 0;
-    }
-
-    return result;
+    return (-1);
 }
 
 static char *
@@ -149,7 +134,7 @@ write_comment(char *s, int len, int begin)
     char *nested;
     if (begin)
 	t += 2;
-    while ((nested = strstr(t, "/*")) != NULL && (nested - s) < len) {
+    while ((nested = strstr(t, "/*")) != 0 && (nested - s) < len) {
 	flt_puts(s, (int) (nested - s), Comment_attr);
 	flt_error("nested comment");
 	flt_puts(nested, 2, Error_attr);
@@ -315,7 +300,7 @@ write_number(char *s)
 	    s++;
 	if (dot > 0
 	    && (s - base) == 3
-	    && !strncmp(base, "...", (size_t) 3)) {
+	    && !strncmp(base, "...", 3)) {
 	    attr = "";
 	} else {
 	    flt_error("illegal number");
@@ -328,48 +313,22 @@ write_number(char *s)
 }
 
 static char *
-write_literal(char *s, int *literal, int *verbatim, int escaped, int skip)
+write_literal(char *s, int *literal, int *verbatim, int escaped)
 {
-    int c_length = has_endofliteral(s + skip, *literal, *verbatim, &escaped);
-    if (c_length < 0) {
+    int c_length = has_endofliteral(s, *literal, *verbatim);
+    if (c_length < 0)
 	c_length = (int) strlen(s);
-    } else {
-	c_length -= (1 - skip);
+    else
 	*literal = 0;
-    }
     if (escaped || *verbatim) {
-	if (FltOptions('j')) {
-	    int l = 0;
-	    char *p = s;
-	    while (l < c_length) {
-		if (*(s + l) == '$' && *(s + l + 1) == '{') {
-		    if (l > 0) {
-			flt_puts(p, l - (int) (p - s), Literal_attr);
-			p = s + l;
-		    }
-		    while (++l < c_length && *(s + l) != '}' && *(s + l) != '$') ;
-		    if (*(s + l) == '}') {
-			flt_puts(p, ++l - (int) (p - s), Ident2_attr);
-		    } else {
-			flt_error("expected a '}'");
-			flt_puts(p, l - (int) (p - s), Error_attr);
-		    }
-		    p = s + l;
-		} else {
-		    l++;
-		}
-	    }
-	    flt_puts(p, l - (int) (p - s), Literal_attr);
-	} else {
-	    flt_puts(s, c_length, Literal_attr);
-	}
+	flt_puts(s, c_length, Literal_attr);
     } else {
 	flt_error("expected an escape");
 	flt_puts(s, c_length, Error_attr);
-	*literal = 0;
     }
     s += c_length;
     if (!*literal) {
+	flt_putc(*s++);
 	*verbatim = 0;
     }
     return s;
@@ -400,7 +359,6 @@ write_regexp(char *s)
     char *base = s;
     int escape = 0;
     int adjust = 0;
-    int ranges = 0;
 
     do {
 	int ch = *s;
@@ -408,28 +366,16 @@ write_regexp(char *s)
 	    ++s;
 	    escape = 0;
 	} else {
-	    if (ch == L_BLOCK)
-		ranges = 1;
-	    if (ch == R_BLOCK)
-		ranges = 0;
 	    if (ch == BACKSLASH)
 		escape = 1;
 	    ++s;
 	}
-    } while ((*s != '\0') && (escape || ranges || (!ranges && (*s != '/'))));
+    } while ((*s != '\0') && (escape || (*s != '/')));
     if (*s == '/') {
 	++s;
 	adjust = 1;
     }
-    /*
-     * g = global
-     * i = case-insensitive
-     * m = multiline
-     * s = dot matches newline
-     * u = unicode
-     * y = sticky search, matches starting point.
-     */
-    while (*s != '\0' && strchr("gimsuy", *s) != NULL) {
+    while (*s == 'i' || *s == 'g') {
 	++s;
 	adjust = 1;
     }
@@ -455,9 +401,9 @@ parse_prepro(char *s, int *literal)
     save = *tt;
     *tt = 0;
     isinclude = !strcmp(ss, "include");
-    if (get_keyword_attr(ss) == NULL) {
-	char *dst = NULL;
-	if (strtol(ss, &dst, 10) != 0 && dst != NULL && *dst == 0) {
+    if (keyword_attr(ss) == 0) {
+	char *dst = 0;
+	if (strtol(ss, &dst, 10) != 0 && dst != 0 && *dst == 0) {
 	    flt_puts(s, (int) (ss - s), Preproc_attr);
 	    flt_puts(ss, (int) (tt - ss), Number_attr);
 	} else {
@@ -523,7 +469,7 @@ do_filter(FILE *input GCC_UNUSED)
     int escaped;
     int literal;
     int verbatim;
-    int maybeRX;
+    int was_eql;
     int was_esc;
     unsigned len;
 
@@ -532,7 +478,6 @@ do_filter(FILE *input GCC_UNUSED)
     Comment_attr = class_attr(NAME_COMMENT);
     Error_attr = class_attr(NAME_ERROR);
     Ident_attr = class_attr(NAME_IDENT);
-    Ident2_attr = class_attr(NAME_IDENT2);
     Literal_attr = class_attr(NAME_LITERAL);
     Number_attr = class_attr(NAME_NUMBER);
     Preproc_attr = FltOptions('p') ? Error_attr : class_attr(NAME_PREPROC);
@@ -540,17 +485,15 @@ do_filter(FILE *input GCC_UNUSED)
     comment = 0;
     literal = 0;
     verbatim = 0;
-    maybeRX = 0;
+    was_eql = 0;
     was_esc = 0;
 
     while (flt_gets(&line, &used) != NULL) {
 	escaped = was_esc;
 	was_esc = 0;
 	s = line;
-	if (literal) {
-	    s = write_literal(s, &literal, &verbatim, escaped, 0);
-	    was_esc = (literal == BQUOTE);
-	}
+	if (literal)
+	    s = write_literal(s, &literal, &verbatim, escaped);
 	s = skip_white(s);
 	while (*s) {
 	    if (!comment && *s == '/' && *(s + 1) == '*') {
@@ -573,7 +516,7 @@ do_filter(FILE *input GCC_UNUSED)
 		       && set_symbol_table("cpre")) {
 		s = parse_prepro(s, &literal);
 		set_symbol_table(default_table);
-		maybeRX = 0;
+		was_eql = 0;
 	    } else if (comment && *s) {
 		if ((c_length = has_endofcomment(s)) > 0) {
 		    write_comment(s, c_length, 0);
@@ -598,36 +541,34 @@ do_filter(FILE *input GCC_UNUSED)
 		    flt_error("illegal escape");
 		    s = write_escape(s, Error_attr);
 		}
-		maybeRX = 0;
+		was_eql = 0;
 	    } else if (FltOptions('#') && *s == '@' && s[1] == DQUOTE) {
 		verbatim = 1;
 		flt_putc(*s++);
 	    } else if (isQuote(*s)) {
 		literal = (literal == 0) ? *s : 0;
+		flt_putc(*s++);
 		if (literal) {
-		    s = write_literal(s, &literal, &verbatim, 1, 1);
-		    was_esc = (literal == BQUOTE);
+		    s = write_literal(s, &literal, &verbatim, 1);
 		}
-		maybeRX = 0;
-		if (FltOptions('j'))
-		    was_esc = (literal == BQUOTE);
+		was_eql = 0;
 	    } else if (isIdent(*s)) {
 		s = extract_identifier(s);
-		maybeRX = 0;
+		was_eql = 0;
 	    } else if (isdigit(CharOf(*s))
 		       || (*s == '.'
 			   && (isdigit(CharOf(s[1])) || s[1] == '.'))) {
 		s = write_number(s);
-		maybeRX = 0;
+		was_eql = 0;
 	    } else if (*s == '#') {
 		char *t = s;
 		while (*s == '#')
 		    s++;
 		flt_puts(t, (int) (s - t), ((s - t) > 2) ?
 			 Error_attr : Preproc_attr);
-		maybeRX = 0;
+		was_eql = 0;
 	    } else if (ispunct(CharOf(*s))) {
-		if (FltOptions('s') && maybeRX && *s == '/') {
+		if (FltOptions('s') && was_eql && *s == '/') {
 		    s = write_regexp(s);
 		} else {
 		    /*
@@ -635,15 +576,12 @@ do_filter(FILE *input GCC_UNUSED)
 		     * right of an assignment, or as a parameter to new()
 		     * or match().
 		     */
-		    maybeRX = (*s == '=' ||
-			       *s == ':' ||
-			       *s == L_PAREN ||
-			       *s == ',');
+		    was_eql = (*s == '=' || *s == L_PAREN || *s == ',');
 		    flt_putc(*s++);
 		}
 	    } else {
 		if (!isspace(CharOf(*s)))
-		    maybeRX = 0;
+		    was_eql = 0;
 		flt_putc(*s++);
 	    }
 	}

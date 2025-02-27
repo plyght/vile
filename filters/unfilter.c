@@ -1,7 +1,7 @@
 /*
  * Parsing and I/O support for atr2text, etc.
  *
- * $Id: unfilter.c,v 1.14 2025/01/26 10:43:31 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/unfilter.c,v 1.10 2007/05/05 15:00:33 tom Exp $
  */
 #define CAN_TRACE 0
 #define CAN_VMS_PATH 0
@@ -12,8 +12,7 @@ typedef enum {
     Repeat,
     Attribs,
     Color,
-    Markup,
-    EatString
+    Markup
 } STATES;
 
 typedef struct {
@@ -21,8 +20,8 @@ typedef struct {
     int attrib;
 } COUNTS;
 
-static COUNTS *my_counts = NULL;
-static size_t my_length = 0;
+static COUNTS *my_counts = 0;
+static unsigned my_length = 0;
 
 static void
 failed(const char *s)
@@ -38,7 +37,7 @@ unfilter(FILE *src, FILE *dst)
     int count = 0;
     int attrs = 0;
     STATES state = Default;
-    size_t n;
+    unsigned n;
 
     begin_unfilter(dst);
     while ((ch = vl_getc(src)) != EOF) {
@@ -76,9 +75,6 @@ unfilter(FILE *src, FILE *dst)
 		    markup_unfilter(dst, attrs);
 		}
 	    }
-	} else if (state == EatString) {
-	    if (ch == 0)
-		state = Default;
 	} else if (ch == ':') {
 	    if (count == 0)
 		count = 1;
@@ -86,7 +82,7 @@ unfilter(FILE *src, FILE *dst)
 		markup_unfilter(dst, attrs);
 		if (my_length == 0) {
 		    my_length = 10;
-		    if ((my_counts = typecallocn(COUNTS, my_length)) == NULL)
+		    if ((my_counts = typecallocn(COUNTS, my_length)) == 0)
 			failed("malloc");
 		}
 		for (n = 0; n < my_length; ++n) {
@@ -126,10 +122,6 @@ unfilter(FILE *src, FILE *dst)
 		case 'I':
 		    attrs |= ATR_ITALIC;
 		    break;
-		case 'H':
-		case 'M':
-		    state = EatString;
-		    break;
 		}
 		break;
 	    case Color:
@@ -146,7 +138,6 @@ unfilter(FILE *src, FILE *dst)
 		}
 		state = Attribs;
 		break;
-	    case EatString:
 	    case Markup:
 	    case Default:
 		break;

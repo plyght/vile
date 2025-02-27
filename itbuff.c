@@ -7,7 +7,8 @@
  *	To do:	add 'itb_ins()' and 'itb_del()' to support cursor-level command
  *		editing.
  *
- * $Id: itbuff.c,v 1.31 2025/01/26 17:03:33 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/itbuff.c,v 1.25 2005/01/23 14:40:49 tom Exp $
+ *
  */
 
 #include "estruct.h"
@@ -33,7 +34,7 @@ itb_remember(ITBUFF * p)
     ITB_LIST *q;
 
     beginDisplay();
-    if ((q = typealloc(ITB_LIST)) != NULL) {
+    if ((q = typealloc(ITB_LIST)) != 0) {
 	q->buff = p;
 	q->link = all_tbuffs;
 	all_tbuffs = q;
@@ -47,9 +48,9 @@ itb_forget(ITBUFF * p)
     ITB_LIST *q, *r;
 
     beginDisplay();
-    for (q = all_tbuffs, r = NULL; q != NULL; r = q, q = q->link) {
+    for (q = all_tbuffs, r = 0; q != 0; r = q, q = q->link) {
 	if (q->buff == p) {
-	    if (r != NULL)
+	    if (r != 0)
 		r->link = q->link;
 	    else
 		all_tbuffs = q->link;
@@ -63,7 +64,7 @@ itb_forget(ITBUFF * p)
 void
 itb_leaks(void)
 {
-    while (all_tbuffs != NULL) {
+    while (all_tbuffs != 0) {
 	ITBUFF *q = all_tbuffs->buff;
 	FreedBuffer(q);
 	itb_free(&q);
@@ -86,24 +87,22 @@ itb_alloc(ITBUFF ** p, size_t n)
     ITBUFF *q = *p;
 
     beginDisplay();
-    if (q == NULL) {
-	if ((q = *p = typealloc(ITBUFF)) != NULL) {
-	    if ((q->itb_data = typeallocn(int, q->itb_size = n)) != NULL) {
+    if (q == 0) {
+	if ((q = *p = typealloc(ITBUFF)) != 0) {
+	    if ((q->itb_data = typeallocn(int, q->itb_size = n)) != 0) {
 		q->itb_used = 0;
 		q->itb_last = 0;
 		q->itb_endc = esc_c;
 		AllocatedBuffer(q);
 	    } else {
 		itb_free(&q);
-		*p = NULL;
 	    }
 	}
     } else if (n >= q->itb_size) {
-	safe_typereallocn(int, q->itb_data, q->itb_size = (n * 2));
-	if (q->itb_data == NULL) {
+	q->itb_data = typereallocn(int, q->itb_data,
+				   q->itb_size = (n * 2));
+	if (q->itb_data == 0)
 	    itb_free(&q);
-	    *p = NULL;
-	}
     }
     endofDisplay();
     return q;
@@ -116,9 +115,9 @@ ITBUFF *
 itb_init(ITBUFF ** p, int c)
 {
     ITBUFF *q = *p;
-    if (q == NULL)
-	q = itb_alloc(p, (size_t) NCHUNK);
-    if (q != NULL) {
+    if (q == 0)
+	q = itb_alloc(p, NCHUNK);
+    if (q != 0) {
 	q->itb_used = 0;
 	q->itb_last = 0;
 	q->itb_endc = c;	/* code to return if no-more-data */
@@ -135,12 +134,12 @@ itb_free(ITBUFF ** p)
     ITBUFF *q = *p;
 
     beginDisplay();
-    if (q != NULL) {
+    if (q != 0) {
 	FreedBuffer(q);
 	FreeIfNeeded(q->itb_data);
 	free(q);
     }
-    *p = NULL;
+    *p = 0;
     endofDisplay();
 }
 
@@ -154,7 +153,7 @@ itb_put(ITBUFF ** p, size_t n, int c)
 {
     ITBUFF *q;
 
-    if ((q = itb_alloc(p, n + 1)) != NULL) {
+    if ((q = itb_alloc(p, n + 1)) != 0) {
 	q->itb_data[n] = c;
 	q->itb_used = n + 1;
     }
@@ -168,7 +167,7 @@ itb_put(ITBUFF ** p, size_t n, int c)
 void
 itb_stuff(ITBUFF * p, int c)
 {
-    if (p != NULL) {
+    if (p != 0) {
 	if (p->itb_last < p->itb_used)
 	    p->itb_data[p->itb_last] = c;
 	else
@@ -183,7 +182,7 @@ ITBUFF *
 itb_append(ITBUFF ** p, int c)
 {
     ITBUFF *q = *p;
-    size_t n = (q != NULL) ? q->itb_used : 0;
+    size_t n = (q != 0) ? q->itb_used : 0;
 
     return itb_put(p, n, c);
 }
@@ -196,11 +195,11 @@ itb_copy(ITBUFF ** d, ITBUFF * s)
 {
     ITBUFF *p;
 
-    if (s != NULL) {
-	if ((p = itb_init(d, s->itb_endc)) != NULL) {
+    if (s != 0) {
+	if ((p = itb_init(d, s->itb_endc)) != 0) {
 	    int *ptr = s->itb_data;
 	    size_t len = s->itb_used;
-	    while ((len-- != 0) && (p = itb_append(&p, *ptr++)) != NULL) {
+	    while ((len-- != 0) && itb_append(&p, *ptr++) != 0) {
 		;
 	    }
 	}
@@ -294,7 +293,7 @@ itb_get(ITBUFF * p, size_t n)
 {
     int c = esc_c;
 
-    if (p != NULL)
+    if (p != 0)
 	c = (n < p->itb_used) ? p->itb_data[n] : p->itb_endc;
 
     return c;
@@ -323,7 +322,7 @@ itb_seek(ITBUFF * p, size_t seekto, int whence)
 {
     size_t olast;
 
-    if (p == NULL)
+    if (p == 0)
 	return 0;
 
     olast = p->itb_last;
@@ -340,7 +339,7 @@ itb_seek(ITBUFF * p, size_t seekto, int whence)
 void
 itb_first(ITBUFF * p)
 {
-    (void) itb_seek(p, (size_t) 0, 0);
+    (void) itb_seek(p, 0, 0);
 }
 
 /*
@@ -349,7 +348,7 @@ itb_first(ITBUFF * p)
 int
 itb_more(ITBUFF * p)
 {
-    return (p != NULL) ? (p->itb_last < p->itb_used) : FALSE;
+    return (p != 0) ? (p->itb_last < p->itb_used) : FALSE;
 }
 
 /*
@@ -358,7 +357,7 @@ itb_more(ITBUFF * p)
 int
 itb_next(ITBUFF * p)
 {
-    if (p != NULL)
+    if (p != 0)
 	return itb_get(p, p->itb_last++);
     return esc_c;
 }
@@ -372,7 +371,7 @@ itb_last(ITBUFF * p)
 {
     int c;
 
-    if (p != NULL && p->itb_used > 0) {
+    if (p != 0 && p->itb_used > 0) {
 	c = itb_get(p, p->itb_used - 1);
 	p->itb_used--;
 	return c;
@@ -400,7 +399,7 @@ itb_unnext(ITBUFF * p)
 int
 itb_peek(ITBUFF * p)
 {
-    if (p != NULL)
+    if (p != 0)
 	return itb_get(p, p->itb_last);
     return esc_c;
 }
@@ -413,7 +412,7 @@ itb_peek(ITBUFF * p)
 int *
 itb_values(ITBUFF * p)
 {
-    return (p != NULL) ? p->itb_data : NULL;
+    return (p != 0) ? p->itb_data : 0;
 }
 
 /*
@@ -422,5 +421,5 @@ itb_values(ITBUFF * p)
 size_t
 itb_length(ITBUFF * p)
 {
-    return (p != NULL && p->itb_data != NULL) ? p->itb_used : 0;
+    return (p != 0 && p->itb_data != 0) ? p->itb_used : 0;
 }

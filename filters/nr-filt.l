@@ -3,7 +3,7 @@
 %{
 
 /*
- * $Id: nr-filt.l,v 1.36 2025/01/26 11:08:37 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/nr-filt.l,v 1.30 2010/07/13 13:44:40 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of NROFF
  */
@@ -11,7 +11,7 @@
 #include <filters.h>
 #undef YY_NO_UNPUT
 
-DefineFilter(nr);
+DefineFilter("nr");
 
 static char *Action_attr;
 static char *Comment_attr;
@@ -37,54 +37,15 @@ write_cmd(char *text, int size)
     }
 
     flt_puts(text, cmd, Keyword_attr);
-    flt_puts(text + cmd, size - cmd, String_attr);
-}
-
-static int
-font_len(char *text, int size)
-{
-    int result = 0;
-    if (size >= 3) {
-	if (text[0] == '\\' && text[1] == 'f') {
-	    if (text[2] == L_PAREN) {
-		if (size >= 5)
-		    result = 5;
-	    } else {
-		if (strchr("BIRP1234", text[2]) != NULL) {
-		    result = 3;
-		}
-	    }
-	}
-    }
-    return result;
-}
-
-static int
-nonfont_len(char *text, int size)
-{
-    int result = 0;
-    while ((size > 0) && (font_len(text, size) <= 0)) {
-	text++;
-	size--;
-	result++;
-    }
-    return result;
+    flt_puts(text+cmd, size-cmd, String_attr);
 }
 
 static void
 write_font(char *text, int size)
 {
-    while (size > 0) {
-	int llen = font_len(text, size);
-	flt_puts(text, llen, Ident2_attr);
-	text += llen;
-	size -= llen;
-	if ((llen = nonfont_len(text, size)) > 0) {
-	    flt_puts(text, llen, String_attr);
-	    text += llen;
-	    size -= llen;
-	}
-    }
+    flt_puts(text, 3, Ident2_attr);
+    flt_puts(text + 3, size-6, String_attr);
+    flt_puts(text + size - 3, 3, Ident2_attr);
 }
 
 %}
@@ -93,12 +54,11 @@ COMMAND		^[\.'][[:blank:]]*([[:alnum:]]+|(\\[^\\\r\n\"#])+)([ \t][^\r\n]+)?
 COMMENT		^[\.'][[:blank:]]*(\\\"|#)
 END_COMMAND	^\.\.$
 
-ENIT		\\[e *\n\\+-/]
+ENIT		\\[e *\n\\+-]
 
 USE_MACRO	\(..
 USE_SUBST	\\\*
 FONT		\\f([BI1-4]|{USE_MACRO})
-INFONT		([^\\\r\n]|{ENIT})+
 
 %%
 
@@ -110,12 +70,12 @@ INFONT		([^\\\r\n]|{ENIT})+
 				}
 
 \\f[PR1]			{ WriteToken(Action_attr); }
-{FONT}[\\\r\n]			{ WriteToken3(Action_attr, yyleng - 1);
+{FONT}[\\\r\n]			{ WriteToken3(Action_attr, 3);
 				  unput(yytext[yyleng - 1]);
 				}
 
-{FONT}{INFONT}(\\f[^PR1]|\n)	{ WriteToken(Action_attr); /* err? */ }
-({FONT}{INFONT})+\\f[PR1]	{ write_font(yytext, yyleng); }
+{FONT}([^\\\r\n]|{ENIT})+(\\f[^PR1]|\n)	{ WriteToken(Action_attr); /* err? */ }
+{FONT}([^\\\r\n]|{ENIT})+\\f[PR1]	{ write_font(yytext, yyleng); }
 {ENIT}				{ WriteToken(Ident2_attr); }
 \\[s][+-]?[[:digit:]]+		{ WriteToken(Ident2_attr); }
 
@@ -134,11 +94,11 @@ do_filter(FILE *inputs)
 {
     InitLEX(inputs);
 
-    Action_attr = class_attr(NAME_ACTION);
+    Action_attr  = class_attr(NAME_ACTION);
     Comment_attr = class_attr(NAME_COMMENT);
-    Ident2_attr = class_attr(NAME_IDENT2);
+    Ident2_attr  = class_attr(NAME_IDENT2);
     Keyword_attr = class_attr(NAME_KEYWORD);
-    String_attr = class_attr(NAME_LITERAL);
+    String_attr  = class_attr(NAME_LITERAL);
 
     RunLEX();
 }

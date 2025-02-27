@@ -1,6 +1,6 @@
 /*
- * $Id: blist.c,v 1.18 2025/01/26 14:47:08 tom Exp $
- * Copyright 2007-2018,2025 by Thomas E. Dickey
+ * $Id: blist.c,v 1.13 2010/04/30 22:59:27 tom Exp $
+ * Copyright 2007,2008 by Thomas E. Dickey
  *
  * Provide binary-search lookup of arrays of sorted structs.  The beginning of
  * each struct is a pointer to a string, which is the key by which the structs
@@ -13,9 +13,7 @@
 #include	<blist.h>
 
 #define	ILLEGAL_NUM	-1
-#define ItemOf(data,inx) *(const char * const*)\
-	((const void *)((const char *)(data->theList) \
-		       + ((size_t) (inx) * (size_t) data->itemSize)))
+#define ItemOf(data,inx) *(const char * const*)((const char *)(data->theList) + ((UINT) (inx) * data->itemSize))
 
 #define ItemToInx(data, item) \
 	((UINT) ((const char *) item - (const char *) (data->theList)) \
@@ -45,7 +43,7 @@ blist_count(BLIST * data)
 {
     if (data->itemCount < 0) {
 	int n;
-	for (n = 0; ItemOf(data, n) != NULL; ++n) {
+	for (n = 0; ItemOf(data, n) != 0; ++n) {
 	    ;
 	}
 	data->itemCount = n;
@@ -72,12 +70,8 @@ blist_match(BLIST * data, const char *name)
     ToFind dummy;
 
     dummy.name = name;
-    check = bsearch(&dummy,
-		    data->theList,
-		    (size_t) last,
-		    (size_t) data->itemSize,
-		    exact_match);
-    if (check != NULL) {
+    check = bsearch(&dummy, data->theList, (size_t) last, data->itemSize, exact_match);
+    if (check != 0) {
 	rc = (int) ItemToInx(data, check);
     }
     COUNTER(total_linear, rc + 1);
@@ -134,8 +128,8 @@ blist_pmatch(BLIST * data, const char *name, int len)
 		    dummy.name = name;
 		    test = (const char *) bsearch(&dummy,
 						  &ItemOf(data, lo),
-						  (size_t) x1 + 1 - (size_t) lo,
-						  (size_t) data->itemSize,
+						  (size_t) (x1 + 1 - lo),
+						  data->itemSize,
 						  exact_match);
 		    if (test) {
 			rc = (int) ItemToInx(data, test);
@@ -153,8 +147,7 @@ blist_pmatch(BLIST * data, const char *name, int len)
 		} else if (x1 < last - 1) {
 		    COUNTER(total_compares, 2);
 		    if (strcmp(item, name)
-			&& !strncmp(ItemOf(data, (size_t) x1 + 1), name,
-				    (size_t) len)) {
+			&& !strncmp(ItemOf(data, x1 + 1), name, (size_t) len)) {
 			rc = -1;
 		    }
 		}

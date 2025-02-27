@@ -1,10 +1,9 @@
 /*
- * $Id: filters.h,v 1.149 2025/01/26 17:04:12 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/filters.h,v 1.128 2010/07/13 13:26:08 tom Exp $
  */
 
 #ifndef FILTERS_H
 #define FILTERS_H 1
-/* *INDENT-OFF* */
 
 #ifdef __cplusplus
 extern "C" {
@@ -126,21 +125,9 @@ typedef struct {
 } FILTER_DEF;
 
 #ifdef LEX_IS_FLEX
-#ifndef YY_CURRENT_BUFFER
-#define YY_CURRENT_BUFFER yy_current_buffer
-#endif
-#ifndef YY_CURRENT_BUFFER_LVALUE
-#define YY_CURRENT_BUFFER_LVALUE YY_CURRENT_BUFFER
-#endif
-#define USE_LEXFREE { yy_delete_buffer(YY_CURRENT_BUFFER); YY_CURRENT_BUFFER_LVALUE = NULL; yy_init = 1; }
+#define USE_LEXFREE { yy_delete_buffer(yy_current_buffer); yy_current_buffer = 0; yy_init = 1; }
 #else
 #define USE_LEXFREE if (yytext) { free(yytext); yytext = 0; yytextsz = 0; }
-#endif
-
-#ifdef FLEX_DEBUG
-#define FLEX_PRINTF(param) if (yy_flex_debug) fprintf param
-#else
-#define FLEX_PRINTF(param) /* nothing */
 #endif
 
 /*
@@ -149,55 +136,33 @@ typedef struct {
 extern FILTER_DEF filter_def;
 
 /*
- * Use flex's parser-specific wrap-function.
- */
-#if defined(FLEX_SCANNER)
-#undef yywrap
-#endif
-
-/*
- * Workaround for incompatibilities between "new" flex versus flex/reflex.
- * One of the problems with "new" flex is that it reverses the order of
- * definitions for yywrap.
- */
-#if defined(FLEX_SCANNER) && defined(YY_FLEX_SUBMINOR_VERSION)
-#define YY_SKIP_YYWRAP
-#define yywrap() private_yywrap()
-#define USE_LEXWRAP static int private_yywrap(void) { return 1; }
-#else
-#define USE_LEXWRAP /* nothing */
-#endif
-
-/*
  * We'll put a DefineFilter() in each filter program.  To handle special cases
  * such as c-filt.c, use DefineOptFilter().
  */
 #define DefineOptFilter(name,options) \
-USE_LEXWRAP \
 static void init_filter(int before); \
 static void do_filter(FILE *Input); \
 DCL_LEXFREE \
-FILTER_DEF filter_def = { #name, 1, init_filter, do_filter, options REF_LEXFREE }
+FILTER_DEF filter_def = { name, 1, init_filter, do_filter, options REF_LEXFREE }
 
-#define DefineFilter(name) DefineOptFilter(name,NULL)
+#define DefineFilter(name) DefineOptFilter(name,0)
 
 #if NO_LEAKS
 #define LoadableFilter(name) \
 	extern FILTER_DEF define_##name; \
-	FILTER_DEF define_##name = { #name, 0, NULL, NULL, NULL, NULL }
+	FILTER_DEF define_##name = { #name, 0, 0, 0, 0, 0 }
 #else
 #define LoadableFilter(name) \
 	extern FILTER_DEF define_##name; \
-	FILTER_DEF define_##name = { #name, 0, NULL, NULL, NULL }
+	FILTER_DEF define_##name = { #name, 0, 0, 0, 0 }
 #endif
 
 #if defined(FLEX_SCANNER)
 #if defined(filter_def)
-#define ECHO flt_echo(yytext, yyleng);		/* in builtflt.c */
+#undef yywrap
+#define ECHO flt_echo(yytext, yyleng);
 #define YY_INPUT(buf,result,max_size) result = flt_input(buf,max_size)
 #define YY_FATAL_ERROR(msg) flt_failed(msg);
-#else
-#define ECHO flt_puts(yytext, yyleng, "");	/* in filterio.c */
 #endif
 /* quiet "gcc -Wunused" warnings */
 #define YY_NEVER_INTERACTIVE 1
@@ -222,10 +187,10 @@ extern FILE *yyin;
 #ifdef __FLEX_LEXER_H
 #define InitLEX(theInput) \
 	yyFlexLexer lexer
-#define RunLEX() if (flt_succeeds()) while (lexer.yylex() > 0)
+#define RunLEX() while (lexer.yylex() > 0)
 #else
 #define InitLEX(theInput) yyin = theInput
-#define RunLEX() if (flt_succeeds()) while (yylex() > 0)
+#define RunLEX() while (yylex() > 0)
 #endif
 
 #if defined(__GNUC__) || defined(__INTEL_COMPILER)
@@ -245,19 +210,13 @@ extern FILE *yyget_in (void);
 extern FILE *yyget_out (void);
 extern char *yyget_text (void);
 extern int yyget_debug (void);
+extern int yyget_leng (void);
 extern int yyget_lineno (void);
 extern int yylex_destroy (void);
 extern void yyset_debug (int bdebug);
 extern void yyset_in (FILE * in_str);
 extern void yyset_lineno (int line_number);
 extern void yyset_out (FILE * out_str);
-#if !defined(YY_FLEX_SUBMINOR_VERSION)
-extern int yyget_leng (void);
-#elif (YY_FLEX_MINOR_VERSION < 6) && (YY_FLEX_SUBMINOR_VERSION < 37)
-extern yy_size_t yyget_leng (void);
-#elif (YY_FLEX_MINOR_VERSION < 6)
-extern yy_size_t yyget_leng (void);
-#endif
 /* there's also warnings for unused 'yyunput()', but I don't see a fix */
 /* flex's skeleton includes <unistd.h> - no particular reason apparent */
 #endif
@@ -279,26 +238,20 @@ extern int meta_ch;
 extern int vile_keywords;
 extern int flt_options[256];
 
-#if defined(__GNUC__) && defined(_FORTIFY_SOURCE)
-extern int ignore_unused;
-#endif
-
 #define FltOptions(c) flt_options[CharOf(c)]
 
 extern KEYWORD *is_class(const char *name);
 extern KEYWORD *is_keyword(const char *name);
 extern KEYWORD *keyword_data(const char *name);
-extern char *class_attr(const char *name);
 extern const char *ci_keyword_attr(const char *name);
 extern const char *ci_keyword_flag(const char *name);
-extern const char *get_keyword_attr(const char *text);
+extern char *class_attr(const char *name);
 extern const char *get_symbol_table(void);
 extern const char *keyword_attr(const char *name);
 extern const char *keyword_flag(const char *name);
 extern const char *lowercase_of(const char *name);
 extern char *readline(FILE *fp, char **ptr, size_t *len);
 extern char *skip_ident(char *src);
-extern int ci_compare(const char *a, const char *b);
 extern int flt_bfr_length(void);
 extern int set_symbol_table(const char *classname);
 extern long hash_function(const char *id);
@@ -309,7 +262,7 @@ extern void flt_bfr_embed(const char *text, int length, const char *attr);
 extern void flt_bfr_error(void);
 extern void flt_bfr_finish(void);
 extern void flt_dump_symtab(const char *table_name);
-extern void flt_free(char **p, size_t *len);
+extern void flt_free(char **p, unsigned *len);
 extern void flt_free_keywords(const char *classname);
 extern void flt_free_symtab(void);
 extern void flt_init_attr(const char *attr_name);
@@ -353,14 +306,13 @@ extern int flt_input(char *buffer, int max_size);
 extern int flt_lookup(char *name);
 extern int flt_restart(char *name);
 extern int flt_start(char *name);
-extern int vl_check_cmd(const void *cmd, unsigned long flags);
+extern int vl_check_cmd(const void *cmd, unsigned flags);
 extern int vl_is_majormode(const void *cmd);
 extern int vl_is_setting(const void *cmd);
 extern int vl_is_submode(const void *cmd);
 extern int vl_is_xcolor(const void *cmd);
 extern int vl_lookup_mode(const char *name);
 extern int vl_lookup_var(const char *name);
-extern int flt_succeeds(void);
 extern void flt_echo(const char *string, int length);
 extern void flt_error(const char *fmt, ...) VILE_PRINTF(1,2);
 extern void flt_failed(const char *msg);
@@ -368,9 +320,6 @@ extern void flt_finish(void);
 extern void flt_message(const char *fmt, ...) VILE_PRINTF(1,2);
 extern void flt_putc(int ch);
 extern void flt_puts(const char *string, int length, const char *attribute);
-
-/* potential symbol conflict with ncurses */
-#define define_key vl_define_key
 
 /*
  * declared in main.c or filters.c
@@ -408,7 +357,5 @@ extern void flt_puts(const char *string, int length, const char *attribute);
 #ifdef __cplusplus
 }
 #endif
-
-/* *INDENT-ON* */
 
 #endif /* FILTERS_H */

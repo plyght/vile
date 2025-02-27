@@ -4,14 +4,14 @@
 %{
 
 /*
- * $Id: rcs-filt.l,v 1.25 2025/01/26 11:36:23 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/rcs-filt.l,v 1.19 2010/07/13 13:45:25 tom Exp $
  *
  * Filter to add vile "attribution" sequences to RCS archives.
  */
 
 #include <filters.h>
 
-DefineFilter(rcs);
+DefineFilter("rcs");
 
 static char *Ident2_attr;
 static char *Number_attr;
@@ -28,7 +28,7 @@ NAME		[[:alnum:]]+
 %%
 
 <INITIAL>[\n]		{ ECHO; }
-<INITIAL>{NAME}		{ WriteToken(get_keyword_attr(yytext)); }
+<INITIAL>{NAME}		{ WriteToken(keyword_attr(yytext)); }
 <INITIAL>{NUMBER}	{ WriteToken(Number_attr); }
 <INITIAL>"@"		{ add_to_quoted(yytext, yyleng); BEGIN(QUOTED); }
 <QUOTED>[^@\r\n]*	{ add_to_quoted(yytext, yyleng); }
@@ -46,7 +46,7 @@ is_ident(char *src)
     char *base = src;
     while (isalnum(CharOf(*src)))
 	src++;
-    return (src != base && (*src == ':' || *src == '$'));
+    return (src != base && (*src == ':' || *src == '$')) ;
 }
 
 /*
@@ -57,29 +57,29 @@ find_ident(char *first)
 {
     char *dollar = strchr(first, '$');
 
-    if (dollar != NULL
-	&& is_ident(dollar + 1)
-	&& strchr(dollar + 1, '$')) {
+    if (dollar != 0
+     && is_ident(dollar+1)
+     && strchr(dollar+1, '$')) {
 	return dollar;
     }
 
-    return NULL;
+    return 0;
 }
 
 /*
  * Buffer text for quoted-strings, so we can highlight the embedded RCS
  * keywords.
  */
-static char *save_bfr;
+static char  *save_bfr;
 static size_t save_max;
 static size_t save_len;
 
 static void
 add_to_quoted(char *text, int length)
 {
-    size_t extra = (size_t) length;
+    size_t extra = (size_t) (length + 1);
 
-    if ((save_bfr = do_alloc(save_bfr, save_len + extra + 1, &save_max)) != NULL) {
+    if ((save_bfr = do_alloc(save_bfr, save_len + extra + 1, &save_max)) != 0) {
 	strncpy(save_bfr + save_len, text, extra + 1);
 	save_len += extra;
     } else {
@@ -95,8 +95,8 @@ flush_quoted(void)
 	char *last = save_bfr + save_len;
 	while (base < last) {
 	    char *ident = find_ident(base);
-	    if (ident != NULL) {
-		char *next = strchr(ident + 1, '$');
+	    if (ident != 0) {
+		char *next = strchr(ident+1, '$');
 		if (ident != base)
 		    flt_puts(base, (int) (ident - base), String_attr);
 		base = next + 1;

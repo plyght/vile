@@ -1,5 +1,5 @@
-#!/usr/bin/env perl
-# $Id: make-hlp.pl,v 1.18 2021/01/01 12:40:57 tom Exp $
+#!/usr/bin/perl -w
+# $Id: make-hlp.pl,v 1.6 2009/12/28 16:38:43 tom Exp $
 # Generate vile.hlp, using the dump feature of a text browser.
 #
 # Any of (e)links(2) or lynx would work.
@@ -9,16 +9,11 @@
 #
 # w3m is unsuitable because it does not provide a left margin.
 #
-# links was used because the differences between its dump and elinks are
+# links is used because the differences between its dump and elinks are
 # insignificant, and because (not being actively developed), fewer surprises a
-# likely when regenerating vile.hlp -- except that links/etc rendering of
-# blockquote+pre is ... not good.  So we fix that by preprocessing.
-#
-# Later, Debian created a surprise by equating links and links2.
+# likely when regenerating vile.hlp
 
 use strict;
-use warnings;
-use File::Temp qw/ tempfile /;
 
 our $PROG = "links";
 
@@ -52,7 +47,7 @@ sub header() {
     return $header;
 }
 
-# A capital letter in the first column means a major heading.  Underline it.
+# A capital letter in the first line means a major heading.  Underline it.
 # Adjust blank lines before/after a major header, to look more/less like the
 # older hand-crafted version.
 sub output($) {
@@ -76,9 +71,7 @@ sub output($) {
 
     if ($caps) {
         $text =~ s/[^\s]/-/g;
-        while ( $text =~ /-\s-/ ) {
-            $text =~ s/-\s-/---/g;
-        }
+        $text =~ s/- -/---/g;
         printf "%s\n", $text;
     }
 
@@ -99,46 +92,12 @@ sub doit() {
 
     foreach $name (@ARGV) {
         my $n;
-        my $t;
         my (@input);
         my $text;
 
-        my $temp_name;
-        my $temp_fh;
-
-        # use tidy to construct a file in consistent format, with the markdown
-        # bold/italics pre-substituted.
-        ( $temp_fh, $temp_name ) = tempfile();
-        open( FP, "tidy -q -wrap 4096 < $name|" ) || do {
-            print STDERR "Can't read $name: $!\n";
-            return;
-        };
-        @input = <FP>;
-        close(FP);
-        open( FP, ">$temp_name" ) || do {
-            print STDERR "Can't write $temp_name: $!\n";
-            return;
-        };
-        my $blockq = 0;
-        my $prefrm = 0;
-        for $n ( 0 .. $#input ) {
-            chomp $input[$n];
-            $blockq = 1 if ( $input[$n] eq "<blockquote>" );
-            $blockq = 0 if ( $input[$n] =~ /\<\/blockquote\>/ );
-            $prefrm = 1 if ( $input[$n] =~ /^<pre\b/ );
-            $prefrm = 0 if ( $input[$n] =~ /\<\/pre\>/ );
-            $input[$n] =~ s,\<[/]?i\>,_,g;
-            $input[$n] =~ s,\<[/]?b\>,*,g;
-            $input[$n] = "\t" . $input[$n] if ( $blockq and $prefrm );
-
-            # printf STDERR "%d:%d.%d\t%s\n", $n, $blockq, $prefrm, $input[$n];
-            printf FP "%s\n", $input[$n];
-        }
-        close(FP);
-
         # read the file directly to get the version-id and toplevel-title.
-        open( FP, $temp_name ) || do {
-            print STDERR "Can't read $temp_name: $!\n";
+        open( FP, $name ) || do {
+            print STDERR "Can't read $name: $!\n";
             return;
         };
         @input = <FP>;
@@ -146,9 +105,6 @@ sub doit() {
 
         for $n ( 0 .. $#input ) {
             chomp( $input[$n] );
-        }
-
-        for $n ( 0 .. $#input ) {
             if ( $input[$n] =~ /$ident_pattern/ ) {
                 $text = $input[$n];
                 $text =~ s/^.*\$Id:\s+//;
@@ -157,31 +113,22 @@ sub doit() {
                 $file_version .= $text;
             }
             elsif ( $input[$n] =~ /<title>/i ) {
-                $text = $input[$n];
-                $text =~ s/^.*\<title\>//gi;
-                $t = $n;
-                while ( $text !~ /.*\<\/title\>/i and $t != $#input ) {
-                    $text .= " " . $input[ ++$t ];
-                }
-                $text =~ s/\<\/title\>.*$//gi;
-                $text =~ s/\(version.*//;
-                $text       = trim($text);
+                chomp( $input[ $n + 1 ] );
+                $text = $input[ $n + 1 ];
+                $text =~ s/^.*<h1>//;
+                $text =~ s/<\/h1>.*//;
+		$text =~ s/\(version.*//;
+		$text = trim($text);
                 $file_title = $text;
                 last;
             }
         }
 
         # read the formatted file
-        open( FP,
-                "COLUMNS=80 "
-              . "LC_ALL=C "
-              . "LC_CTYPE=C "
-              . "LANG=C "
-              . "$PROG -dump $temp_name|" )
-          || do {
-            print STDERR "Can't dump $temp_name: $!\n";
+        open( FP, "$PROG -dump $name|" ) || do {
+            print STDERR "Can't dump $name: $!\n";
             return;
-          };
+        };
         @input = <FP>;
         close(FP);
 
@@ -191,27 +138,11 @@ sub doit() {
             $first = 0;
         }
 
-        my $body = 0;
-        my $base = -1;
         for $n ( 0 .. $#input ) {
-
-            # printf STDERR "READ %d:%s", $n+1, $input[$n];
             chomp( $input[$n] );
             $input[$n] = trim( $input[$n] );
-
-            $base = $n if ( $base < 0 and $input[$n] =~ /[-]{20,}/ );
-
-            # omit the website url on ".doc" files
-            if (    $body == 0
-                and $n > $base
-                and $input[$n] =~ /[-]{20,}/
-                and $input[$n] eq $input[$base] )
-            {
-                $body = $n + 1;
-            }
-            $input[$n] =~ s/\xa9/(c)/g;
         }
-        for $n ( $body .. $#input ) {
+        for $n ( 0 .. $#input ) {
             if (
                     $OOPS
                 and ( $n < $#input )
@@ -223,16 +154,14 @@ sub doit() {
             }
             output( $input[$n] );
         }
-
-        unlink $temp_name;
     }
 
     printf "\n";
     printf "-- (generated by make-hlp.pl from %s)\n", $file_version;
     printf "-- vile:txtmode fillcol=78\n";
-    our $foot = "-- \@Id\@";
+    our $foot = "-- \@Header\@";
     $foot =~ s/@/\$/g;
     printf "%s\n", $foot;
 }
 
-&doit();
+doit();

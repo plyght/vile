@@ -1,5 +1,5 @@
 /*
- * $Id: eightbit.c,v 1.114 2025/01/26 17:09:56 tom Exp $
+ * $Id: eightbit.c,v 1.74 2010/05/12 09:21:41 tom Exp $
  *
  * Maintain "8bit" file-encoding mode by converting incoming UTF-8 to single
  * bytes, and providing a function that tells vile whether a given Unicode
@@ -23,9 +23,7 @@
 #include <langinfo.h>
 #endif
 
-#include <gnreight.h>
-
-#define StrMalloc(s) ((s) ? strmalloc(s) : NULL)
+#define StrMalloc(s) ((s) ? strmalloc(s) : 0)
 
 #if DISP_TERMCAP || DISP_CURSES || DISP_BORLAND
 #define USE_MBTERM 1
@@ -35,11 +33,526 @@ static OUTC_DCL(*save_putch) (int c);
 #define USE_MBTERM 0
 #endif
 
-#define LEN_UTF8 6		/* maximum number of bytes in UTF-8 encoding */
-
 /******************************************************************************/
-static BLIST blist_encodings = init_blist(all_encodings);
-static BLIST blist_locales = init_blist(all_locales);
+CHARTYPE vl_ctype_ascii[] =
+{
+    (vl_cntrl),			/* 0:^@ */
+    (vl_cntrl),			/* 1:^A */
+    (vl_cntrl),			/* 2:^B */
+    (vl_cntrl),			/* 3:^C */
+    (vl_cntrl),			/* 4:^D */
+    (vl_cntrl),			/* 5:^E */
+    (vl_cntrl),			/* 6:^F */
+    (vl_cntrl),			/* 7:^G */
+    (vl_cntrl),			/* 8:^H */
+    (vl_space | vl_cntrl),	/* 9:^I */
+    (vl_space | vl_cntrl),	/* 10:^J */
+    (vl_space | vl_cntrl),	/* 11:^K */
+    (vl_space | vl_cntrl),	/* 12:^L */
+    (vl_space | vl_cntrl),	/* 13:^M */
+    (vl_cntrl),			/* 14:^N */
+    (vl_cntrl),			/* 15:^O */
+    (vl_cntrl),			/* 16:^P */
+    (vl_cntrl),			/* 17:^Q */
+    (vl_cntrl),			/* 18:^R */
+    (vl_cntrl),			/* 19:^S */
+    (vl_cntrl),			/* 20:^T */
+    (vl_cntrl),			/* 21:^U */
+    (vl_cntrl),			/* 22:^V */
+    (vl_cntrl),			/* 23:^W */
+    (vl_cntrl),			/* 24:^X */
+    (vl_cntrl),			/* 25:^Y */
+    (vl_cntrl),			/* 26:^Z */
+    (vl_cntrl),			/* 27:^[ */
+    (vl_cntrl),			/* 28:^\ */
+    (vl_cntrl),			/* 29:^] */
+    (vl_cntrl),			/* 30:^^ */
+    (vl_cntrl),			/* 31:^_ */
+    (vl_space | vl_print),	/* 32:  */
+    (vl_print | vl_punct),	/* 33:! */
+    (vl_print | vl_punct),	/* 34:" */
+    (vl_print | vl_punct),	/* 35:# */
+    (vl_print | vl_punct),	/* 36:$ */
+    (vl_print | vl_punct),	/* 37:% */
+    (vl_print | vl_punct),	/* 38:& */
+    (vl_print | vl_punct),	/* 39:' */
+    (vl_print | vl_punct),	/* 40:( */
+    (vl_print | vl_punct),	/* 41:) */
+    (vl_print | vl_punct),	/* 42:* */
+    (vl_print | vl_punct),	/* 43:+ */
+    (vl_print | vl_punct),	/* 44:, */
+    (vl_print | vl_punct),	/* 45:- */
+    (vl_print | vl_punct),	/* 46:. */
+    (vl_print | vl_punct),	/* 47:/ */
+    (vl_digit | vl_print | vl_xdigit),	/* 48:0 */
+    (vl_digit | vl_print | vl_xdigit),	/* 49:1 */
+    (vl_digit | vl_print | vl_xdigit),	/* 50:2 */
+    (vl_digit | vl_print | vl_xdigit),	/* 51:3 */
+    (vl_digit | vl_print | vl_xdigit),	/* 52:4 */
+    (vl_digit | vl_print | vl_xdigit),	/* 53:5 */
+    (vl_digit | vl_print | vl_xdigit),	/* 54:6 */
+    (vl_digit | vl_print | vl_xdigit),	/* 55:7 */
+    (vl_digit | vl_print | vl_xdigit),	/* 56:8 */
+    (vl_digit | vl_print | vl_xdigit),	/* 57:9 */
+    (vl_print | vl_punct),	/* 58:: */
+    (vl_print | vl_punct),	/* 59:; */
+    (vl_print | vl_punct),	/* 60:< */
+    (vl_print | vl_punct),	/* 61:= */
+    (vl_print | vl_punct),	/* 62:> */
+    (vl_print | vl_punct),	/* 63:? */
+    (vl_print | vl_punct),	/* 64:@ */
+    (vl_upper | vl_print | vl_xdigit),	/* 65:A */
+    (vl_upper | vl_print | vl_xdigit),	/* 66:B */
+    (vl_upper | vl_print | vl_xdigit),	/* 67:C */
+    (vl_upper | vl_print | vl_xdigit),	/* 68:D */
+    (vl_upper | vl_print | vl_xdigit),	/* 69:E */
+    (vl_upper | vl_print | vl_xdigit),	/* 70:F */
+    (vl_upper | vl_print),	/* 71:G */
+    (vl_upper | vl_print),	/* 72:H */
+    (vl_upper | vl_print),	/* 73:I */
+    (vl_upper | vl_print),	/* 74:J */
+    (vl_upper | vl_print),	/* 75:K */
+    (vl_upper | vl_print),	/* 76:L */
+    (vl_upper | vl_print),	/* 77:M */
+    (vl_upper | vl_print),	/* 78:N */
+    (vl_upper | vl_print),	/* 79:O */
+    (vl_upper | vl_print),	/* 80:P */
+    (vl_upper | vl_print),	/* 81:Q */
+    (vl_upper | vl_print),	/* 82:R */
+    (vl_upper | vl_print),	/* 83:S */
+    (vl_upper | vl_print),	/* 84:T */
+    (vl_upper | vl_print),	/* 85:U */
+    (vl_upper | vl_print),	/* 86:V */
+    (vl_upper | vl_print),	/* 87:W */
+    (vl_upper | vl_print),	/* 88:X */
+    (vl_upper | vl_print),	/* 89:Y */
+    (vl_upper | vl_print),	/* 90:Z */
+    (vl_print | vl_punct),	/* 91:[ */
+    (vl_print | vl_punct),	/* 92:\ */
+    (vl_print | vl_punct),	/* 93:] */
+    (vl_print | vl_punct),	/* 94:^ */
+    (vl_print | vl_punct),	/* 95:_ */
+    (vl_print | vl_punct),	/* 96:` */
+    (vl_lower | vl_print | vl_xdigit),	/* 97:a */
+    (vl_lower | vl_print | vl_xdigit),	/* 98:b */
+    (vl_lower | vl_print | vl_xdigit),	/* 99:c */
+    (vl_lower | vl_print | vl_xdigit),	/* 100:d */
+    (vl_lower | vl_print | vl_xdigit),	/* 101:e */
+    (vl_lower | vl_print | vl_xdigit),	/* 102:f */
+    (vl_lower | vl_print),	/* 103:g */
+    (vl_lower | vl_print),	/* 104:h */
+    (vl_lower | vl_print),	/* 105:i */
+    (vl_lower | vl_print),	/* 106:j */
+    (vl_lower | vl_print),	/* 107:k */
+    (vl_lower | vl_print),	/* 108:l */
+    (vl_lower | vl_print),	/* 109:m */
+    (vl_lower | vl_print),	/* 110:n */
+    (vl_lower | vl_print),	/* 111:o */
+    (vl_lower | vl_print),	/* 112:p */
+    (vl_lower | vl_print),	/* 113:q */
+    (vl_lower | vl_print),	/* 114:r */
+    (vl_lower | vl_print),	/* 115:s */
+    (vl_lower | vl_print),	/* 116:t */
+    (vl_lower | vl_print),	/* 117:u */
+    (vl_lower | vl_print),	/* 118:v */
+    (vl_lower | vl_print),	/* 119:w */
+    (vl_lower | vl_print),	/* 120:x */
+    (vl_lower | vl_print),	/* 121:y */
+    (vl_lower | vl_print),	/* 122:z */
+    (vl_print | vl_punct),	/* 123:{ */
+    (vl_print | vl_punct),	/* 124:| */
+    (vl_print | vl_punct),	/* 125:} */
+    (vl_print | vl_punct),	/* 126:~ */
+    (vl_cntrl),			/* 127:^? */
+    (0),			/* 128:\200 */
+    (0),			/* 129:\201 */
+    (0),			/* 130:\202 */
+    (0),			/* 131:\203 */
+    (0),			/* 132:\204 */
+    (0),			/* 133:\205 */
+    (0),			/* 134:\206 */
+    (0),			/* 135:\207 */
+    (0),			/* 136:\210 */
+    (0),			/* 137:\211 */
+    (0),			/* 138:\212 */
+    (0),			/* 139:\213 */
+    (0),			/* 140:\214 */
+    (0),			/* 141:\215 */
+    (0),			/* 142:\216 */
+    (0),			/* 143:\217 */
+    (0),			/* 144:\220 */
+    (0),			/* 145:\221 */
+    (0),			/* 146:\222 */
+    (0),			/* 147:\223 */
+    (0),			/* 148:\224 */
+    (0),			/* 149:\225 */
+    (0),			/* 150:\226 */
+    (0),			/* 151:\227 */
+    (0),			/* 152:\230 */
+    (0),			/* 153:\231 */
+    (0),			/* 154:\232 */
+    (0),			/* 155:\233 */
+    (0),			/* 156:\234 */
+    (0),			/* 157:\235 */
+    (0),			/* 158:\236 */
+    (0),			/* 159:\237 */
+    (0),			/* 160:\240 */
+    (0),			/* 161:\241 */
+    (0),			/* 162:\242 */
+    (0),			/* 163:\243 */
+    (0),			/* 164:\244 */
+    (0),			/* 165:\245 */
+    (0),			/* 166:\246 */
+    (0),			/* 167:\247 */
+    (0),			/* 168:\250 */
+    (0),			/* 169:\251 */
+    (0),			/* 170:\252 */
+    (0),			/* 171:\253 */
+    (0),			/* 172:\254 */
+    (0),			/* 173:\255 */
+    (0),			/* 174:\256 */
+    (0),			/* 175:\257 */
+    (0),			/* 176:\260 */
+    (0),			/* 177:\261 */
+    (0),			/* 178:\262 */
+    (0),			/* 179:\263 */
+    (0),			/* 180:\264 */
+    (0),			/* 181:\265 */
+    (0),			/* 182:\266 */
+    (0),			/* 183:\267 */
+    (0),			/* 184:\270 */
+    (0),			/* 185:\271 */
+    (0),			/* 186:\272 */
+    (0),			/* 187:\273 */
+    (0),			/* 188:\274 */
+    (0),			/* 189:\275 */
+    (0),			/* 190:\276 */
+    (0),			/* 191:\277 */
+    (0),			/* 192:\300 */
+    (0),			/* 193:\301 */
+    (0),			/* 194:\302 */
+    (0),			/* 195:\303 */
+    (0),			/* 196:\304 */
+    (0),			/* 197:\305 */
+    (0),			/* 198:\306 */
+    (0),			/* 199:\307 */
+    (0),			/* 200:\310 */
+    (0),			/* 201:\311 */
+    (0),			/* 202:\312 */
+    (0),			/* 203:\313 */
+    (0),			/* 204:\314 */
+    (0),			/* 205:\315 */
+    (0),			/* 206:\316 */
+    (0),			/* 207:\317 */
+    (0),			/* 208:\320 */
+    (0),			/* 209:\321 */
+    (0),			/* 210:\322 */
+    (0),			/* 211:\323 */
+    (0),			/* 212:\324 */
+    (0),			/* 213:\325 */
+    (0),			/* 214:\326 */
+    (0),			/* 215:\327 */
+    (0),			/* 216:\330 */
+    (0),			/* 217:\331 */
+    (0),			/* 218:\332 */
+    (0),			/* 219:\333 */
+    (0),			/* 220:\334 */
+    (0),			/* 221:\335 */
+    (0),			/* 222:\336 */
+    (0),			/* 223:\337 */
+    (0),			/* 224:\340 */
+    (0),			/* 225:\341 */
+    (0),			/* 226:\342 */
+    (0),			/* 227:\343 */
+    (0),			/* 228:\344 */
+    (0),			/* 229:\345 */
+    (0),			/* 230:\346 */
+    (0),			/* 231:\347 */
+    (0),			/* 232:\350 */
+    (0),			/* 233:\351 */
+    (0),			/* 234:\352 */
+    (0),			/* 235:\353 */
+    (0),			/* 236:\354 */
+    (0),			/* 237:\355 */
+    (0),			/* 238:\356 */
+    (0),			/* 239:\357 */
+    (0),			/* 240:\360 */
+    (0),			/* 241:\361 */
+    (0),			/* 242:\362 */
+    (0),			/* 243:\363 */
+    (0),			/* 244:\364 */
+    (0),			/* 245:\365 */
+    (0),			/* 246:\366 */
+    (0),			/* 247:\367 */
+    (0),			/* 248:\370 */
+    (0),			/* 249:\371 */
+    (0),			/* 250:\372 */
+    (0),			/* 251:\373 */
+    (0),			/* 252:\374 */
+    (0),			/* 253:\375 */
+    (0),			/* 254:\376 */
+    (0),			/* 255:\377 */
+};
+/******************************************************************************/
+CHARTYPE vl_ctype_latin1[] =
+{
+    (vl_cntrl),			/* 0:^@ */
+    (vl_cntrl),			/* 1:^A */
+    (vl_cntrl),			/* 2:^B */
+    (vl_cntrl),			/* 3:^C */
+    (vl_cntrl),			/* 4:^D */
+    (vl_cntrl),			/* 5:^E */
+    (vl_cntrl),			/* 6:^F */
+    (vl_cntrl),			/* 7:^G */
+    (vl_cntrl),			/* 8:^H */
+    (vl_space | vl_cntrl),	/* 9:^I */
+    (vl_space | vl_cntrl),	/* 10:^J */
+    (vl_space | vl_cntrl),	/* 11:^K */
+    (vl_space | vl_cntrl),	/* 12:^L */
+    (vl_space | vl_cntrl),	/* 13:^M */
+    (vl_cntrl),			/* 14:^N */
+    (vl_cntrl),			/* 15:^O */
+    (vl_cntrl),			/* 16:^P */
+    (vl_cntrl),			/* 17:^Q */
+    (vl_cntrl),			/* 18:^R */
+    (vl_cntrl),			/* 19:^S */
+    (vl_cntrl),			/* 20:^T */
+    (vl_cntrl),			/* 21:^U */
+    (vl_cntrl),			/* 22:^V */
+    (vl_cntrl),			/* 23:^W */
+    (vl_cntrl),			/* 24:^X */
+    (vl_cntrl),			/* 25:^Y */
+    (vl_cntrl),			/* 26:^Z */
+    (vl_cntrl),			/* 27:^[ */
+    (vl_cntrl),			/* 28:^\ */
+    (vl_cntrl),			/* 29:^] */
+    (vl_cntrl),			/* 30:^^ */
+    (vl_cntrl),			/* 31:^_ */
+    (vl_space | vl_print),	/* 32:  */
+    (vl_print | vl_punct),	/* 33:! */
+    (vl_print | vl_punct),	/* 34:" */
+    (vl_print | vl_punct),	/* 35:# */
+    (vl_print | vl_punct),	/* 36:$ */
+    (vl_print | vl_punct),	/* 37:% */
+    (vl_print | vl_punct),	/* 38:& */
+    (vl_print | vl_punct),	/* 39:' */
+    (vl_print | vl_punct),	/* 40:( */
+    (vl_print | vl_punct),	/* 41:) */
+    (vl_print | vl_punct),	/* 42:* */
+    (vl_print | vl_punct),	/* 43:+ */
+    (vl_print | vl_punct),	/* 44:, */
+    (vl_print | vl_punct),	/* 45:- */
+    (vl_print | vl_punct),	/* 46:. */
+    (vl_print | vl_punct),	/* 47:/ */
+    (vl_digit | vl_print | vl_xdigit),	/* 48:0 */
+    (vl_digit | vl_print | vl_xdigit),	/* 49:1 */
+    (vl_digit | vl_print | vl_xdigit),	/* 50:2 */
+    (vl_digit | vl_print | vl_xdigit),	/* 51:3 */
+    (vl_digit | vl_print | vl_xdigit),	/* 52:4 */
+    (vl_digit | vl_print | vl_xdigit),	/* 53:5 */
+    (vl_digit | vl_print | vl_xdigit),	/* 54:6 */
+    (vl_digit | vl_print | vl_xdigit),	/* 55:7 */
+    (vl_digit | vl_print | vl_xdigit),	/* 56:8 */
+    (vl_digit | vl_print | vl_xdigit),	/* 57:9 */
+    (vl_print | vl_punct),	/* 58:: */
+    (vl_print | vl_punct),	/* 59:; */
+    (vl_print | vl_punct),	/* 60:< */
+    (vl_print | vl_punct),	/* 61:= */
+    (vl_print | vl_punct),	/* 62:> */
+    (vl_print | vl_punct),	/* 63:? */
+    (vl_print | vl_punct),	/* 64:@ */
+    (vl_upper | vl_print | vl_xdigit),	/* 65:A */
+    (vl_upper | vl_print | vl_xdigit),	/* 66:B */
+    (vl_upper | vl_print | vl_xdigit),	/* 67:C */
+    (vl_upper | vl_print | vl_xdigit),	/* 68:D */
+    (vl_upper | vl_print | vl_xdigit),	/* 69:E */
+    (vl_upper | vl_print | vl_xdigit),	/* 70:F */
+    (vl_upper | vl_print),	/* 71:G */
+    (vl_upper | vl_print),	/* 72:H */
+    (vl_upper | vl_print),	/* 73:I */
+    (vl_upper | vl_print),	/* 74:J */
+    (vl_upper | vl_print),	/* 75:K */
+    (vl_upper | vl_print),	/* 76:L */
+    (vl_upper | vl_print),	/* 77:M */
+    (vl_upper | vl_print),	/* 78:N */
+    (vl_upper | vl_print),	/* 79:O */
+    (vl_upper | vl_print),	/* 80:P */
+    (vl_upper | vl_print),	/* 81:Q */
+    (vl_upper | vl_print),	/* 82:R */
+    (vl_upper | vl_print),	/* 83:S */
+    (vl_upper | vl_print),	/* 84:T */
+    (vl_upper | vl_print),	/* 85:U */
+    (vl_upper | vl_print),	/* 86:V */
+    (vl_upper | vl_print),	/* 87:W */
+    (vl_upper | vl_print),	/* 88:X */
+    (vl_upper | vl_print),	/* 89:Y */
+    (vl_upper | vl_print),	/* 90:Z */
+    (vl_print | vl_punct),	/* 91:[ */
+    (vl_print | vl_punct),	/* 92:\ */
+    (vl_print | vl_punct),	/* 93:] */
+    (vl_print | vl_punct),	/* 94:^ */
+    (vl_print | vl_punct),	/* 95:_ */
+    (vl_print | vl_punct),	/* 96:` */
+    (vl_lower | vl_print | vl_xdigit),	/* 97:a */
+    (vl_lower | vl_print | vl_xdigit),	/* 98:b */
+    (vl_lower | vl_print | vl_xdigit),	/* 99:c */
+    (vl_lower | vl_print | vl_xdigit),	/* 100:d */
+    (vl_lower | vl_print | vl_xdigit),	/* 101:e */
+    (vl_lower | vl_print | vl_xdigit),	/* 102:f */
+    (vl_lower | vl_print),	/* 103:g */
+    (vl_lower | vl_print),	/* 104:h */
+    (vl_lower | vl_print),	/* 105:i */
+    (vl_lower | vl_print),	/* 106:j */
+    (vl_lower | vl_print),	/* 107:k */
+    (vl_lower | vl_print),	/* 108:l */
+    (vl_lower | vl_print),	/* 109:m */
+    (vl_lower | vl_print),	/* 110:n */
+    (vl_lower | vl_print),	/* 111:o */
+    (vl_lower | vl_print),	/* 112:p */
+    (vl_lower | vl_print),	/* 113:q */
+    (vl_lower | vl_print),	/* 114:r */
+    (vl_lower | vl_print),	/* 115:s */
+    (vl_lower | vl_print),	/* 116:t */
+    (vl_lower | vl_print),	/* 117:u */
+    (vl_lower | vl_print),	/* 118:v */
+    (vl_lower | vl_print),	/* 119:w */
+    (vl_lower | vl_print),	/* 120:x */
+    (vl_lower | vl_print),	/* 121:y */
+    (vl_lower | vl_print),	/* 122:z */
+    (vl_print | vl_punct),	/* 123:{ */
+    (vl_print | vl_punct),	/* 124:| */
+    (vl_print | vl_punct),	/* 125:} */
+    (vl_print | vl_punct),	/* 126:~ */
+    (vl_cntrl),			/* 127:^? */
+    (vl_cntrl),			/* 128:\200 */
+    (vl_cntrl),			/* 129:\201 */
+    (vl_cntrl),			/* 130:\202 */
+    (vl_cntrl),			/* 131:\203 */
+    (vl_cntrl),			/* 132:\204 */
+    (vl_cntrl),			/* 133:\205 */
+    (vl_cntrl),			/* 134:\206 */
+    (vl_cntrl),			/* 135:\207 */
+    (vl_cntrl),			/* 136:\210 */
+    (vl_cntrl),			/* 137:\211 */
+    (vl_cntrl),			/* 138:\212 */
+    (vl_cntrl),			/* 139:\213 */
+    (vl_cntrl),			/* 140:\214 */
+    (vl_cntrl),			/* 141:\215 */
+    (vl_cntrl),			/* 142:\216 */
+    (vl_cntrl),			/* 143:\217 */
+    (vl_cntrl),			/* 144:\220 */
+    (vl_cntrl),			/* 145:\221 */
+    (vl_cntrl),			/* 146:\222 */
+    (vl_cntrl),			/* 147:\223 */
+    (vl_cntrl),			/* 148:\224 */
+    (vl_cntrl),			/* 149:\225 */
+    (vl_cntrl),			/* 150:\226 */
+    (vl_cntrl),			/* 151:\227 */
+    (vl_cntrl),			/* 152:\230 */
+    (vl_cntrl),			/* 153:\231 */
+    (vl_cntrl),			/* 154:\232 */
+    (vl_cntrl),			/* 155:\233 */
+    (vl_cntrl),			/* 156:\234 */
+    (vl_cntrl),			/* 157:\235 */
+    (vl_cntrl),			/* 158:\236 */
+    (vl_cntrl),			/* 159:\237 */
+    (vl_print | vl_punct),	/* 160:  */
+    (vl_print | vl_punct),	/* 161:¡ */
+    (vl_print | vl_punct),	/* 162:¢ */
+    (vl_print | vl_punct),	/* 163:£ */
+    (vl_print | vl_punct),	/* 164:¤ */
+    (vl_print | vl_punct),	/* 165:¥ */
+    (vl_print | vl_punct),	/* 166:¦ */
+    (vl_print | vl_punct),	/* 167:§ */
+    (vl_print | vl_punct),	/* 168:¨ */
+    (vl_print | vl_punct),	/* 169:© */
+    (vl_print),			/* 170:ª */
+    (vl_print | vl_punct),	/* 171:« */
+    (vl_print | vl_punct),	/* 172:¬ */
+    (vl_print | vl_punct),	/* 173:­ */
+    (vl_print | vl_punct),	/* 174:® */
+    (vl_print | vl_punct),	/* 175:¯ */
+    (vl_print | vl_punct),	/* 176:° */
+    (vl_print | vl_punct),	/* 177:± */
+    (vl_print | vl_punct),	/* 178:² */
+    (vl_print | vl_punct),	/* 179:³ */
+    (vl_print | vl_punct),	/* 180:´ */
+    (vl_lower | vl_print),	/* 181:µ */
+    (vl_print | vl_punct),	/* 182:¶ */
+    (vl_print | vl_punct),	/* 183:· */
+    (vl_print | vl_punct),	/* 184:¸ */
+    (vl_print | vl_punct),	/* 185:¹ */
+    (vl_print),			/* 186:º */
+    (vl_print | vl_punct),	/* 187:» */
+    (vl_print | vl_punct),	/* 188:¼ */
+    (vl_print | vl_punct),	/* 189:½ */
+    (vl_print | vl_punct),	/* 190:¾ */
+    (vl_print | vl_punct),	/* 191:¿ */
+    (vl_upper | vl_print),	/* 192:À */
+    (vl_upper | vl_print),	/* 193:Á */
+    (vl_upper | vl_print),	/* 194:Â */
+    (vl_upper | vl_print),	/* 195:Ã */
+    (vl_upper | vl_print),	/* 196:Ä */
+    (vl_upper | vl_print),	/* 197:Å */
+    (vl_upper | vl_print),	/* 198:Æ */
+    (vl_upper | vl_print),	/* 199:Ç */
+    (vl_upper | vl_print),	/* 200:È */
+    (vl_upper | vl_print),	/* 201:É */
+    (vl_upper | vl_print),	/* 202:Ê */
+    (vl_upper | vl_print),	/* 203:Ë */
+    (vl_upper | vl_print),	/* 204:Ì */
+    (vl_upper | vl_print),	/* 205:Í */
+    (vl_upper | vl_print),	/* 206:Î */
+    (vl_upper | vl_print),	/* 207:Ï */
+    (vl_upper | vl_print),	/* 208:Ð */
+    (vl_upper | vl_print),	/* 209:Ñ */
+    (vl_upper | vl_print),	/* 210:Ò */
+    (vl_upper | vl_print),	/* 211:Ó */
+    (vl_upper | vl_print),	/* 212:Ô */
+    (vl_upper | vl_print),	/* 213:Õ */
+    (vl_upper | vl_print),	/* 214:Ö */
+    (vl_print | vl_punct),	/* 215:× */
+    (vl_upper | vl_print),	/* 216:Ø */
+    (vl_upper | vl_print),	/* 217:Ù */
+    (vl_upper | vl_print),	/* 218:Ú */
+    (vl_upper | vl_print),	/* 219:Û */
+    (vl_upper | vl_print),	/* 220:Ü */
+    (vl_upper | vl_print),	/* 221:Ý */
+    (vl_upper | vl_print),	/* 222:Þ */
+    (vl_lower | vl_print),	/* 223:ß */
+    (vl_lower | vl_print),	/* 224:à */
+    (vl_lower | vl_print),	/* 225:á */
+    (vl_lower | vl_print),	/* 226:â */
+    (vl_lower | vl_print),	/* 227:ã */
+    (vl_lower | vl_print),	/* 228:ä */
+    (vl_lower | vl_print),	/* 229:å */
+    (vl_lower | vl_print),	/* 230:æ */
+    (vl_lower | vl_print),	/* 231:ç */
+    (vl_lower | vl_print),	/* 232:è */
+    (vl_lower | vl_print),	/* 233:é */
+    (vl_lower | vl_print),	/* 234:ê */
+    (vl_lower | vl_print),	/* 235:ë */
+    (vl_lower | vl_print),	/* 236:ì */
+    (vl_lower | vl_print),	/* 237:í */
+    (vl_lower | vl_print),	/* 238:î */
+    (vl_lower | vl_print),	/* 239:ï */
+    (vl_lower | vl_print),	/* 240:ð */
+    (vl_lower | vl_print),	/* 241:ñ */
+    (vl_lower | vl_print),	/* 242:ò */
+    (vl_lower | vl_print),	/* 243:ó */
+    (vl_lower | vl_print),	/* 244:ô */
+    (vl_lower | vl_print),	/* 245:õ */
+    (vl_lower | vl_print),	/* 246:ö */
+    (vl_print | vl_punct),	/* 247:÷ */
+    (vl_lower | vl_print),	/* 248:ø */
+    (vl_lower | vl_print),	/* 249:ù */
+    (vl_lower | vl_print),	/* 250:ú */
+    (vl_lower | vl_print),	/* 251:û */
+    (vl_lower | vl_print),	/* 252:ü */
+    (vl_lower | vl_print),	/* 253:ý */
+    (vl_lower | vl_print),	/* 254:þ */
+    (vl_lower | vl_print),	/* 255:ÿ */
+};
 
 /******************************************************************************/
 
@@ -65,55 +578,26 @@ cmp_rindex(const void *a, const void *b)
     return (int) p->code - (int) q->code;
 }
 
-static const GNREIGHT_ENC *from_encoding = NULL;
-static const GNREIGHT_ENC *builtin_locale = NULL;
-
 #if OPT_ICONV_FUNCS
-#define MY_ICONV_TYPE iconv_t
-#else
-#define MY_ICONV_TYPE  const GNREIGHT_ENC *
-#endif /* OPT_ICONV_FUNCS */
+#define NO_ICONV  (iconv_t)(-1)
 
-#define MY_ICONV  (MY_ICONV_TYPE)(-2)
-#define NO_ICONV  (MY_ICONV_TYPE)(-1)
-
-static MY_ICONV_TYPE mb_desc = NO_ICONV;
+static iconv_t mb_desc = NO_ICONV;
 
 static void
 close_encoding(void)
 {
-#if OPT_ICONV_FUNCS
-    if (mb_desc == MY_ICONV) {
-	;
-    } else if (mb_desc != NO_ICONV) {
+    if (mb_desc != NO_ICONV) {
 	iconv_close(mb_desc);
+	mb_desc = NO_ICONV;
     }
-#endif /* OPT_ICONV_FUNCS */
-    mb_desc = NO_ICONV;
-    from_encoding = NULL;
 }
 
 static int
 try_encoding(const char *from, const char *to)
 {
-    int found;
-
     close_encoding();
 
-#if OPT_ICONV_FUNCS
     mb_desc = iconv_open(to, from);
-#endif
-
-    if (mb_desc == NO_ICONV) {
-	if (!vl_stricmp(to, "UTF-8")) {
-	    found = blist_match(&blist_encodings, from);
-	    if (found >= 0) {
-		mb_desc = MY_ICONV;
-		from_encoding = all_encodings[found].data;
-		TRACE(("using built-in encoding\n"));
-	    }
-	}
-    }
 
     TRACE(("try_encoding(from=%s, to=%s) %s\n",
 	   from, to,
@@ -140,57 +624,26 @@ initialize_table_8bit_utf8(void)
 
     for (n = 0; n < N_chars; ++n) {
 	size_t converted;
+	char input[80];
+	ICONV_CONST char *ip = input;
 	char output[80];
+	char *op = output;
 	size_t in_bytes = 1;
 	size_t out_bytes = sizeof(output);
-
-#if OPT_ICONV_FUNCS
-	char input[80];
 	input[0] = (char) n;
 	input[1] = 0;
-#endif
-	(void) in_bytes;
-
-	FreeIfNeeded(table_8bit_utf8[n].text);
-	table_8bit_utf8[n].text = NULL;
-
-#if OPT_ICONV_FUNCS
-	if (mb_desc == MY_ICONV) {
-	    UINT source = ((n >= 128)
-			   ? (from_encoding->chmap[n - 128])
-			   : (UINT) n);
-	    converted = (size_t) vl_conv_to_utf8((UCHAR *) output, source,
-						 sizeof(output));
-	    out_bytes = sizeof(output) - converted;
-	} else {
-	    ICONV_CONST char *ip = input;
-	    char *op = output;
-	    converted = iconv(mb_desc, &ip, &in_bytes, &op, &out_bytes);
-	}
-#else
-	{
-	    UINT source = ((n >= 128)
-			   ? (from_encoding->chmap[n - 128])
-			   : (UINT) n);
-	    converted = (size_t) vl_conv_to_utf8((UCHAR *) output, source,
-						 sizeof(output));
-	    out_bytes = sizeof(output) - converted;
-	}
-#endif /* OPT_ICONV_FUNCS */
-
+	converted = iconv(mb_desc, &ip, &in_bytes, &op, &out_bytes);
 	if (converted == (size_t) (-1)) {
 	    TRACE(("err:%d\n", errno));
 	    TRACE(("convert(%d) %d %d/%d\n", n,
 		   (int) converted, (int) in_bytes, (int) out_bytes));
-	} else if (n == 0) {
-	    table_8bit_utf8[n].code = 0;
-	    table_8bit_utf8[n].text = strmalloc("");
-	} else if ((sizeof(output) - out_bytes) != 0) {
+	} else {
 	    output[sizeof(output) - out_bytes] = 0;
+	    FreeIfNeeded(table_8bit_utf8[n].text);
 	    table_8bit_utf8[n].text = strmalloc(output);
 	    vl_conv_to_utf32(&(table_8bit_utf8[n].code),
 			     table_8bit_utf8[n].text,
-			     (B_COUNT) strlen(table_8bit_utf8[n].text));
+			     strlen(table_8bit_utf8[n].text));
 #if OPT_TRACE > 1
 	    if (n != (int) table_8bit_utf8[n].code)
 		TRACE(("8bit_utf8 %d:%#4x\n", n, table_8bit_utf8[n].code));
@@ -198,78 +651,16 @@ initialize_table_8bit_utf8(void)
 	}
     }
 }
-
-/*
- * Fill-in character type information from built-in tables, i.e., when the
- * narrow locale is missing.
- */
-void
-vl_8bit_ctype_init(int wide, int ch)
-{
-    const GNREIGHT_ENC *encode;
-
-    if (builtin_locale) {
-	TRACE(("using previously found built-in encoding\n"));
-	from_encoding = builtin_locale;
-    }
-#if !OPT_ICONV_FUNCS
-    else {
-	int found;
-
-	from_encoding = 0;
-	found = blist_match(&blist_encodings, wide ? "ISO-8859-1" : "POSIX");
-	if (found >= 0) {
-	    from_encoding = all_encodings[found].data;
-	    TRACE(("using built-in encoding\n"));
-	}
-    }
-#endif
-
-    encode = (from_encoding
-	      ? from_encoding
-	      : (wide
-		 ? &encode_ISO_8859_1
-		 : &encode_ANSI_X3_4_1968));
-
-    if ((ch < 128) || encode->chmap[ch - 128]) {
-	CHARTYPE value = (CHARTYPE) ((ch < 128)
-				     ? encode_POSIX.ctype[ch]
-				     : encode->ctype[ch - 128]);
-
-	/* xdigit is specific to ASCII */
-	if (value & vl_digit)
-	    value |= vl_xdigit;
-	if ((value & vl_alpha) && (strchr("abcdefABCDEF", ch) != NULL))
-	    value |= vl_xdigit;
-
-	value &= ~vl_alpha;	/* unused in vile */
-
-	setVlCTYPE(ch, value);
-
-	vl_lowercase[ch + 1] = (char) ((ch < 128)
-				       ? encode_POSIX.lower[ch]
-				       : encode->lower[ch - 128]);
-
-	vl_uppercase[ch + 1] = (char) ((ch < 128)
-				       ? encode_POSIX.upper[ch]
-				       : encode->upper[ch - 128]);
-    }
-}
-
-int
-vl_8bit_builtin(void)
-{
-    return (builtin_locale != NULL);
-}
+#endif /* OPT_ICONV_FUNCS */
 
 char *
 vl_narrowed(const char *wide)
 {
-    char *result = NULL;
+    char *result = 0;
 
     TRACE((T_CALLED "vl_narrowed(%s)\n", NonNull(wide)));
-    if (wide != NULL) {
-	const char *mapping = sys_getenv("VILE_LOCALE_MAPPING");
+    if (wide != 0) {
+	const char *mapping = getenv("VILE_LOCALE_MAPPING");
 	const char *parsed;
 	char *on_left;
 	char *on_right;
@@ -281,23 +672,23 @@ vl_narrowed(const char *wide)
 	 * and assumes that the default locale alias corresponds to the 8-bit
 	 * encoding.  That is true on many systems.
 	 */
-	if (mapping == NULL)
+	if (mapping == 0)
 	    mapping = "/\\.\\(UTF\\|utf\\)[-]\\?8$//";
 
 	parsed = mapping;
 	on_left = regparser(&parsed);
 	on_right = regparser(&parsed);
-	if (on_left != NULL
-	    && on_right != NULL
+	if (on_left != 0
+	    && on_right != 0
 	    && parsed[1] == '\0'
-	    && (exp = regcomp(on_left, strlen(on_left), TRUE)) != NULL) {
+	    && (exp = regcomp(on_left, strlen(on_left), TRUE)) != 0) {
 	    int len = (int) strlen(wide);
 	    int found = 0;
 
-	    if ((result = malloc(strlen(wide) + 2 + strlen(on_right))) != NULL) {
+	    if ((result = malloc(strlen(wide) + 2 + strlen(on_right))) != 0) {
 		strcpy(result, wide);
 		for (n = 0; n < len; ++n) {
-		    found = regexec(exp, result, result + len, n, len, FALSE);
+		    found = regexec(exp, result, result + len, n, len);
 		    if (found)
 			break;
 		}
@@ -318,7 +709,7 @@ vl_narrowed(const char *wide)
 		    free(save);
 		} else {
 		    free(result);
-		    result = NULL;
+		    result = 0;
 		}
 	    }
 	    regfree(exp);
@@ -344,19 +735,19 @@ vl_init_8bit(const char *wide, const char *narrow)
     int n;
 
     TRACE((T_CALLED "vl_init_8bit(%s, %s)\n", NonNull(wide), NonNull(narrow)));
-    if (wide == NULL || narrow == NULL) {
+    if (wide == 0 || narrow == 0) {
 	TRACE(("setup POSIX-locale\n"));
 	vl_encoding = enc_POSIX;
-	vl_wide_enc.locale = NULL;
-	vl_narrow_enc.locale = NULL;
+	vl_wide_enc.locale = 0;
+	vl_narrow_enc.locale = 0;
 	vl_get_encoding(&vl_narrow_enc.encoding, narrow);
-    } else if (vl_stricmp(wide, narrow)) {
+    } else if (strcmp(wide, narrow)) {
 	TRACE(("setup mixed-locale(%s, %s)\n", wide, narrow));
 	vl_wide_enc.locale = StrMalloc(wide);
 	vl_narrow_enc.locale = StrMalloc(narrow);
 	vl_get_encoding(&vl_wide_enc.encoding, wide);
 	vl_get_encoding(&vl_narrow_enc.encoding, narrow);
-	TRACE(("...locale encodings(%s, %s)\n",
+	TRACE(("...setup_locale(%s, %s)\n",
 	       NONNULL(vl_wide_enc.encoding),
 	       NONNULL(vl_narrow_enc.encoding)));
 
@@ -370,23 +761,33 @@ vl_init_8bit(const char *wide, const char *narrow)
 	 * If the wide/narrow encodings do not differ, that is probably because
 	 * the narrow encoding is really a wide-encoding.
 	 */
-	if (vl_narrow_enc.encoding != NULL
-	    && vl_wide_enc.encoding != NULL
-	    && vl_stricmp(vl_narrow_enc.encoding, vl_wide_enc.encoding)) {
+#if OPT_ICONV_FUNCS
+	if (vl_narrow_enc.encoding != 0
+	    && vl_wide_enc.encoding != 0
+	    && strcmp(vl_narrow_enc.encoding, vl_wide_enc.encoding)) {
 	    open_encoding(vl_narrow_enc.encoding, vl_wide_enc.encoding);
 	    initialize_table_8bit_utf8();
 	    close_encoding();
+
+	    /*
+	     * If we were able to convert in one direction, the other should
+	     * succeed in vl_mb_getch().
+	     */
+	    open_encoding(vl_wide_enc.encoding, vl_narrow_enc.encoding);
 	}
+#endif
     } else {
 	TRACE(("setup narrow-locale(%s)\n", narrow));
 	vl_encoding = enc_8BIT;
-	vl_wide_enc.locale = NULL;
+	vl_wide_enc.locale = 0;
 	vl_narrow_enc.locale = StrMalloc(narrow);
 	vl_get_encoding(&vl_narrow_enc.encoding, narrow);
+#if OPT_ICONV_FUNCS
 	if (try_encoding(vl_narrow_enc.encoding, "UTF-8")) {
 	    initialize_table_8bit_utf8();
 	    close_encoding();
 	}
+#endif
     }
 
     /*
@@ -400,7 +801,7 @@ vl_init_8bit(const char *wide, const char *narrow)
 	fixup = 128;
     }
     for (n = 0, latin1_codes = 128, fixed_up = 0; n < fixup; ++n) {
-	if (table_8bit_utf8[n].text == NULL) {
+	if (table_8bit_utf8[n].text == 0) {
 	    char temp[10];
 	    int len = vl_conv_to_utf8((UCHAR *) temp, (UINT) n, sizeof(temp));
 
@@ -434,7 +835,7 @@ vl_init_8bit(const char *wide, const char *narrow)
 		table_8bit_utf8[n].code,
 		NonNull(table_8bit_utf8[n].text)));
     }
-    qsort(rindex_8bit, (size_t) N_chars, sizeof(RINDEX_8BIT), cmp_rindex);
+    qsort(rindex_8bit, N_chars, sizeof(RINDEX_8BIT), cmp_rindex);
 
     /*
      * As long as the narrow/wide encodings match, we can treat those as
@@ -459,9 +860,9 @@ vl_is_8bit_encoding(const char *value)
     int rc = vl_is_latin1_encoding(value);
     if (!rc) {
 	rc = (isEmpty(value)
-	      || strstr(value, "ASCII") != NULL
-	      || strstr(value, "ANSI") != NULL
-	      || strncmp(value, "KOI8-R", (size_t) 6) == 0);
+	      || strstr(value, "ASCII") != 0
+	      || strstr(value, "ANSI") != 0
+	      || strncmp(value, "KOI8-R", 6) == 0);
     }
     return rc;
 }
@@ -472,11 +873,18 @@ vl_is_latin1_encoding(const char *value)
     int rc = FALSE;
 
     if (!isEmpty(value)) {
-	if (strncmp(value, "ISO-8859", (size_t) 8) == 0
-	    || strncmp(value, "ISO 8859", (size_t) 8) == 0
-	    || strncmp(value, "ISO_8859", (size_t) 8) == 0
-	    || strncmp(value, "ISO8859", (size_t) 7) == 0
-	    || strncmp(value, "8859", (size_t) 4) == 0) {
+#ifdef WIN32
+	char *suffix = strchr(value, '.');
+	if (suffix != 0
+	    && !strcmp(suffix, ".1252")) {
+	    rc = TRUE;
+	} else
+#endif
+	    if (strncmp(value, "ISO-8859", 8) == 0
+		|| strncmp(value, "ISO 8859", 8) == 0
+		|| strncmp(value, "ISO_8859", 8) == 0
+		|| strncmp(value, "ISO8859", 7) == 0
+		|| strncmp(value, "8859", 4) == 0) {
 	    rc = TRUE;
 	}
     }
@@ -490,18 +898,21 @@ vl_is_utf8_encoding(const char *value)
 
     if (!isEmpty(value)) {
 	char *suffix = strchr(value, '.');
-	if (suffix != NULL) {
+	if (suffix != 0) {
 #ifdef WIN32
 	    if (!strcmp(suffix, ".65000")) {
 		rc = TRUE;
 	    } else
 #endif
-		if (strchr(value + 1, '.') == NULL
+		if (strchr(value + 1, '.') == 0
 		    && vl_is_utf8_encoding(value + 1)) {
 		rc = TRUE;
 	    }
-	} else if (!vl_stricmp(value, "UTF8")
-		   || !vl_stricmp(value, "UTF-8")) {
+	} else if (!strcmp(value, "UTF8")
+		   || !strcmp(value, "UTF-8")
+		   || !strcmp(value, "utf8")
+		   || !strcmp(value, "utf-8")
+		   || !strcmp(value, "646")) {
 	    rc = TRUE;
 	}
     }
@@ -522,11 +933,11 @@ vl_mb_is_8bit(int code)
     key.code = (UINT) code;
     p = (RINDEX_8BIT *) bsearch(&key,
 				rindex_8bit,
-				(size_t) N_chars,
+				N_chars,
 				sizeof(RINDEX_8BIT),
 				cmp_rindex);
 
-    if (p != NULL)
+    if (p != 0)
 	result = ((int) p->code >= 0 && p->code < 256);
 
     return result;
@@ -539,11 +950,11 @@ vl_mb_is_8bit(int code)
 char *
 vl_get_locale(char **target)
 {
-    char *result = setlocale(LC_CTYPE, NULL);
+    char *result = setlocale(LC_CTYPE, 0);
 
-    if (target != NULL) {
+    if (target != 0) {
 	FreeIfNeeded(*target);
-	if (result != NULL)
+	if (result != 0)
 	    result = strmalloc(result);
 	*target = result;
     }
@@ -559,19 +970,11 @@ vl_get_encoding(char **target, const char *locale)
 {
     static char iso_latin1[] = "ISO-8859-1";
     static char utf_eight[] = "UTF-8";
-    static char us_ascii[] = "ASCII";
 
-#ifdef WIN32
-    static char cp_value[80];
-#endif
-    char *result = NULL;
+    char *result = 0;
     char *actual = setlocale(LC_CTYPE, locale);
-    int can_free = 0;
 
-    TRACE((T_CALLED "vl_get_encoding(%s)%s\n",
-	   NONNULL(locale),
-	   isEmpty(actual) ? " illegal" : ""));
-
+    TRACE((T_CALLED "vl_get_encoding(%s)\n", NONNULL(locale)));
     if (isEmpty(actual)) {	/* nonempty means legal locale */
 	char *mylocale;
 
@@ -582,70 +985,39 @@ vl_get_encoding(char **target, const char *locale)
 	beginDisplay();
 	if (vl_is_utf8_encoding(locale)) {
 	    result = utf_eight;
-	} else if (!isEmpty(locale) && (mylocale = strmalloc(locale)) != NULL) {
+	} else if (!isEmpty(locale) && (mylocale = strmalloc(locale)) != 0) {
 	    regexp *exp;
 
 	    exp = regcomp(tb_values(latin1_expr),
 			  (size_t) tb_length0(latin1_expr), TRUE);
-	    if (exp != NULL) {
-		if (nregexec(exp, mylocale, (char *) 0, 0, -1, FALSE)) {
+	    if (exp != 0) {
+		if (nregexec(exp, mylocale, (char *) 0, 0, -1)) {
 		    TRACE(("... found match in $latin1-expr\n"));
 		    result = iso_latin1;
 		}
 		free(exp);
 	    }
 	    free(mylocale);
-
-	    if (result == NULL) {
-		int found = blist_match(&blist_locales, locale);
-		if (found >= 0) {
-		    int find;
-		    TRACE(("... found built-in locale data\n"));
-		    for (find = 0; all_encodings[find].name; ++find) {
-			if (all_encodings[find].data == all_locales[found].data) {
-			    TRACE(("... found built-in encoding data\n"));
-			    result = strmalloc(all_encodings[find].name);
-			    can_free = 1;
-			    builtin_locale = all_encodings[find].data;
-			    break;
-			}
-		    }
-		}
-	    }
 	}
 	endofDisplay();
     } else {
 #ifdef HAVE_LANGINFO_CODESET
 	result = nl_langinfo(CODESET);
-#endif
-	if (isEmpty(result)) {
-	    if (vl_is_utf8_encoding(locale)) {
-		result = utf_eight;
-	    } else if (isEmpty(locale)
-		       || !vl_stricmp(locale, "C")
-		       || !vl_stricmp(locale, "POSIX")) {
-		result = us_ascii;
-	    } else if (!vl_stricmp(locale, "en_US")) {
-		result = iso_latin1;
-	    } else {
-#ifdef WIN32
-		char *suffix = strrchr(locale, '.');
-		char *next = 0;
-
-		if (suffix != 0
-		    && strtol(++suffix, &next, 10) != 0
-		    && (next == 0 || *next == 0)) {
-		    result = cp_value;
-		    sprintf(result, "CP%s", suffix);
-		} else
-#endif
-		    result = iso_latin1;
-	    }
+#else
+	if (vl_is_utf8_encoding(locale)) {
+	    result = utf_eight;
+	} else if (isEmpty(locale)
+		   || !strcmp(locale, "C")
+		   || !strcmp(locale, "POSIX")) {
+	    result = "ASCII";
+	} else {
+	    result = iso_latin1;
 	}
+#endif
     }
-    if (target != NULL) {
+    if (target != 0) {
 	FreeIfNeeded(*target);
-	if (result != NULL && !can_free)
+	if (result != 0)
 	    result = strmalloc(result);
 	*target = result;
     }
@@ -660,17 +1032,17 @@ vl_get_encoding(char **target, const char *locale)
 const char *
 vl_mb_to_utf8(int code)
 {
-    const char *result = NULL;
+    const char *result = 0;
     RINDEX_8BIT *p;
     RINDEX_8BIT key;
 
     key.code = (UINT) code;
     p = (RINDEX_8BIT *) bsearch(&key,
 				rindex_8bit,
-				(size_t) N_chars,
+				N_chars,
 				sizeof(RINDEX_8BIT),
 				cmp_rindex);
-    if (p != NULL && p->rinx >= 0)
+    if (p != 0 && p->rinx >= 0)
 	result = table_8bit_utf8[p->rinx].text;
 
     return result;
@@ -707,10 +1079,10 @@ vl_ucs_to_8bit(int *result, int code)
     key.code = (UINT) code;
     p = (RINDEX_8BIT *) bsearch(&key,
 				rindex_8bit,
-				(size_t) N_chars,
+				N_chars,
 				sizeof(RINDEX_8BIT),
 				cmp_rindex);
-    if (p != NULL && p->rinx >= 0) {
+    if (p != 0 && p->rinx >= 0) {
 	*result = p->rinx;
 	status = TRUE;
     }
@@ -718,6 +1090,7 @@ vl_ucs_to_8bit(int *result, int code)
 }
 
 #if USE_MBTERM
+#if OPT_ICONV_FUNCS
 /*
  * Decode a buffer as UTF-8, returning the character value if successful.
  * If unsuccessful, return -1.
@@ -726,9 +1099,16 @@ static int
 decode_utf8(char *input, int used)
 {
     UINT check = 0;
-    int rc;
+    int rc = 0;
     int ch;
 
+    /*
+     * If iconv gave up - because a character was not representable
+     * in the narrow encoding - just convert it from UTF-8.
+     *
+     * FIXME: perhaps a better solution would be to use iconv for
+     * converting from the wide encoding to UTF-32. 
+     */
     rc = vl_conv_to_utf32(&check, input, (B_COUNT) used);
     if ((rc == used) && (check != 0) && !isSpecial(check))
 	ch = (int) check;
@@ -736,92 +1116,47 @@ decode_utf8(char *input, int used)
 	ch = -1;
     return ch;
 }
+#endif
 
-/*
- * Read a whole character, according to the locale.  If an error is detected,
- * return -1.
- */
 static int
 vl_mb_getch(void)
 {
-    static char input[80];
-    static int used = 0;
-    static int have = 0;
-
-    UINT tempch;
     int ch;
-    int need, test;
-    int actual_encoding;
+    char input[80];
+#if OPT_ICONV_FUNCS
+    int used = 0;
 
-    if (used < have) {
-	ch = CharOf(input[used++]);
-    } else {
-	used = have = 0;
+    for (;;) {
+	ch = save_getch();
+	input[used++] = (char) ch;
+	input[used] = 0;
 
-	if ((actual_encoding = kbd_encoding) == enc_LOCALE) {
-	    actual_encoding = (okCTYPE2(vl_wide_enc)
-			       ? enc_UTF8
-			       : enc_8BIT);
-	}
-	switch (actual_encoding) {
-	case enc_AUTO:
-	    input[0] = (char) (ch = save_getch());
-	    if ((need = vl_check_utf8(input, (B_COUNT) 1)) > 1) {
-		have = 1;
-		for (;;) {
-		    input[have++] = (char) save_getch();
-		    test = vl_check_utf8(input, (B_COUNT) have);
-		    if (test == 0) {
-			kbd_encoding = enc_8BIT;
-			ch = vl_mb_getch();
-			break;
-		    } else if (test == need) {
-			kbd_encoding = enc_UTF8;
-			vl_conv_to_utf32(&tempch, input, (B_COUNT) have);
-			ch = (int) tempch;
-			used = have = 0;
-			break;
-		    }
-		}
-	    }
+	ch = decode_utf8(input, used);
+	if (ch >= 0 || used > 5)
 	    break;
-	case enc_POSIX:
-	    do {
-		ch = save_getch();
-	    } while (ch >= 128);
-	    break;
-	default:
-	case enc_8BIT:
-	    ch = save_getch();
-	    if (ch >= 128 && okCTYPE2(vl_wide_enc)) {
-		if (ch >= 256) {
-		    ch = -1;
-		} else if ((ch = (int) table_8bit_utf8[ch].code) == 0) {
-		    ch = -1;
-		}
-	    }
-	    break;
-	case enc_UTF8:
-	    for (;;) {
-		ch = save_getch();
-		input[have++] = (char) ch;
-		input[have] = 0;
+    }
+#else
+    char *ip;
+    for (ip = input;;) {
+	UINT result;
 
-		ch = decode_utf8(input, have);
-		if (ch >= 0) {
-		    break;
-		} else if (have > LEN_UTF8) {
-		    ch = -1;
-		    break;
-		}
-	    }
-	    have = used = 0;
-	    if (ch >= 256 && !okCTYPE2(vl_wide_enc)) {
+	if ((ch = save_getch()) < 0)
+	    break;
+	*ip++ = ch;
+	*ip = EOS;
+	ch = vl_conv_to_utf32(&result, input, ip - input);
+	if (ch == 0) {
+	    ch = -1;
+	} else if (ch == (ip - input)) {
+	    /* ensure result is 8-bits */
+	    if (vl_mb_to_utf8(result) != 0)
+		ch = result;
+	    else
 		ch = -1;
-	    }
 	    break;
 	}
     }
+#endif
     TRACE(("vl_mb_getch:%#x\n", ch));
     return ch;
 }
@@ -831,21 +1166,21 @@ vl_mb_putch(int c)
 {
     if (c > 0) {
 	int rc;
-	UCHAR temp[LEN_UTF8 + 1];
+	UCHAR temp[10];
 	const char *s = vl_mb_to_utf8(c);
 
 	/*
 	 * If we got no result, then it was not in the cached mapping to 8bit.
 	 * But we can still convert it to UTF-8.
 	 */
-	if (s == NULL) {
+	if (s == 0) {
 	    rc = vl_conv_to_utf8(temp, (UINT) c, sizeof(temp));
 	    if (rc > 0) {
 		temp[rc] = EOS;
 		s = (const char *) temp;
 	    }
 	}
-	if (s != NULL) {
+	if (s != 0) {
 	    while (*s != 0) {
 		save_putch(*s++);
 	    }
@@ -862,21 +1197,14 @@ vl_mb_putch(int c)
 void
 vl_open_mbterm(void)
 {
-    TRACE(("vl_open_mbterm\n"));
-
-    if (save_getch == NULL) {
-	TRACE(("...using vl_mb_getch(%s)\n", encoding2s(kbd_encoding)));
-	save_getch = term.getch;
-	term.getch = vl_mb_getch;
-    }
-
     if (okCTYPE2(vl_wide_enc)) {
-	TRACE(("...using vl_mb_putch\n"));
+	TRACE(("vl_open_mbterm\n"));
+	save_putch = term.putch;
+	save_getch = term.getch;
 
-	if (term.putch != vl_mb_putch) {
-	    save_putch = term.putch;
-	    term.putch = vl_mb_putch;
-	}
+	term.putch = vl_mb_putch;
+	term.getch = vl_mb_getch;
+
 	term.set_enc(enc_UTF8);
     }
 }
@@ -884,19 +1212,16 @@ vl_open_mbterm(void)
 void
 vl_close_mbterm(void)
 {
-    if (save_getch != NULL) {
-	term.getch = save_getch;
-	save_getch = NULL;
-    }
-
     if (okCTYPE2(vl_wide_enc)) {
-	if (save_putch != NULL) {
+	if (save_putch && save_getch) {
 	    TRACE(("vl_close_mbterm\n"));
 	    term.putch = save_putch;
+	    term.getch = save_getch;
 
 	    term.set_enc(enc_POSIX);
 
-	    save_putch = NULL;
+	    save_putch = 0;
+	    save_getch = 0;
 	}
     }
 }
@@ -913,9 +1238,9 @@ eightbit_leaks(void)
 #endif
 
     for (n = 0; n < N_chars; ++n) {
-	if (table_8bit_utf8[n].text != NULL) {
+	if (table_8bit_utf8[n].text != 0) {
 	    free(table_8bit_utf8[n].text);
-	    table_8bit_utf8[n].text = NULL;
+	    table_8bit_utf8[n].text = 0;
 	}
     }
     FreeIfNeeded(vl_wide_enc.locale);

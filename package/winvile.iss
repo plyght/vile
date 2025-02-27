@@ -1,5 +1,5 @@
-; $Id: winvile.iss,v 1.36 2025/01/26 10:11:48 tom Exp $
-; vile:ts=2 sw=2 fk=8bit
+; $Header: /usr/build/vile/vile/package/RCS/winvile.iss,v 1.15 2010/01/04 01:36:30 tom Exp $
+; vile:ts=2 sw=2
 ;
 ; This installs winvile as "winvile-ole.exe", since that is the name I use when building the OLE flavor
 ; among several for winvile/vile on the win32 platform.  The build script sets $progname to "winvile-ole"
@@ -46,46 +46,39 @@
 #endif
 
 #define myAppVer myAppName + ' ' + myVer
-#if Ver < 0x5060100
 #define mySendTo '{sendto}\' + myAppName + '.lnk'
-#else
-#define mySendTo '{usersendto}\' + myAppName + '.lnk'
-#endif
 #define MyQuickLaunch '{userappdata}\Microsoft\Internet Explorer\Quick Launch\' + myAppName + '.lnk'
 
+#define NUM_PATCHLEVEL Pos(VILE_PATCHLEVEL, "@abcdefghijklmnopqrstuvwxyz")
+
 [Setup]
-#emit 'AppName=' + myAppName
-#emit 'VersionInfoVersion=' + VILE_RELEASE + '.' + VILE_VERSION + '.' + Str(VILE_PATCHVALUE)
-#emit 'VersionInfoDescription=Setup for "' + myAppName + ' - VI Like Emacs"
+AppName=WinVile
+#emit 'VersionInfoVersion=' + VILE_RELEASE + '.' + VILE_VERSION + '.' + Str(NUM_PATCHLEVEL)
+VersionInfoDescription=Setup for "WinVile - VI Like Emacs"
 #emit 'AppVersion=' + myVer
 #emit 'AppVerName=' + myAppVer
 AppPublisher=Thomas E. Dickey
-AppCopyright=© 1997-2024,2025, Thomas E. Dickey
-AppPublisherURL=https://invisible-island.net/vile/
-AppSupportURL=https://invisible-island.net/vile/
-AppUpdatesURL=https://invisible-island.net/vile/
-DefaultDirName={pf}\VI-Like-Emacs
+AppCopyright=© 1997-2009,2010, Thomas E. Dickey
+AppPublisherURL=http://invisible-island.net/vile/
+AppSupportURL=http://invisible-island.net/vile/
+AppUpdatesURL=http://invisible-island.net/vile/
+DefaultDirName={pf}\VI Like Emacs
 OutputDir=iss-output
 #emit 'OutputBaseFilename=' + myFullName + '-setup-' + VILE_RELEASE + '_' + VILE_VERSION + VILE_PATCHLEVEL
-#emit 'DefaultGroupName=' + myAppName
+DefaultGroupName=WinVile
 AllowNoIcons=yes
 LicenseFile=..\COPYING
 Compression=lzma
 SolidCompression=yes
 ChangesEnvironment=yes
-; SetupLogging=yes
-
-#ifdef WIN64App
-ArchitecturesInstallIn64BitMode=x64
-#endif
 
 [Components]
-#emit 'Name: main; Description: The ' + myAppName + ' executable; types: full custom compact'
+Name: main; Description: The WinVile executable; types: full custom compact
 Name: help; Description: Vile's help-file; types: full custom compact
 Name: docs; Description: Extra documentation; types: full custom
 Name: macros; Description: Useful macros; types: full custom compact
 Name: explorer; Description: Windows Explorer integration; types: full custom
-#emit 'Name: filters; Description: External filter executables (' + myAppName + ' has most of these built-in); types: full custom'
+Name: filters; Description: External filter executables (WinVile has most of these built-in); types: full custom
 
 [Tasks]
 Name: for_all_users; Description: Install for all users on this machine; GroupDescription: Configuration Settings; Components: explorer filters macros; Check: isGuru; Flags: unchecked
@@ -115,13 +108,13 @@ Source: c:\vile\*.exe; DestDir: {app}\filters; Components: filters; AfterInstall
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
-#emit 'Name: {group}\' + myAppName + '; Filename: {app}\bin\' + myRootName + '.exe; Components: main; Flags: createonlyiffileexists'
-#emit 'Name: {group}\{cm:UninstallProgram,' + myAppName + '}; Filename: {uninstallexe}'
-#emit 'Name: {userdesktop}\' + myAppName + '; Filename: {app}\bin\' + myRootName + '.exe; Components: main; Tasks: desktopicon; Flags: createonlyiffileexists'
-#emit 'Name: {userappdata}\Microsoft\Internet Explorer\Quick Launch\' + myAppName + '; Filename: {app}\bin\' + myRootName + '.exe; Components: main; Tasks: quicklaunchicon; Flags: createonlyiffileexists'
+#emit 'Name: {group}\WinVile; Filename: {app}\bin\' + myRootName + '.exe; Components: main; Flags: createonlyiffileexists'
+Name: {group}\{cm:UninstallProgram,WinVile}; Filename: {uninstallexe}
+#emit 'Name: {userdesktop}\WinVile; Filename: {app}\bin\' + myRootName + '.exe; Components: main; Tasks: desktopicon; Flags: createonlyiffileexists'
+#emit 'Name: {userappdata}\Microsoft\Internet Explorer\Quick Launch\WinVile; Filename: {app}\bin\' + myRootName + '.exe; Components: main; Tasks: quicklaunchicon; Flags: createonlyiffileexists'
 
 [Run]
-#emit 'Filename: {app}\bin\' + myRootName + '.exe; Description: {cm:LaunchProgram,' + myAppName + '}; Flags: nowait postinstall skipifsilent skipifdoesntexist'
+#emit 'Filename: {app}\bin\' + myRootName + '.exe; Description: {cm:LaunchProgram,WinVile}; Flags: nowait postinstall skipifsilent skipifdoesntexist'
 
 [UninstallDelete]
 Type: files; Name: {app}\macros\vile.rc
@@ -199,41 +192,41 @@ end;
 // Returns the index in the list, or -1 if not found.
 function findDirInText(const InText, toFind: String): Integer;
 var
-	first, last, count : Integer;
-	OnLeft, OnRight : String;
-	found : Boolean;
+  first, last, count : Integer;
+  OnLeft, OnRight : String;
+  found : Boolean;
 begin
-	first := 1;
-	count := 0;
-	found := False;
-	Log('findDirInText{' + InText + '} {' + toFind + '}');
-	OnRight := Copy(InText, first, Length(InText));
-	while Not found And (first <= Length(OnRight)) do
-		begin
-		count := count + 1;
-		last := Pos(';', OnRight);
+  first := 1;
+  count := 0;
+  found := False;
+  Log('findDirInText{' + InText + '} {' + toFind + '}');
+  OnRight := Copy(InText, first, Length(InText));
+  while Not found And (first <= Length(OnRight)) do
+    begin
+    count := count + 1;
+    last := Pos(';', OnRight);
 
-		if last <= 0 then
-			last := Length(OnRight) + 1;
+    if last <= 0 then
+      last := Length(OnRight) + 1;
 
-		if first < last then
-			begin
-			OnLeft := copy(OnRight, first, last - first);
-			Log('...compare {' + OnLeft + '}');
-			if CompareText(ToFind, OnLeft) = 0 then
-				found := True;
-				result := count;
-			end;
+    if first < last then
+      begin
+      OnLeft := copy(OnRight, first, last - first);
+      Log('...compare {' + OnLeft + '}');
+      if CompareText(ToFind, OnLeft) = 0 then
+        found := True;
+        result := count;
+      end;
 
-		first := last + 1;
-		if first <= Length(OnRight) then
-			begin
-			OnRight := copy(OnRight, first, Length(OnRight) + 1 - first);
-			first := 1;
-			end;
+    first := last + 1;
+    if first <= Length(OnRight) then
+      begin
+      OnRight := copy(OnRight, first, Length(OnRight) + 1 - first);
+      first := 1;
+      end;
 
-		end;
-		Log('->' + IntToStr(result));
+    end;
+  	Log('->' + IntToStr(result));
 end;
 
 // Add the given string to the front of the environment variable ValueName,
@@ -255,11 +248,11 @@ begin
 			Lookup := findDirInText(Current, Actual);
 
 			if isTaskSelected('first_in_path') then
-				if Lookup > 1 then
-					begin
-					Log('Overriding to put first in path, found index ' + IntToStr(Lookup));
-					Lookup := 0;
-					end;
+  			if Lookup > 1 then
+    			begin
+    			Log('Overriding to put first in path, found index ' + IntToStr(Lookup));
+	 		    Lookup := 0;
+          end;
 
 			if Lookup > 0 then
 				begin
@@ -392,25 +385,25 @@ end;
 
 procedure AddShellCommand(const Description, Command: String);
 begin
-	RegWriteStringValue(HKEY_CLASSES_ROOT, '*\shell\' + Description + '\command', '', ExpandConstant(command));
+  RegWriteStringValue(HKEY_CLASSES_ROOT, '*\shell\' + Description + '\command', '', ExpandConstant(command));
 end;
 
 procedure removeShellCommand(const Description: String);
 begin
-	RegDeleteKeyIncludingSubkeys(HKEY_CLASSES_ROOT, '*\shell\' + Description);
+  RegDeleteKeyIncludingSubkeys(HKEY_CLASSES_ROOT, '*\shell\' + Description);
 end;
 
 // This is called after installing the executable.
 procedure myPostExecutable();
 var
-	Keypath : String;
-	Value   : String;
+  Keypath : String;
+  Value   : String;
 begin
-	Keypath := appKey();
-	Value := ExpandConstant('{app}\bin');
-	Log('Setting registry key "' + Keypath + '" to "' + Value + '"');
-	if not RegWriteStringValue(selectedVarsRootKey(), Keypath, '', value) then
-		Log('Failed to set key');
+  Keypath := appKey();
+  Value := ExpandConstant('{app}\bin');
+  Log('Setting registry key "' + Keypath + '" to "' + Value + '"');
+  if not RegWriteStringValue(selectedVarsRootKey(), Keypath, '', value) then
+    Log('Failed to set key');
 end;
 
 // This is called once per installed-file.
@@ -446,241 +439,241 @@ end;
 // http://msdn.microsoft.com/library/default.asp?url=/library/en-us/shellcc/platform/shell/programmersguide/shell_basics/shell_basics_extending/context.asp
 procedure AddContextMenu();
 begin
-	AddShellCommand(MY_CONTEXT_MENU, '{app}\bin\wvwrap.exe "%L"');
+  AddShellCommand(MY_CONTEXT_MENU, '{app}\bin\wvwrap.exe "%L"');
 end;
 
 // http://www.delphidabbler.com/articles?article=12
 procedure AddSendTo();
 begin
-	CreateShellLink(
+  CreateShellLink(
 #emit 'ExpandConstant(''' + mySendTo + '''),'
 #emit '''SendTo link for ' + myAppName + ''','
-		ExpandConstant(MY_EDITOR_APP),    // program
-		'-i',                             // option(s) will be followed by pathname
-		'',                               // no target directory
-		'',                               // no icon filename
-		-1,                               // no icon index
-		SW_SHOWNORMAL);
+    ExpandConstant(MY_EDITOR_APP),    // program
+    '-i',                             // option(s) will be followed by pathname
+    '',                               // no target directory
+    '',                               // no icon filename
+    -1,                               // no icon index
+    SW_SHOWNORMAL);
 end;
 
 procedure AddQuickLaunch();
 begin
-	CreateShellLink(
+  CreateShellLink(
 #emit 'ExpandConstant(''' + MyQuickLaunch + '''),'
 #emit '''Quick Launch link for ' + myAppName + ''','
-		ExpandConstant(MY_EDITOR_APP),    // program
-		'-i',                             // option(s) will be followed by pathname
-		'',                               // no target directory
-		'',                               // no icon filename
-		-1,                               // no icon index
-		SW_SHOWNORMAL);
+    ExpandConstant(MY_EDITOR_APP),    // program
+    '-i',                             // option(s) will be followed by pathname
+    '',                               // no target directory
+    '',                               // no icon filename
+    -1,                               // no icon index
+    SW_SHOWNORMAL);
 end;
 
 function myToolsDir(): String;
 begin
-	Result := ExpandConstant('{group}\Tools');
+  Result := ExpandConstant('{group}\Tools');
 end;
 
 function myToolsLink(const Description: String): String;
 begin
-	Result := myToolsDir() + '\' + Description + '.lnk';
+  Result := myToolsDir() + '\' + Description + '.lnk';
 end;
 
 // use shortcuts for invoking registering so we will "see" the right path.
 procedure AddToolLink(const Description, Params: String);
 begin
-	CreateShellLink(
-		ExpandConstant(myToolsLink(Description)),
-		Description,
-		ExpandConstant(MY_EDITOR_APP),    // program
-		Params,                           //
-		ExpandConstant('{app}\bin'),      // target directory contains executable
-		'',                               // no icon filename
-		-1,                               // no icon index
-		SW_HIDE);
+  CreateShellLink(
+    ExpandConstant(myToolsLink(Description)),
+    Description,
+    ExpandConstant(MY_EDITOR_APP),    // program
+    Params,                           //
+    ExpandConstant('{app}\bin'),      // target directory contains executable
+    '',                               // no icon filename
+    -1,                               // no icon index
+    SW_HIDE);
 end;
 
 procedure RemoveToolLink(const Description: String);
 var
-	ToRemove : String;
+  ToRemove : String;
 begin
-	ToRemove := myToolsLink(Description);
-	if FileExists(ToRemove) then
-		begin
-		Log('Deleting link: ' + ToRemove);
-		if not DeleteFile(ToRemove) then
-			Log('Failed to remove ' + ToRemove);
-		end;
+  ToRemove := myToolsLink(Description);
+  if FileExists(ToRemove) then
+    begin
+    Log('Deleting link: ' + ToRemove);
+    if not DeleteFile(ToRemove) then
+      Log('Failed to remove ' + ToRemove);
+    end;
 end;
 
 function myDocsDir(): String;
 begin
-	Result := ExpandConstant('{group}');
+  Result := ExpandConstant('{group}');
 end;
 
 function myDocsLink(const Description: String): String;
 begin
-	Result := myDocsDir() + '\' + Description + '.lnk';
+  Result := myDocsDir() + '\' + Description + '.lnk';
 end;
 
 // use shortcuts so we will "see" the right path.
 procedure AddDocsLink(const Description, Params: String);
 begin
-	CreateShellLink(
-		ExpandConstant(myDocsLink(Description)),
-		Description,
-		ExpandConstant('{app}\doc\' + Params), // document
-		'',                               //
-		ExpandConstant('{app}\doc'),      // target directory contains documents
-		'',                               // no icon filename
-		-1,                               // no icon index
-		SW_HIDE);
+  CreateShellLink(
+    ExpandConstant(myDocsLink(Description)),
+    Description,
+    ExpandConstant('{app}\doc\' + Params), // document
+    '',                               //
+    ExpandConstant('{app}\doc'),      // target directory contains documents
+    '',                               // no icon filename
+    -1,                               // no icon index
+    SW_HIDE);
 end;
 
 procedure RemoveDocsLink(const Description: String);
 var
-	ToRemove : String;
+  ToRemove : String;
 begin
-	ToRemove := myDocsLink(Description);
-	if FileExists(ToRemove) then
-		begin
-		Log('Deleting link: ' + ToRemove);
-		if not DeleteFile(ToRemove) then
-			Log('Failed to remove ' + ToRemove);
-		end;
+  ToRemove := myDocsLink(Description);
+  if FileExists(ToRemove) then
+    begin
+    Log('Deleting link: ' + ToRemove);
+    if not DeleteFile(ToRemove) then
+      Log('Failed to remove ' + ToRemove);
+    end;
 end;
 
 function CleanupMyKey(const theRootKey: Integer): Boolean;
 var
-	Path : String;
-	Value : String;
+  Path : String;
+  Value : String;
 begin
-	Result := False;
-	if RegQueryStringValue(theRootKey, appKey(), '', Value) then
-		begin
-			if Value <> '' then
-				begin
-				Result := True;
-				Log('Deleting value of "' + appKey() + '" = "' + Value + '"');
-				if not RegDeleteValue(theRootKey, appKey(), '') then
-					Log('Failed to delete value');
+  Result := False;
+  if RegQueryStringValue(theRootKey, appKey(), '', Value) then
+    begin
+      if Value <> '' then
+        begin
+        Result := True;
+        Log('Deleting value of "' + appKey() + '" = "' + Value + '"');
+        if not RegDeleteValue(theRootKey, appKey(), '') then
+          Log('Failed to delete value');
 
-				Path := appKey() + '\Environment';
-				Log('Checking for subkey "' + Path + '"');
-				if RegValueExists(theRootKey, Path, '') then
-					begin
-					if RegDeleteKeyIncludingSubkeys(theRootKey, Path) then
-						Log('Deleted key "' + Path + '"')
-					else
-						Log('Failed to delete key "' + Path + '"');
-					end;
+        Path := appKey() + '\Environment';
+        Log('Checking for subkey "' + Path + '"');
+        if RegValueExists(theRootKey, Path, '') then
+          begin
+          if RegDeleteKeyIncludingSubkeys(theRootKey, Path) then
+            Log('Deleted key "' + Path + '"')
+          else
+            Log('Failed to delete key "' + Path + '"');
+          end;
 
-				if RegDeleteKeyIfEmpty(theRootKey, appKey()) then
-					Log('Deleted key "' + appKey() + '"')
-				else
-					Log('Failed to delete key "' + appKey() + '"');
-				end
-		end
+        if RegDeleteKeyIfEmpty(theRootKey, appKey()) then
+          Log('Deleted key "' + appKey() + '"')
+        else
+          Log('Failed to delete key "' + appKey() + '"');
+        end
+    end
 end;
-			
+      
 procedure RegisterMyOLE();
 var
-	Filename : String;
-	ResultCode: Integer;
+  Filename : String;
+  ResultCode: Integer;
 begin
-	Filename := ExpandConstant(MY_EDITOR_APP);
-	Log('Registering OLE server ' + Filename);
-	if not Exec(Filename, '-Or', '', SW_HIDE,
-		 ewWaitUntilTerminated, ResultCode) then
-	begin
-		// handle failure if necessary; ResultCode contains the error code
-		Log('** FAILED!');
-	end;
+  Filename := ExpandConstant(MY_EDITOR_APP);
+  Log('Registering OLE server ' + Filename);
+  if not Exec(Filename, '-Or', '', SW_HIDE,
+     ewWaitUntilTerminated, ResultCode) then
+  begin
+    // handle failure if necessary; ResultCode contains the error code
+    Log('** FAILED!');
+  end;
 end;
 
 procedure UnregisterMyOLE();
 var
-	Filename : String;
-	ResultCode: Integer;
+  Filename : String;
+  ResultCode: Integer;
 begin
-	Filename := ExpandConstant(MY_EDITOR_APP);
-	Log('Unregistering OLE server ' + Filename);
-	if not Exec(Filename, '-Ou', '', SW_HIDE,
-		 ewWaitUntilTerminated, ResultCode) then
-	begin
-		// handle failure if necessary; ResultCode contains the error code
-		Log('** FAILED!');
-	end;
+  Filename := ExpandConstant(MY_EDITOR_APP);
+  Log('Unregistering OLE server ' + Filename);
+  if not Exec(Filename, '-Ou', '', SW_HIDE,
+     ewWaitUntilTerminated, ResultCode) then
+  begin
+    // handle failure if necessary; ResultCode contains the error code
+    Log('** FAILED!');
+  end;
 end;
 
 procedure myPostExplorer();
 begin
-	if isTaskSelected('use_wvwrap') then
-		begin
-		if ForceDirectories(myToolsDir()) then
-			begin
-			AddToolLink(MY_REGISTER_OLE, '-Or');
-			AddToolLink(MY_UNREGISTER_OLE, '-Ou');
-			AddDocsLink(MY_HELP_CONTENTS, 'vile-toc.html');
-			end
-		else
-			MsgBox('Cannot create:' #13#13 '    ' + myToolsDir(), mbInformation, MB_OK);
-		RegisterMyOLE();
-		AddContextMenu();
-		end;
+  if isTaskSelected('use_wvwrap') then
+    begin
+    if ForceDirectories(myToolsDir()) then
+      begin
+      AddToolLink(MY_REGISTER_OLE, '-Or');
+      AddToolLink(MY_UNREGISTER_OLE, '-Ou');
+      AddDocsLink(MY_HELP_CONTENTS, 'vile-toc.html');
+      end
+    else
+      MsgBox('Cannot create:' #13#13 '    ' + myToolsDir(), mbInformation, MB_OK);
+    RegisterMyOLE();
+    AddContextMenu();
+    end;
 
-	if isTaskSelected('use_sendto') then
-		begin
-		AddSendTo();
-		end;
+  if isTaskSelected('use_sendto') then
+    begin
+    AddSendTo();
+    end;
 
-	if isTaskSelected('quicklaunchicon') then
-		begin
-		AddQuickLaunch();
-		Log('** added Quick-launch link');
-		end;
+  if isTaskSelected('quicklaunchicon') then
+    begin
+    AddQuickLaunch();
+    Log('** added Quick-launch link');
+    end;
 end;
 
 // On uninstall, we do not know which registry setting was selected during install, so we remove all.
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
-	case CurUninstallStep of
+  case CurUninstallStep of
 	usUninstall:
-		begin
+	  begin
 		// MsgBox('CurUninstallStepChanged:' #13#13 'Uninstall is about to start.', mbInformation, MB_OK)
 		// ...insert code to perform pre-uninstall tasks here...
 		UnregisterMyOLE();
-		end;
+	  end;
 	usPostUninstall:
-		begin
+	  begin
 		removeAnyVariable('VILE_HELP_FILE');
 		removeAnyDirVar('VILE_LIBDIR_PATH', '{app}\filters');
 		removeAnyDirVar('VILE_STARTUP_PATH', '{app}\macros');
 		removeShellCommand(MY_CONTEXT_MENU);
 		
 		if DirExists(myToolsDir()) then
-			begin
-			removeDocsLink(MY_HELP_CONTENTS);
-			Log('Removing ' + myToolsDir());
-			removeToolLink(MY_REGISTER_OLE);
-			removeToolLink(MY_UNREGISTER_OLE);
-			RemoveDir(myToolsDir());
-			RemoveDir(ExpandConstant('{group}'));  // since this happens after the start-menu is removed
-			end;
+  		begin
+      removeDocsLink(MY_HELP_CONTENTS);
+  		Log('Removing ' + myToolsDir());
+	 	  removeToolLink(MY_REGISTER_OLE);
+		  removeToolLink(MY_UNREGISTER_OLE);
+		  RemoveDir(myToolsDir());
+		  RemoveDir(ExpandConstant('{group}'));  // since this happens after the start-menu is removed
+		  end;
 
-		{
-			If we don't find the $exec-path in the current user, try the local machine.
-			The setup program cannot pass the all-users flag to the uninstaller, so we
-			have to try both.
-		}
-		Log('Checking current-user registry key');
-		if not CleanupMyKey(HKEY_CURRENT_USER) then
-			begin
-			Log('Checking local-machine registry key');
-			CleanupMyKey(HKEY_LOCAL_MACHINE);
-			end;
-		
+    {
+      If we don't find the $exec-path in the current user, try the local machine.
+      The setup program cannot pass the all-users flag to the uninstaller, so we
+      have to try both.
+    }
+    Log('Checking current-user registry key');
+    if not CleanupMyKey(HKEY_CURRENT_USER) then
+      begin
+      Log('Checking local-machine registry key');
+      CleanupMyKey(HKEY_LOCAL_MACHINE);
+      end;
+    
 		// MsgBox('CurUninstallStepChanged:' #13#13 'Uninstall just finished.', mbInformation, MB_OK);
-		end;
-	end;
+	  end;
+  end;
 end;

@@ -5,7 +5,7 @@
  *	need to back up to get to the char. before the transition.
  *	Written for vile.  Copyright (c) 1990, 1995-1999 by Paul Fox
  *
- * $Id: wordmov.c,v 1.26 2010/02/07 13:58:08 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/wordmov.c,v 1.25 2010/02/07 13:58:08 tom Exp $
  *
  */
 

@@ -17,11 +17,12 @@
  * distributable status.  This version of vile is distributed under the
  * terms of the GNU Public License (see COPYING).
  *
- * Copyright (c) 1992-2024,2025 by Paul Fox and Thomas Dickey
+ * Copyright (c) 1992-2008 by Paul Fox and Thomas Dickey
+ *
  */
 
 /*
- * $Id: main.c,v 1.757 2025/01/26 17:07:24 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/main.c,v 1.688 2010/04/30 22:59:27 tom Exp $
  */
 
 #define realdef			/* Make global definitions not external */
@@ -37,10 +38,6 @@
 #if OPT_LOCALE
 #include	<locale.h>
 #endif /* OPT_LOCALE */
-
-#if defined(HAVE_SETGROUPS)
-#include	<grp.h>
-#endif
 
 #if CC_NEWDOSCC
 #include <io.h>
@@ -79,15 +76,14 @@ static int cmd_mouse_motion(const CMDFUNC * cfp);
 static void get_executable_dir(void);
 static void global_val_init(void);
 static void main_loop(void);
-static void make_startup_file(const char *name);
-static void setup_sighandlers(int enabled);
+static void make_startup_file(char *name);
+static void siginit(int enabled);
 
 #if OPT_MULTIBYTE
 static void pre_init_ctype(void);
 #endif
 
-extern const int nametbl_size;
-extern const int glbstbl_size;
+extern const int nametblsize;
 
 /*--------------------------------------------------------------------------*/
 
@@ -102,7 +98,7 @@ get_argvalue(char *param, char *argv[], int *argcp)
 	*argcp += 1;
 	param = argv[*argcp];
     }
-    if (param == NULL)
+    if (param == 0)
 	print_usage(BADEXIT);
     return param;
 }
@@ -131,19 +127,9 @@ restore_buffer_state(BUFFER *save_bp, UINT save_flags)
     }
 }
 
-static void
-hide_and_discard(BUFFER **bp)
-{
-    if (zotwp(*bp)) {
-	zotbuf(*bp);
-	*bp = NULL;
-    }
-}
-
 static int
-run_startup_commands(BUFFER **bp)
+run_startup_commands(BUFFER *cmds)
 {
-    BUFFER *cmds = *bp;
     int result = TRUE;
     BUFFER *save_bp = NULL;	/* saves curbp when doing startup commands */
     LINE *lp;
@@ -158,7 +144,10 @@ run_startup_commands(BUFFER **bp)
 	LINE *nlp = lforw(lp);
 
 	if (lisreal(lp) && !llength(lp)) {
-	    lremove2(cmds, lp);
+	    lremove(cmds, lp);
+	    if (b_val(cmds, MDUNDOABLE)) {
+		lfree(lp, cmds);
+	    }
 	}
 	lp = nlp;
     }
@@ -184,7 +173,7 @@ run_startup_commands(BUFFER **bp)
     }
     if (result) {		/* remove the now unneeded buffer */
 	b_set_scratch(cmds);	/* make sure it will go */
-	hide_and_discard(bp);
+	(void) zotbuf(cmds);
     }
 
     returnCode(result);
@@ -193,21 +182,10 @@ run_startup_commands(BUFFER **bp)
 static int
 run_and_discard(BUFFER **bp)
 {
-    int rc = run_startup_commands(bp);
-
-    hide_and_discard(bp);
+    int rc = run_startup_commands(*bp);
+    zotbuf(*bp);
+    *bp = 0;
     return rc;
-}
-
-static void
-add_cmdarg(BUFFER *bp, const char *cmd, const char *arg)
-{
-    TBUFF *tb = NULL;
-    if (tb_scopy(&tb, arg) != NULL
-	&& tb_enquote(&tb) != NULL) {
-	b2printf(bp, cmd, tb_values(tb));
-    }
-    tb_free(&tb);
 }
 
 static void
@@ -215,8 +193,6 @@ setup_command(BUFFER *opts_bp, char *param)
 {
     char *p1;
     char *p2;
-    const CMDFUNC *cfp;
-
     /*
      * Check for special cases where a leading number should be treated
      * as a repeat-count (see docmd(), which does something similar).
@@ -230,24 +206,7 @@ setup_command(BUFFER *opts_bp, char *param)
 	    param = skip_blanks(p2 + 1);
 	}
     }
-
-    /*
-     * As a special case, quote simple commands such as forward and reverse
-     * search.
-     */
-    cfp = DefaultKeyBinding(CharOf(*param));
-    if (isPunct(CharOf(*param))
-	&& ((cfp == &f_forwsearch)
-	    || (cfp == &f_backsearch)
-#if OPT_SHELL
-	    || (cfp == &f_capturecmd)
-	    || (cfp == &f_operfilter)
-#endif
-	)) {
-	add_cmdarg(opts_bp, "execute-named-command %s\n", param);
-    } else {
-	b2printf(opts_bp, "execute-named-command %s\n", param);
-    }
+    b2printf(opts_bp, "execute-named-command %s\n", param);
 }
 
 static int
@@ -266,7 +225,7 @@ static char *
 get_set_locale(const char *value)
 {
     char *result = setlocale(LC_CTYPE, value);
-    if (result != NULL)
+    if (result != 0)
 	result = strmalloc(result);
     return result;
 }
@@ -278,8 +237,8 @@ set_posix_locale(void)
     TRACE(("...reset locale to POSIX!\n"));
     vl_real_enc.locale = get_set_locale("C");
     vl_get_encoding(&vl_real_enc.encoding, vl_real_enc.locale);
-    vl_wide_enc.locale = NULL;
-    vl_narrow_enc.locale = NULL;
+    vl_wide_enc.locale = 0;
+    vl_narrow_enc.locale = 0;
 }
 #endif
 #endif /* OPT_LOCALE */
@@ -290,7 +249,7 @@ set_posix_locale(void)
  * that if filters are built-in, that the appropriate one is available.
  */
 static void
-filter_to_stdio(FILE *fp)
+filter_to_stdio(FILE *fp GCC_UNUSED)
 {
     static char *my_macro;
     int s;
@@ -298,8 +257,8 @@ filter_to_stdio(FILE *fp)
     TRACE(("SyntaxFilter-only:\n"));
     TRACE(("\tcurfname:%s\n", curbp->b_fname));
 
-#if OPT_FILTER && OPT_MAJORMODE
-    if (curbp->majr != NULL && flt_lookup(curbp->majr->shortname)) {
+#if OPT_FILTER
+    if (curbp->majr != 0 && flt_lookup(curbp->majr->shortname)) {
 	const CMDFUNC *cmd = &f_operattrdirect;
 	clexec = TRUE;
 	filter_only = TRUE;
@@ -312,7 +271,7 @@ filter_to_stdio(FILE *fp)
 	/*
 	 * Rely upon the macro to construct the proper filter path.
 	 */
-	if (my_macro == NULL)
+	if (my_macro == 0)
 	    my_macro = strmalloc("HighlightFilter");
 
 	/*
@@ -327,17 +286,16 @@ filter_to_stdio(FILE *fp)
 	    REGION region;
 
 	    gotoeob(FALSE, 1);
-	    setmark();
+	    swapmark();
 	    gotobob(FALSE, 1);
 
 	    regionshape = rgn_FULLLINE;
-	    if (getregion(curbp, &region)) {
+	    (void) getregion(curbp, &region);
 
-		ffp = fp;
-		ffstatus = file_is_pipe;
+	    ffp = fp;
+	    ffstatus = file_is_pipe;
 
-		write_region(curbp, &region, TRUE, &nlines, &nchars);
-	    }
+	    write_region(curbp, &region, TRUE, &nlines, &nchars);
 	}
     }
 }
@@ -347,18 +305,16 @@ filter_to_stdio(FILE *fp)
 int
 MainProgram(int argc, char *argv[])
 {
-    static char dft_vileinit[] = "vileinit.rc";
-    int tt_opened = 0;
-    BUFFER *bp = NULL;
-    int carg = 0;		/* current arg to scan */
-    int literal = FALSE;	/* force args to be interpreted as filenames */
+    int tt_opened;
+    BUFFER *bp;
+    int carg;			/* current arg to scan */
     char *vileinit = NULL;	/* the startup file or VILEINIT var */
     int startstat = TRUE;	/* result of running startup */
     BUFFER *havebp = NULL;	/* initial buffer to read */
     BUFFER *init_bp = NULL;	/* may contain startup commands */
     BUFFER *opts_bp = NULL;	/* may contain startup commands */
     char *havename = NULL;	/* name of first buffer in cmd line */
-    const char *msg = NULL;
+    const char *msg;
 #if SYS_VMS
     char *init_descrip = NULL;
 #endif
@@ -370,7 +326,7 @@ MainProgram(int argc, char *argv[])
 #endif
 #if OPT_ENCRYPT
     char startkey[NKEYLEN];	/* initial encryption key */
-    memset(startkey, 0, sizeof(startkey));
+    *startkey = EOS;
 #endif
 
     /*
@@ -382,9 +338,9 @@ MainProgram(int argc, char *argv[])
 
 #if OPT_LOCALE
     {
-	const char *env = "";
+	char *env = "";
 	char *old_locale = get_set_locale("");
-	char *old_encoding = NULL;
+	char *old_encoding = 0;
 
 	/*
 	 * If the environment specifies a legal locale, old_locale will be
@@ -397,15 +353,15 @@ MainProgram(int argc, char *argv[])
 	 * assumes that the name of the 8-bit locale can be found by stripping
 	 * the "UTF-8" string, and also that both locales are installed.
 	 */
-	if (old_locale != NULL
+	if (old_locale != 0
 	    && vl_is_utf8_encoding(vl_get_encoding(&old_encoding, old_locale))
-	    && (((env = sys_getenv("LC_ALL")) != NULL && *env != 0) ||
-		((env = sys_getenv("LC_CTYPE")) != NULL && *env != 0) ||
-		((env = sys_getenv("LANG")) != NULL && *env != 0))) {
+	    && (((env = getenv("LC_ALL")) != 0 && *env != 0) ||
+		((env = getenv("LC_CTYPE")) != 0 && *env != 0) ||
+		((env = getenv("LANG")) != 0 && *env != 0))) {
 	    char *tmp;
 
 	    TRACE(("Checking for UTF-8 suffix of '%s'\n", env));
-	    if ((tmp = vl_narrowed(env)) != NULL) {
+	    if ((tmp = vl_narrowed(env)) != 0) {
 		vl_init_8bit(env, tmp);
 		env = tmp;
 	    } else {
@@ -441,7 +397,7 @@ MainProgram(int argc, char *argv[])
 	 * corresponding encoding.
 	 */
 	if (!okCTYPE2(vl_real_enc)) {
-	    vl_get_encoding(&vl_real_enc.encoding, env);
+	    vl_real_enc.encoding = 0;
 	} else {
 	    vl_get_encoding(&vl_real_enc.encoding, vl_real_enc.locale);
 	}
@@ -449,24 +405,22 @@ MainProgram(int argc, char *argv[])
 	if (!okCTYPE2(vl_real_enc)
 	    || isEmpty(vl_real_enc.encoding)) {
 	    TRACE(("...checking original locale '%s'\n", NonNull(old_locale)));
-	    if (vl_8bit_builtin()) {
-		TRACE(("using built-in locale data\n"));
-	    } else if (vl_is_utf8_encoding(old_encoding)) {
+	    if (vl_is_utf8_encoding(old_encoding)) {
 		TRACE(("original encoding is UTF-8\n"));
-		vl_narrow_enc.locale = NULL;
+		vl_narrow_enc.locale = 0;
 	    } else {
 		set_posix_locale();
 	    }
 	} else if (vl_is_utf8_encoding(vl_real_enc.encoding)) {
 	    TRACE(("narrow encoding '%s' is already UTF-8!\n", NonNull(vl_real_enc.encoding)));
-	    vl_narrow_enc.locale = NULL;
+	    vl_narrow_enc.locale = 0;
 	} else if (!vl_is_8bit_encoding(vl_real_enc.encoding)) {
 	    set_posix_locale();
 	}
 #endif
-	if (vl_real_enc.locale == NULL)
+	if (vl_real_enc.locale == 0)
 	    vl_real_enc.locale = strmalloc("built-in");
-	if (vl_real_enc.encoding == NULL)
+	if (vl_real_enc.encoding == 0)
 	    vl_real_enc.encoding = strmalloc(VL_LOC_LATIN1);
 
 	FreeIfNeeded(old_locale);
@@ -479,8 +433,7 @@ MainProgram(int argc, char *argv[])
 #endif
 
 #if OPT_NAMEBST
-    build_namebst(nametbl, 0, nametbl_size - 1, 0);
-    build_namebst(glbstbl, 0, glbstbl_size - 1, GLOBOK);
+    build_namebst(nametbl, 0, nametblsize - 1);
 #endif
     vl_ctype_init(global_g_val(GVAL_PRINT_LOW),
 		  global_g_val(GVAL_PRINT_HIGH));
@@ -506,16 +459,9 @@ MainProgram(int argc, char *argv[])
      * or setgid'd.
      */
 #if defined(HAVE_SETUID) && defined(HAVE_SETGID) && defined(HAVE_GETEGID) && defined(HAVE_GETEUID)
-    if (geteuid() != getuid() || getegid() != getgid()) {
-#if defined(HAVE_SETGROUPS)
-	gid_t gid_list[2];
-	gid_list[0] = getegid();
-	IGNORE_RC(setgroups(1, gid_list));
+    setgid(getegid());
+    setuid(geteuid());
 #endif
-	IGNORE_RC(setgid(getegid()));
-	IGNORE_RC(setuid(geteuid()));
-    }
-#endif /* HAVE_SETUID, etc */
 
     get_executable_dir();
 
@@ -536,7 +482,7 @@ MainProgram(int argc, char *argv[])
      * FIXME: we only know how to do this for displays that open the
      * terminal in the same way for command-line and screen.
      */
-    setup_sighandlers(TRUE);
+    siginit(TRUE);
 #if OPT_DUMBTERM
     /* try to avoid staircasing if -F option goes directly to terminal */
     for (carg = 1; carg < argc; ++carg) {
@@ -556,10 +502,10 @@ MainProgram(int argc, char *argv[])
     /*
      * Create buffers for storing command-line options.
      */
-    if ((init_bp = bfind(VILEINIT_BufName, BFEXEC | BFINVS)) == NULL)
+    if ((init_bp = bfind(VILEINIT_BufName, BFEXEC | BFINVS)) == 0)
 	tidy_exit(BADEXIT);
 
-    if ((opts_bp = bfind(VILEOPTS_BufName, BFEXEC | BFINVS)) == NULL)
+    if ((opts_bp = bfind(VILEOPTS_BufName, BFEXEC | BFINVS)) == 0)
 	tidy_exit(BADEXIT);
 
     /* Parse the passed in parameters */
@@ -567,13 +513,8 @@ MainProgram(int argc, char *argv[])
 	char *param = argv[carg];
 
 	/* evaluate switches */
-	if (*param == '-' && !literal) {
+	if (*param == '-') {
 	    ++param;
-	    /* all arguments following -- are interpreted as filenames */
-	    if (!strcmp(param, "-")) {
-		literal = TRUE;
-		continue;
-	    }
 #if DISP_BORLAND || SYS_VMS
 	    /* if it's a digit, it's probably a screen
 	       resolution */
@@ -629,7 +570,7 @@ MainProgram(int argc, char *argv[])
 		    break;
 		case 'g':	/* -g for initial goto */
 		case 'G':
-		    add_cmdarg(opts_bp, "%s goto-line\n", GetArgVal(param));
+		    b2printf(opts_bp, "%s goto-line\n", GetArgVal(param));
 		    break;
 		case 'h':	/* -h for initial help */
 		case 'H':
@@ -638,15 +579,15 @@ MainProgram(int argc, char *argv[])
 
 		case 'i':
 		case 'I':
-		    vileinit = dft_vileinit;
+		    vileinit = "vileinit.rc";
 		    /*
 		     * If the user has no startup file, make a simple
 		     * one that points to this one.
 		     */
-		    if (cfg_locate(vileinit, LOCATE_SOURCE) != NULL
-			&& cfg_locate(startup_file, LOCATE_SOURCE) == NULL)
+		    if (cfg_locate(vileinit, LOCATE_SOURCE) != 0
+			&& cfg_locate(startup_file, LOCATE_SOURCE) == 0)
 			make_startup_file(vileinit);
-		    add_cmdarg(init_bp, "source %s\n", vileinit);
+		    b2printf(init_bp, "source %s\n", vileinit);
 		    break;
 
 #if OPT_ENCRYPT
@@ -666,20 +607,14 @@ MainProgram(int argc, char *argv[])
 #endif
 		case 's':	/* -s <pattern> */
 		case 'S':
-		    add_cmdarg(opts_bp, "search-forward %s\n", GetArgVal(param));
+		    b2printf(opts_bp, "search-forward %s\n", GetArgVal(param));
 		    break;
 #if OPT_TAGS
 		case 't':	/* -t for initial tag lookup */
 		case 'T':
-		    add_cmdarg(opts_bp, "tag %s\n", GetArgVal(param));
+		    b2printf(opts_bp, "tag %s\n", GetArgVal(param));
 		    break;
 #endif
-		case 'U':
-		    set_global_b_val(MDDOS, system_crlf = TRUE);
-		    break;
-		case 'u':
-		    set_global_b_val(MDDOS, system_crlf = FALSE);
-		    break;
 		case 'v':	/* -v is view mode */
 		    b2printf(opts_bp, "set view\n");
 		    break;
@@ -702,16 +637,17 @@ MainProgram(int argc, char *argv[])
 		default:	/* unknown switch */
 		    print_usage(GOODEXIT);
 		}
-	} else if (*param == '+' && !literal) {		/* alternate form of -g */
+
+	} else if (*param == '+') {	/* alternate form of -g */
 	    setup_command(opts_bp, GetArgVal(param));
-	} else if (*param == '@' && !literal) {
+	} else if (*param == '@') {
 	    vileinit = ++param;
-	    add_cmdarg(init_bp, "source %s\n", param);
+	    b2printf(init_bp, "source %s\n", param);
 	} else if (*param != EOS) {
 
 	    /* must be a filename */
 #if OPT_ENCRYPT
-	    cryptkey = (*startkey != EOS) ? startkey : NULL;
+	    cryptkey = (*startkey != EOS) ? startkey : 0;
 #endif
 	    /* set up a buffer for this file */
 	    bp = getfile2bp(param, FALSE, TRUE);
@@ -724,7 +660,7 @@ MainProgram(int argc, char *argv[])
 		}
 	    }
 #if OPT_ENCRYPT
-	    cryptkey = NULL;
+	    cryptkey = 0;
 #endif
 	}
     }
@@ -766,35 +702,34 @@ MainProgram(int argc, char *argv[])
 #if !SYS_WINNT
 #if !DISP_X11
 #if SYS_UNIX
-	const char *tty = NULL;
+	char *tty = 0;
 #else
 	FILE *in;
+	int fd;
 #endif /* SYS_UNIX */
 #endif /* DISP_X11 */
 #endif /* !SYS_WINNT */
 	BUFFER *lastbp = havebp;
 	int nline = 0;
-	int fd;
 
 	bp = bfind(STDIN_BufName, BFARGS);
 	make_current(bp);	/* pull it to the front */
 	if (!havebp)
 	    havebp = bp;
-	fd = dup(fileno(stdin));
-	ffp = (fd >= 0) ? fdopen(fd, "r") : NULL;
+	ffp = fdopen(dup(fileno(stdin)), "r");
 #if !DISP_X11
 # if SYS_UNIX
 # if defined(HAVE_TTYNAME)
 	if (isatty(fileno(stdout)))
 	    tty = ttyname(fileno(stdout));
-	if (tty == NULL && isatty(fileno(stderr)))
+	if (tty == 0 && isatty(fileno(stderr)))
 	    tty = ttyname(fileno(stderr));
 # endif
 # if defined(HAVE_DEV_TTY)
-	if (tty == NULL)
+	if (tty == 0)
 	    tty = "/dev/tty";
 # endif
-	if (tty == NULL) {
+	if (tty == 0) {
 	    fprintf(stderr, "cannot open any terminal\n");
 	    tidy_exit(BADEXIT);
 	}
@@ -805,7 +740,7 @@ MainProgram(int argc, char *argv[])
 	 * properly up to the stdio routines.
 	 */
 	TRACE(("call freopen(%s) for stdin\n", tty));
-	if ((freopen(tty, "r", stdin)) == NULL
+	if ((freopen(tty, "r", stdin)) == 0
 	    || !isatty(fileno(stdin))) {
 	    TRACE(("...failed to reopen stdin\n"));
 	    fprintf(stderr, "cannot open a terminal (%s)\n", tty);
@@ -837,7 +772,7 @@ MainProgram(int argc, char *argv[])
 # else
 #  if SYS_VMS
 	fd = open("tt:", O_RDONLY, S_IREAD);	/* or sys$command */
-#  else	/* e.g., DOS-based systems */
+#  else				/* e.g., DOS-based systems */
 	fd = fileno(stderr);	/* this normally cannot be redirected */
 #  endif
 	if ((fd >= 0)
@@ -846,17 +781,18 @@ MainProgram(int argc, char *argv[])
 	    && (in = fdopen(fd, "r")) != 0) {
 	    *stdin = *in;	/* FIXME: won't work on opaque FILE's */
 	}
-#  endif /* SYS_WINNT */
-# endif	/* SYS_UNIX */
+#  endif			/* SYS_WINNT */
+# endif				/* SYS_UNIX */
 #endif /* DISP_X11 */
 
 #if OPT_ENCRYPT
 	if (*startkey != EOS) {
-	    vl_strncpy(bp->b_cryptkey, startkey, sizeof(bp->b_cryptkey));
-	    set_local_b_val(bp, MDCRYPT, TRUE);
+	    strcpy(bp->b_cryptkey, startkey);
+	    make_local_b_val(bp, MDCRYPT);
+	    set_b_val(bp, MDCRYPT, TRUE);
 	}
 #endif
-	if (ffp != NULL) {
+	if (ffp != 0) {
 	    (void) slowreadf(bp, &nline);
 	    set_rdonly(bp, bp->b_fname, MDREADONLY);
 	    (void) ffclose();
@@ -880,7 +816,7 @@ MainProgram(int argc, char *argv[])
 #endif
     } else {
 	if (!tt_opened)
-	    setup_sighandlers(TRUE);
+	    siginit(TRUE);
 	(void) open_terminal((TERM *) 0);
 	term.kopen();		/* open the keyboard */
 	term.rev(FALSE);
@@ -921,7 +857,8 @@ MainProgram(int argc, char *argv[])
 #if OPT_DOSFILES
     /* an empty non-existent buffer defaults to line-style
        favored by the OS */
-    set_local_b_val(bp, MDDOS, system_crlf);
+    make_local_b_val(bp, MDDOS);
+    set_b_val(bp, MDDOS, CRLF_LINES);
 #endif
     fix_cmode(bp, FALSE);
     swbuffer(bp);
@@ -956,10 +893,10 @@ MainProgram(int argc, char *argv[])
 		if (!startstat)
 		    goto begin;
 	    } else {
-		init_bp = zotbuf2(init_bp);
+		zotbuf(init_bp);
 	    }
 	} else {		/* find and run .vilerc */
-	    init_bp = zotbuf2(init_bp);
+	    zotbuf(init_bp);
 	    if (do_source(startup_file, 1, TRUE) != TRUE) {
 		startstat = FALSE;
 		goto begin;
@@ -1079,20 +1016,11 @@ MainProgram(int argc, char *argv[])
 	}
 #endif
 
-	/*
-	 * These should be gone, but may have persisted to this point if
-	 * there was some problem with the scripting.  Try again.
+	/* We won't always be able to show messages before the screen is
+	 * initialized.  Give it one last chance.
 	 */
-	hide_and_discard(&init_bp);
-	hide_and_discard(&opts_bp);
-
-	/*
-	 * Force the last message, if any, onto the status line.
-	 */
-	if (tb_length(mlsave)) {
-	    tb_append(&mlsave, EOS);
+	if ((startstat != TRUE) && tb_length(mlsave))
 	    mlforce("%.*s", (int) tb_length(mlsave), tb_values(mlsave));
-	}
 
 	/* process commands */
 	main_loop();
@@ -1142,14 +1070,6 @@ main_loop(void)
 	/* get a user command */
 	kbd_mac_check();
 	c = kbd_seq();
-
-	/*
-	 * Now that we have started a command, reset "$_".  If we did this at a
-	 * lower level, we could not test for it in macros, etc.
-	 */
-#if OPT_EVAL
-	tb_scopy(&last_macro_result, status2s(TRUE));
-#endif
 
 	/* reset the contents of the command/status line */
 	if (kbd_length() > 0) {
@@ -1253,20 +1173,19 @@ get_executable_dir(void)
     if (last_slash(prog_arg) == NULL) {
 	/* If there are no slashes, we can guess where we came from,
 	 */
-	if ((s = cfg_locate(prog_arg, FL_PATH | FL_EXECABLE | FL_INSECURE))
-	    != NULL)
+	if ((s = cfg_locate(prog_arg, FL_PATH | FL_EXECABLE)) != 0)
 	    s = strmalloc(s);
     } else {
 	/* if there _are_ slashes, then argv[0] was either
 	 * absolute or relative. lengthen_path figures it out.
 	 */
-	s = strmalloc(lengthen_path(vl_strncpy(temp, prog_arg, sizeof(temp))));
+	s = strmalloc(lengthen_path(strcpy(temp, prog_arg)));
     }
-    if (s == NULL)
+    if (s == 0)
 	return;
 
     t = pathleaf(s);
-    if (t != s && t != NULL) {
+    if (t != s) {
 	/*
 	 * On a unix host, 't' points past slash.  On a VMS host,
 	 * 't' points to first char after the last ':' or ']' in
@@ -1275,10 +1194,10 @@ get_executable_dir(void)
 	free(prog_arg);
 	prog_arg = strmalloc(t);
 	*t = EOS;
-	exec_pathname = strmalloc(lengthen_path(vl_strncpy(temp, s, sizeof(temp))));
+	exec_pathname = strmalloc(lengthen_path(strcpy(temp, s)));
 #ifndef VILE_STARTUP_PATH
 	/* workaround for DJGPP, to add executable's directory to startup path */
-	if (vile_getenv("VILE_STARTUP_PATH") == 0) {
+	if ((s = vile_getenv("VILE_STARTUP_PATH")) == 0) {
 	    append_to_path_list(&startup_path, exec_pathname);
 	}
 #endif
@@ -1292,7 +1211,7 @@ get_executable_dir(void)
     HKEY hkey;
     char buffer[256];
 
-    for (j = 0; j < (int) TABLESIZE(rootkeys); ++j) {
+    for (j = 0; j < TABLESIZE(rootkeys); ++j) {
 	if (RegOpenKeyEx(rootkeys[j],
 			 VILE_SUBKEY,
 			 0,
@@ -1342,11 +1261,11 @@ tidy_exit(int code)
 char *
 strmalloc(const char *src)
 {
-    char *dst = NULL;
-    if (src != NULL) {
+    char *dst = 0;
+    if (src != 0) {
 	beginDisplay();
 	dst = castalloc(char, strlen(src) + 1);
-	if (dst != NULL)
+	if (dst != 0)
 	    (void) strcpy(dst, src);
 	endofDisplay();
     }
@@ -1401,7 +1320,7 @@ no_memory(const char *s)
 
 #if OPT_MULTIBYTE
 /* default value assumes POSIX locale, since it is used before vl_ctyle init */
-#define DFT_LATIN1_EXPR	"^\\(\
+#define DFT_LATIN1_EXPR	"\\(\
 aa\\|\
 af\\|\
 br\\|\
@@ -1506,7 +1425,6 @@ init_mode_value(struct VAL *d, MODECLASS v_class, int v_which)
 	    setINT(GMDALTTABPOS, FALSE);	/* emacs-style tab positioning */
 	    setINT(GMDERRORBELLS, TRUE);	/* alarms are noticeable */
 	    setINT(GMDEXPAND_PATH, FALSE);
-	    setINT(GMDFILENAME_IC, DFT_FILE_IC);
 	    setINT(GMDIMPLYBUFF, FALSE);	/* imply-buffer */
 	    setINT(GMDINSEXEC, FALSE);	/* allow ^F/^B, etc., to be interpreted during insert mode */
 	    setINT(GMDMAPLONGER, FALSE);	/* favor longer maps */
@@ -1565,9 +1483,6 @@ init_mode_value(struct VAL *d, MODECLASS v_class, int v_which)
 #ifdef GMDPOPUP_CHOICES
 	    setINT(GMDPOPUP_CHOICES, TRUE);
 #endif
-#ifdef GMDPOPUP_POSITIONS
-	    setINT(GMDPOPUP_POSITIONS, TRUE);
-#endif
 #ifdef GMDPOPUPMENU
 	    setINT(GMDPOPUPMENU, TRUE);		/* enable popup menu */
 #endif
@@ -1601,6 +1516,9 @@ init_mode_value(struct VAL *d, MODECLASS v_class, int v_which)
 #ifdef GMDXTERM_TITLE
 	    setINT(GMDXTERM_TITLE, FALSE);	/* xterm window-title */
 #endif
+#ifdef GVAL_BACKUPSTYLE
+	    setTXT(GVAL_BACKUPSTYLE, DFT_BACKUPSTYLE);
+#endif
 #ifdef GVAL_BCOLOR
 	    setINT(GVAL_BCOLOR, C_BLACK);	/* background color */
 #endif
@@ -1611,7 +1529,7 @@ init_mode_value(struct VAL *d, MODECLASS v_class, int v_which)
 	    setINT(GVAL_CHK_ACCESS, FL_CDIR);	/* access-check */
 #endif
 #ifdef GVAL_COLOR_SCHEME
-	    setPAT(GVAL_COLOR_SCHEME, NULL);	/* default scheme is 0 */
+	    setPAT(GVAL_COLOR_SCHEME, 0);	/* default scheme is 0 */
 #endif
 #ifdef GVAL_CSUFFIXES
 	    setPAT(GVAL_CSUFFIXES, DFT_CSUFFIX);
@@ -1631,17 +1549,11 @@ init_mode_value(struct VAL *d, MODECLASS v_class, int v_which)
 #ifdef GVAL_ICURSOR
 	    setTXT(GVAL_ICURSOR, "0");	/* no insertion cursor */
 #endif
-#ifdef GVAL_KEEP_POS
-	    setINT(GVAL_KEEP_POS, KPOS_VILE);
-#endif
 #ifdef GVAL_MCOLOR
 	    setINT(GVAL_MCOLOR, VAREV);		/* show in reverse */
 #endif
 #ifdef GVAL_POPUP_CHOICES
 	    setINT(GVAL_POPUP_CHOICES, POPUP_CHOICES_DELAYED);
-#endif
-#ifdef GVAL_POPUP_POSITIONS
-	    setINT(GVAL_POPUP_POSITIONS, POPUP_POSITIONS_NOTDOT);	/* default */
 #endif
 #ifdef GVAL_READER_POLICY
 	    setINT(GVAL_READER_POLICY, RP_BOTH);
@@ -1677,7 +1589,7 @@ init_mode_value(struct VAL *d, MODECLASS v_class, int v_which)
 	    setINT(MDAUTOWRITE, FALSE);		/* auto-write */
 	    setINT(MDBACKLIMIT, TRUE);	/* limit backspacing to insert point */
 	    setINT(MDCINDENT, FALSE);	/* C-style indent */
-	    setINT(MDDOS, system_crlf);
+	    setINT(MDDOS, CRLF_LINES);	/* on by default on DOS, off others */
 	    setINT(MDIGNCASE, FALSE);	/* exact matches */
 	    setINT(MDINS_RECTS, FALSE);		/* insert-mode for rectangles */
 	    setINT(MDLOADING, FALSE);	/* asynchronously loading a file */
@@ -1688,6 +1600,7 @@ init_mode_value(struct VAL *d, MODECLASS v_class, int v_which)
 	    setINT(MDSHOWMAT, FALSE);	/* show-match */
 	    setINT(MDSHOWMODE, TRUE);	/* show-mode */
 	    setINT(MDSPACESENT, TRUE);	/* add two spaces after each sentence */
+	    setINT(MDSWRAP, TRUE);	/* scan wrap */
 	    setINT(MDTABINSERT, TRUE);	/* allow tab insertion */
 	    setINT(MDTAGSRELTIV, FALSE);	/* path relative tag lookups */
 	    setINT(MDTAGWORD, FALSE);	/* tag entire word */
@@ -1695,8 +1608,7 @@ init_mode_value(struct VAL *d, MODECLASS v_class, int v_which)
 	    setINT(MDUNDOABLE, TRUE);	/* undo stack active */
 	    setINT(MDUNDO_DOS_TRIM, FALSE);	/* undo dos trimming */
 	    setINT(MDVIEW, FALSE);	/* view-only */
-	    setINT(MDWRAPSCAN, TRUE);	/* scan wrap */
-	    setINT(MDWRAPWORDS, FALSE);		/* wrap */
+	    setINT(MDWRAP, FALSE);	/* wrap */
 	    setINT(MDYANKMOTION, TRUE);		/* yank-motion */
 	    setINT(VAL_ASAVECNT, 256);	/* autosave count */
 	    setINT(VAL_FILL, default_fill());	/* column for paragraph reformat */
@@ -1764,9 +1676,6 @@ init_mode_value(struct VAL *d, MODECLASS v_class, int v_which)
 #ifdef VAL_AUTOCOLOR
 	    setINT(VAL_AUTOCOLOR, 0);	/* auto syntax coloring timeout */
 #endif
-#ifdef VAL_BACKUPSTYLE
-	    setTXT(VAL_BACKUPSTYLE, DFT_BACKUPSTYLE);
-#endif
 #ifdef VAL_BYTEORDER_MARK
 	    setINT(VAL_BYTEORDER_MARK, ENUM_UNKNOWN);	/* byteorder-mark NONE */
 #endif
@@ -1822,7 +1731,7 @@ init_mode_value(struct VAL *d, MODECLASS v_class, int v_which)
 	case VAL_PATHNAME_EXPR:
 	    set_buf_fname_expr((d == &global_b_values.bv[v_which])
 			       ? curbp
-			       : NULL);
+			       : 0);
 	    break;
 	}
 #endif
@@ -1835,8 +1744,7 @@ init_mode_value(struct VAL *d, MODECLASS v_class, int v_which)
 	    setINT(WMDNONPRINTOCTAL, FALSE);	/* unprintable-as-octal */
 	    setINT(WVAL_SIDEWAYS, 0);	/* list-mode */
 #ifdef WMDLINEWRAP
-	    setINT(WMDLINEBREAK, FALSE);	/* linebreak */
-	    setINT(WMDLINEWRAP, FALSE);		/* linewrap */
+	    setINT(WMDLINEWRAP, FALSE);		/* line-wrap */
 #endif
 #ifdef WMDRULER
 	    setINT(WMDRULER, FALSE);	/* ruler */
@@ -1883,20 +1791,20 @@ init_mode_value(struct VAL *d, MODECLASS v_class, int v_which)
  Char %{$curchar}d of %{$bchars}d\
  (%P%%) char is 0x%{$char}x or 0%{$char}o"
 
-static const char *
+static char *
 default_help_file(void)
 {
-    const char *result;
-    if ((result = vile_getenv("VILE_HELP_FILE")) == NULL)
+    char *result;
+    if ((result = vile_getenv("VILE_HELP_FILE")) == 0)
 	result = DFT_HELP_FILE;
     return result;
 }
 
-static const char *
+static char *
 default_libdir_path(void)
 {
-    const char *result;
-    if ((result = vile_getenv("VILE_LIBDIR_PATH")) == NULL)
+    char *result;
+    if ((result = vile_getenv("VILE_LIBDIR_PATH")) == 0)
 	result = DFT_LIBDIR_PATH;
     return result;
 }
@@ -1912,7 +1820,7 @@ default_menu_file(void)
     if (isEmpty(menurc)) {
 	sprintf(temp, "%.*s_MENU", (int) (sizeof(temp) - 6), prognam);
 	mkupper(temp);
-	menurc = vile_getenv(temp);
+	menurc = getenv(temp);
 	if (isEmpty(menurc)) {
 	    menurc = default_menu;
 	}
@@ -1922,11 +1830,11 @@ default_menu_file(void)
 }
 #endif
 
-static const char *
+static char *
 default_startup_file(void)
 {
-    const char *result;
-    if ((result = vile_getenv("VILE_STARTUP_FILE")) == NULL)
+    char *result;
+    if ((result = vile_getenv("VILE_STARTUP_FILE")) == 0)
 	result = DFT_STARTUP_FILE;
     return result;
 }
@@ -1934,10 +1842,10 @@ default_startup_file(void)
 static char *
 default_startup_path(void)
 {
-    char *result = NULL;
+    char *result = 0;
     char *s;
 
-    if ((s = vile_getenv("VILE_STARTUP_PATH")) != NULL) {
+    if ((s = vile_getenv("VILE_STARTUP_PATH")) != 0) {
 	append_to_path_list(&result, s);
     } else {
 #if SYS_MSDOS || SYS_OS2 || SYS_WINNT
@@ -1979,8 +1887,8 @@ pre_init_ctype(void)
 char *
 init_state_value(int which)
 {
-    const char *value = NULL;
-    char *result = NULL;
+    const char *value = 0;
+    char *result = 0;
 
     switch (which) {
 #if OPT_FINDERR
@@ -2002,13 +1910,6 @@ init_state_value(int which)
     case VAR_LIBDIR_PATH:
 	value = default_libdir_path();
 	break;
-#if OPT_SHELL
-    case VAR_LOOK_IN_CWD:
-	/* FALLTHRU */
-    case VAR_LOOK_IN_HOME:
-	value = "true";
-	break;
-#endif
 #if OPT_MENUS
     case VAR_MENU_FILE:
 	value = default_menu_file();
@@ -2036,13 +1937,8 @@ init_state_value(int which)
     case VAR_STARTUP_PATH:
 	result = default_startup_path();
 	break;
-#if !SMALLER
-    case VAR_EMPTY_LINES:
-	value = "1";
-	break;
-#endif
     }
-    return (value != NULL) ? strmalloc(value) : result;
+    return (value != 0) ? strmalloc(value) : result;
 }
 #endif /* OPT_EVAL */
 
@@ -2055,7 +1951,7 @@ len_kbindtbl(void)
 {
     static size_t result = 0;
     if (result == 0)
-	while (kbindtbl[result].k_cmd != NULL)
+	while (kbindtbl[result].k_cmd != 0)
 	    result++;
     return result + 1;
 }
@@ -2071,7 +1967,7 @@ copy_kbindtbl(BINDINGS * dst)
     size_t len = len_kbindtbl();
 
     if (dst->kb_special == kbindtbl) {
-	if ((result = typecallocn(KBIND, len)) == NULL) {
+	if ((result = typecallocn(KBIND, len)) == 0) {
 	    (void) no_memory("copy_kbindtbl");
 	    return;
 	}
@@ -2104,7 +2000,7 @@ state_val_init(void)
      */
     for (i = 0; i < Num_StateVars; i++) {
 	char *s;
-	if ((s = init_state_value(i)) != NULL) {
+	if ((s = init_state_value(i)) != 0) {
 	    set_state_variable(statevars[i], s);
 	    free(s);
 	}
@@ -2193,10 +2089,10 @@ global_val_init(void)
 	const CMDFUNC *cfp;
 
 	sel_bindings.kb_normal[i] = dft_bindings.kb_normal[i];
-	ins_bindings.kb_normal[i] = NULL;
+	ins_bindings.kb_normal[i] = 0;
 	cmd_bindings.kb_normal[i] = dft_bindings.kb_normal[i];
 	if (i < 32
-	    && (cfp = dft_bindings.kb_normal[i]) != NULL
+	    && (cfp = dft_bindings.kb_normal[i]) != 0
 	    && (cfp->c_flags & (GOAL | MOTION)) != 0) {
 	    ins_bindings.kb_normal[i] =
 		cmd_bindings.kb_normal[i] = cfp;
@@ -2279,80 +2175,68 @@ dos_crit_handler(void)
 #  endif
 #endif
 
-#define DATA(sig, func) { sig, func, SIG_DFL }
-
-static struct {
-    int signo;
-    SIGNAL_HANDLER handler;
-    SIGNAL_HANDLER original;
-} my_sighandlers[] = {
-
-    DATA(0, NULL),		/* just for VMS */
-#if SYS_UNIX || SYS_MSDOS || SYS_OS2 || SYS_WINNT
-#if defined(SIGINT)
-	DATA(SIGINT, catchintr),
-#endif
-#endif
-#if SYS_UNIX
-#if defined(SIGHUP)
-	DATA(SIGHUP, imdying),
-#endif
-#if defined(SIGBUS)
-	DATA(SIGBUS, imdying),
-#endif
-#if defined(SIGILL)
-	DATA(SIGILL, imdying),
-#endif
-#if defined(SIGFPE)
-	DATA(SIGFPE, imdying),
-#endif
-#if defined(SIGSYS)
-	DATA(SIGSYS, imdying),
-#endif
-	DATA(SIGSEGV, imdying),
-	DATA(SIGTERM, imdying),
-#ifdef SIGQUIT
-#ifdef VILE_DEBUG
-	DATA(SIGQUIT, imdying),
-#else
-	DATA(SIGQUIT, SIG_IGN),
-#endif
-#endif
-#ifdef SIGPIPE
-	DATA(SIGPIPE, SIG_IGN),
-#endif
-#if defined(SIGWINCH) && ! DISP_X11
-	DATA(SIGWINCH, sizesignal),
-#endif
-#endif /* SYS_UNIX */
-};
-
-#undef DATA
-
 /*
  * Setup signal handlers, if 'enabled'.  Otherwise reset to default all of the
  * ones that pointed to imdying().  The latter is used only in ExitProgram() to
  * ensure that abort() can really generate a core dump.
  */
 static void
-setup_sighandlers(int enabled)
+siginit(int enabled)
 {
-    static int save_original = TRUE;
+    /* *INDENT-OFF* */
+    static const struct {
+	int signo;
+	void (*handler) (int ACTUAL_SIG_ARGS);
+    } table[] = {
+	{ 0, 0 },		/* just for VMS */
+#if SYS_UNIX || SYS_MSDOS || SYS_OS2 || SYS_WINNT
+#if defined(SIGINT)
+	{ SIGINT, catchintr },
+#endif
+#endif
+#if SYS_UNIX
+#if defined(SIGHUP)
+	{ SIGHUP, imdying },
+#endif
+#if defined(SIGBUS)
+	{ SIGBUS, imdying },
+#endif
+#if defined(SIGILL)
+	{ SIGILL, imdying },
+#endif
+#if defined(SIGFPE)
+	{ SIGFPE, imdying },
+#endif
+#if defined(SIGSYS)
+	{ SIGSYS, imdying },
+#endif
+	{ SIGSEGV, imdying },
+	{ SIGTERM, imdying },
+#ifdef SIGQUIT
+#ifdef VILE_DEBUG
+	{ SIGQUIT, imdying },
+#else
+	{ SIGQUIT, SIG_IGN },
+#endif
+#endif
+#ifdef SIGPIPE
+	{ SIGPIPE, SIG_IGN },
+#endif
+#if defined(SIGWINCH) && ! DISP_X11
+	{ SIGWINCH, sizesignal },
+#endif
+#endif /* SYS_UNIX */
+    };
+    /* *INDENT-ON* */
+
     unsigned n;
 
-    for (n = 1; n < TABLESIZE(my_sighandlers); ++n) {
-	if (enabled) {
-	    SIGNAL_HANDLER old = setup_handler(my_sighandlers[n].signo,
-					       my_sighandlers[n].handler);
-	    if (save_original)
-		my_sighandlers[n].original = old;
-	} else if (my_sighandlers[n].handler == imdying) {
-	    setup_handler(my_sighandlers[n].signo, SIG_DFL);
-	}
+    for (n = 1; n < TABLESIZE(table); ++n) {
+	if (enabled)
+	    setup_handler(table[n].signo, table[n].handler);
+	else if (table[n].handler == imdying)
+	    setup_handler(table[n].signo, SIG_DFL);
     }
-
-    if (enabled)
-	save_original = FALSE;
 
 #if SYS_MSDOS
 # if CC_DJGPP
@@ -2367,26 +2251,11 @@ setup_sighandlers(int enabled)
 	void *ptrfunc = wat_crit_handler;
 	_harderr(ptrfunc);
     }
-#  else	/* CC_TURBO */
+#  else				/* CC_TURBO */
     _harderr(dos_crit_handler);
 #  endif
 # endif
 #endif
-}
-
-SIGNAL_HANDLER
-original_sighandler(int sig)
-{
-    SIGNAL_HANDLER result = SIG_DFL;
-    unsigned n;
-
-    for (n = 1; n < TABLESIZE(my_sighandlers); ++n) {
-	if (sig == my_sighandlers[n].signo) {
-	    result = my_sighandlers[n].original;
-	    break;
-	}
-    }
-    return result;
 }
 
 static void
@@ -2412,7 +2281,7 @@ do_num_proc(int *cp, int *fp, int *np)
 
     c = *cp;
 
-    if (isCntrl(c) || !is8Bits(c))
+    if (isCntrl(c) || isSpecial(c))
 	return;
 
     f = *fp;
@@ -2424,7 +2293,7 @@ do_num_proc(int *cp, int *fp, int *np)
 	n = 0;			/* start with a zero default */
 	f = TRUE;		/* there is a # arg */
 	mflag = 1;		/* current minus flag */
-	while ((isDigit(c) && is8Bits(c)) || (c == '-')) {
+	while ((isDigit(c) && !isSpecial(c)) || (c == '-')) {
 	    if (c == '-') {
 		/* already hit a minus or digit? */
 		if ((mflag == -1) || (n != 0))
@@ -2468,10 +2337,8 @@ do_rept_arg_proc(int *cp, int *fp, int *np)
     f = TRUE;			/* there is a # arg */
     mflag = 0;			/* that can be discarded. */
     mlwrite("arg: %d", n);
-    for (;;) {
-	c = kbd_seq();
-	if (!(isDigit(c) || (c == reptc) || (c == '-')))
-	    break;
+    while ((isDigit(c = kbd_seq()) && !isSpecial(c))
+	   || c == reptc || c == '-') {
 	if (c == reptc)
 	    n = n * 4;
 
@@ -2898,13 +2765,13 @@ showmemory(int f, int n)
 #endif /* SYS_MSDOS */
 
 char *
-strncpy0(char *dest, const char *src, size_t destlen)
+strncpy0(char *t, const char *f, size_t l)
 {
-    if (dest != NULL && src != NULL && destlen != 0) {
-	(void) strncpy(dest, src, destlen);
-	dest[destlen - 1] = EOS;
+    if (t != 0 && f != 0 && l != 0) {
+	(void) strncpy(t, f, l);
+	t[l - 1] = EOS;
     }
-    return dest;
+    return t;
 }
 
 /*
@@ -2915,27 +2782,10 @@ strncpy0(char *dest, const char *src, size_t destlen)
 char *
 vl_strncpy(char *dest, const char *src, size_t destlen)
 {
-    size_t n;
-
-    if ((src != NULL) && (destlen != 0)) {
-	for (n = 0; n < destlen; ++n) {
-	    if ((dest[n] = src[n]) == EOS)
-		break;
-	}
-	dest[destlen - 1] = EOS;
-    }
-    return dest;
-}
-
-char *
-vl_strncat(char *dest, const char *src, size_t destlen)
-{
-    size_t oldlen = strlen(dest);
-
-    if ((destlen != 0) && (oldlen < destlen)) {
-	vl_strncpy(dest + oldlen, src, destlen - oldlen);
-    }
-    return dest;
+    size_t srclen = (src != 0) ? (strlen(src) + 1) : 0;
+    if (srclen > destlen)
+	srclen = destlen;
+    return strncpy0(dest, src, srclen);
 }
 
 /*
@@ -2946,7 +2796,7 @@ char *
 vile_getenv(const char *name)
 {
     char *result = getenv(name);
-#if defined(_WIN32) || defined(_WIN64)
+#if defined(_WIN32)
     if (result == 0) {
 	static HKEY rootkeys[] =
 	{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
@@ -2955,7 +2805,7 @@ vile_getenv(const char *name)
 	HKEY hkey;
 	char buffer[256];
 
-	for (j = 0; j < (int) TABLESIZE(rootkeys); ++j) {
+	for (j = 0; j < TABLESIZE(rootkeys); ++j) {
 	    if (RegOpenKeyEx(rootkeys[j],
 			     VILE_SUBKEY W32_STRING("\\Environment"),
 			     0,
@@ -2973,35 +2823,23 @@ vile_getenv(const char *name)
 	}
     }
 #endif
-    TPRINTF(("vile getenv %s=%s\n", name, NonNull(result)));
     return result;
 }
 
-/*
- * Wrapper for all generic/system environment variables, so that we can trace.
- */
-char *
-sys_getenv(const char *name)
-{
-    char *result = getenv(name);
-    TPRINTF(("system getenv %s=%s\n", name, NonNull(result)));
-    return result;
-}
-
-SIGNAL_HANDLER
-setup_handler(int sig, SIGNAL_HANDLER disp)
-{
-    SIGNAL_HANDLER result;
 #if defined(SA_RESTART)
-    /* several systems (SCO, SunOS) have sigaction without SA_RESTART */
-    /*
-     * Redefine signal in terms of sigaction for systems which have the
-     * SA_RESTART flag defined through <signal.h>
-     *
-     * This definition of signal will cause system calls to get restarted for a
-     * more BSD-ish behavior.  This will allow us to use the OPT_WORKING
-     * feature for such systems.
-     */
+/* several systems (SCO, SunOS) have sigaction without SA_RESTART */
+/*
+ * Redefine signal in terms of sigaction for systems which have the
+ * SA_RESTART flag defined through <signal.h>
+ *
+ * This definition of signal will cause system calls to get restarted for a
+ * more BSD-ish behavior.  This will allow us to use the OPT_WORKING feature
+ * for such systems.
+ */
+
+void
+setup_handler(int sig, void (*disp) (int ACTUAL_SIG_ARGS))
+{
     struct sigaction act, oact;
 
     act.sa_handler = disp;
@@ -3013,15 +2851,17 @@ setup_handler(int sig, SIGNAL_HANDLER disp)
     act.sa_flags = SA_RESTART;
 #endif
 
-    if (sigaction(sig, &act, &oact) == 0)
-	result = oact.sa_handler;
-    else
-	result = SIG_ERR;
-#else /* !SA_RESTART */
-    result = signal(sig, disp);
-#endif
-    return result;
+    (void) sigaction(sig, &act, &oact);
+
 }
+
+#else
+void
+setup_handler(int sig, void (*disp) (int ACTUAL_SIG_ARGS))
+{
+    (void) signal(sig, disp);
+}
+#endif
 
 /* put us in a new process group, on command.  we don't do this all the
 * time since it interferes with suspending xvile on some systems with some
@@ -3059,9 +2899,9 @@ newprocessgroup(int f GCC_UNUSED, int n GCC_UNUSED)
     (void) setpgrp(0, 0);
 #   else
     (void) setpgrp();
-#   endif /* HAVE_BSD_SETPGRP */
-#  endif /* HAVE_SETSID */
-# endif	/* SYS_VMS */
+#   endif			/* HAVE_BSD_SETPGRP */
+#  endif			/* HAVE_SETSID */
+# endif				/* SYS_VMS */
 #endif /* DISP_X11 */
     return TRUE;
 }
@@ -3071,7 +2911,7 @@ cmd_mouse_motion(const CMDFUNC * cfp)
 {
     int result = FALSE;
 #if (OPT_XTERM || DISP_X11)
-    if (cfp != NULL
+    if (cfp != 0
 	&& CMD_U_FUNC(cfp) == mouse_motion)
 	result = TRUE;
 #else
@@ -3081,14 +2921,14 @@ cmd_mouse_motion(const CMDFUNC * cfp)
 }
 
 static void
-make_startup_file(const char *name)
+make_startup_file(char *name)
 {
     FILE *fp;
     char temp[NFILEN];
 
-    if (startup_file != NULL
+    if (startup_file != 0
 	&& strcmp(pathcat(temp, home_dir(), startup_file), startup_file)
-	&& ((fp = fopen(temp, "w")) != NULL)) {
+	&& ((fp = fopen(temp, "w")) != 0)) {
 	fprintf(fp, "; generated by %s -I\n", prog_arg);
 	fprintf(fp, "source %s\n", name);
 	fclose(fp);
@@ -3203,7 +3043,7 @@ ExitProgram(int code)
     if (code != GOODEXIT
 	&& (env = vile_getenv("VILE_ERROR_ABORT")) != 0
 	&& *env != '\0') {
-	setup_sighandlers(FALSE);
+	siginit(FALSE);
 	abort();
     }
     exit_program(code);
@@ -3259,7 +3099,7 @@ free_all_leaks(void)
     FreeAndNull(helpfile);
     FreeAndNull(startup_file);
 #if SYS_UNIX
-    if (exec_pathname != NULL
+    if (exec_pathname != 0
 	&& strcmp(exec_pathname, "."))
 	FreeAndNull(exec_pathname);
 #endif
@@ -3286,15 +3126,11 @@ free_all_leaks(void)
     vt_leaks();
 
     /* whatever is left over must be a leak */
-#if OPT_TRACE
     show_alloc();
     show_elapsed();
     trace_leaks();
-#endif
-#if DISP_TERMCAP
-    tcap_leaks();
-#elif DISP_CURSES
-    curses_leaks();
+#ifdef HAVE__NC_FREEALL
+    _nc_freeall();
 #endif
 }
 #endif /* NO_LEAKS */

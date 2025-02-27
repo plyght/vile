@@ -1,51 +1,36 @@
 package lock;
 
-use strict;
-
 require Vile::Exporter;
-
-use vars qw(@ISA %REGISTRY);
-
 @ISA = 'Vile::Exporter';
-%REGISTRY = ( 'lock' => [ \&lock, 'lock vile session' ] );
-
-our $word;
+%REGISTRY = ('lock' => [ \&lock, 'lock vile session' ]);
 
 sub getpass {
-    my ($text) = @_;
+    local ($text) = @_;
     print "Enter password to $text: ";
     undef $word;
-    for (
-        ;
-        ( my $char = Vile::keystroke() ) != 13 ;
-        $word .= sprintf "%c", $char
-      )
-    {
-        ;
-    }
+    for (; ($char=Vile::keystroke())!=13; $word.=sprintf "%c",$char) {;}
     $word;
 }
 
 sub lock {
-    my ( $word, $pass, $salt );
+    my ($word, $pass, $salt);
     my $work = Vile::working(0);
-    $pass = ( getpwuid($<) )[1];
-    $salt = substr( $pass, 0, 2 );
+    $pass = (getpwuid($<))[1];
+    $salt = substr($pass, 0, 2);
     if ( $pass == "x" ) {
-
-        # if the system has shadow passwords, make our own
-        $word = getpass("lock");
-        $salt = substr( $word, 0, 2 );
-        $pass = crypt( $word, $salt );
+	# if the system has shadow passwords, make our own
+	$word = getpass("lock");
+        $salt = substr($word, 0, 2);
+        $pass = crypt ($word, $salt);
     }
     while (1) {
         sleep 1;
-        $word = getpass("unlock");
-        last if ( crypt( $word, $salt ) eq $pass );
+	$word = getpass("unlock");
+        last if (crypt ($word, $salt) eq $pass);
         print "Wrong password!";
-    }
-    Vile::working($work);
-    print "";
+     }
+     Vile::working($work);
+     print "";
 }
 
 1;

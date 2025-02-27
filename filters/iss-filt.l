@@ -2,9 +2,8 @@
 %x SETUP FLAGS VALUE OTHER COMMENT CODE PREPRO CMT_STANDARD CMT_TURBOC
 
 %{
-
 /*
- * $Id: iss-filt.l,v 1.22 2025/01/26 11:06:34 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/iss-filt.l,v 1.14 2009/10/07 09:39:52 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of Inno Setup
  * input text.
@@ -13,15 +12,13 @@
 #include <filters.h>
 #include <fltstack.h>
 
-DefineFilter(iss);
-
-static void do_string(char *text, int length);
+DefineFilter("iss");
 
 static const char *Action_attr;
 static const char *Comment_attr;
 static const char *Ident2_attr;
 static const char *Number_attr;
-static const char *Preproc_attr;
+static const char *Prepro_attr;
 static const char *String_attr;
 
 static const char *save_table;
@@ -47,13 +44,13 @@ NUMBER		{HEXADECIMAL}|{INTEGER}|{REAL}
 
 %%
 
-<SETUP,FLAGS,CODE>^"#"{IDENT} { WriteToken3(Preproc_attr, 1);
+<SETUP,FLAGS,CODE>^"#"{IDENT} { WriteToken3(Prepro_attr, 1);
 			  save_table = get_symbol_table();
 			  push_state(PREPRO);
 			  set_symbol_table("iss_cpp");
-			  WriteToken2(get_keyword_attr(yytext+1), 1);
+			  WriteToken2(ci_keyword_attr(yytext+1), 1);
 			}
-<PREPRO>{STRING}	{ do_string(yytext, yyleng); }
+<PREPRO>{STRING}	{ WriteToken(String_attr); }
 <PREPRO>{NUMBER}	{ WriteToken(Number_attr); }
 <PREPRO>{BLANK}		{ ECHO; }
 <PREPRO>[\r\n]		{ ECHO;
@@ -75,10 +72,10 @@ NUMBER		{HEXADECIMAL}|{INTEGER}|{REAL}
 			    set_symbol_table(default_table);
 			  }
 			}
-<SETUP,FLAGS,CODE>{IDENT} { WriteToken(get_keyword_attr(yytext)); }
+<SETUP,FLAGS,CODE>{IDENT} { WriteToken(ci_keyword_attr(yytext)); }
 
 <SETUP>"="		{ ECHO; begin_state(VALUE); }
-<SETUP,VALUE>{SSTRING}	{ do_string(yytext, yyleng); }
+<SETUP,VALUE>{SSTRING}	{ WriteToken(String_attr); }
 <SETUP,VALUE>{NUMBER}	{ WriteToken(Number_attr); }
 <VALUE>[\n]		{ ECHO; begin_state(SETUP); }
 
@@ -86,11 +83,11 @@ NUMBER		{HEXADECIMAL}|{INTEGER}|{REAL}
 <SETUP,FLAGS>^";"[^\r\n]*	{ WriteToken(Comment_attr); }
 
 <FLAGS>":"{BLANK}*	{ ECHO; begin_state(OTHER); }
-<OTHER>[^;\r\n]+	{ do_string(yytext, yyleng); }
+<OTHER>[^;\r\n]+	{ WriteToken(String_attr); }
 <OTHER>";"		{ ECHO; begin_state(FLAGS); }
 <OTHER>[\n]		{ ECHO; begin_state(FLAGS); }
 
-<CODE>{SSTRING}		{ do_string(yytext, yyleng); }
+<CODE>{SSTRING}		{ WriteToken(String_attr); }
 <CODE>{CHARACTER}	|
 <CODE>{NUMBER}		{ WriteToken(Number_attr); }
 
@@ -112,42 +109,6 @@ NUMBER		{HEXADECIMAL}|{INTEGER}|{REAL}
 
 #include <fltstack.h>
 
-/*
- * The {parsing} could be done with states, but this is actually simpler.
- * TODO: make this handle {cm:xxx}, etc.
- */
-static void
-do_string(char *text, int length)
-{
-    int j, k;
-    int last = 0;
-    const char *prior = get_symbol_table();
-    const char *attr;
-
-    set_symbol_table("iss_const");
-    for (j = 0; j < length; ++j) {
-	if (text[j] == L_CURLY) {
-	    for (k = j + 1; k < length; ++k) {
-		if (text[k] == R_CURLY) {
-		    char save = text[k];
-		    text[k] = '\0';
-		    attr = ci_keyword_attr(text + j + 1);
-		    text[k] = save;
-		    if (attr != NULL) {
-			flt_puts(text + last, j - last, String_attr);
-			last = k + 1;
-			flt_puts(text + j, last - j, attr);
-			j = last - 1;
-		    }
-		    break;
-		}
-	    }
-	}
-    }
-    flt_puts(text + last, length - last, String_attr);
-    set_symbol_table(prior);
-}
-
 static void
 init_filter(int before GCC_UNUSED)
 {
@@ -159,16 +120,15 @@ do_filter(FILE *inputs)
 {
     InitLEX(inputs);
 
-    Action_attr = class_attr(NAME_ACTION);
+    Action_attr  = class_attr(NAME_ACTION);
     Comment_attr = class_attr(NAME_COMMENT);
-    Ident2_attr = class_attr(NAME_IDENT2);
-    Number_attr = class_attr(NAME_NUMBER);
-    Preproc_attr = class_attr(NAME_PREPROC);
-    String_attr = class_attr(NAME_LITERAL);
+    Ident2_attr  = class_attr(NAME_IDENT2);
+    Number_attr  = class_attr(NAME_NUMBER);
+    Prepro_attr  = class_attr(NAME_PREPROC);
+    String_attr  = class_attr(NAME_LITERAL);
 
     begin_state(FLAGS);
     RunLEX();
-    flt_bfr_error();
     end_state();
 }
 

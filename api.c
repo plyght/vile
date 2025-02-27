@@ -3,7 +3,7 @@
  *
  * Status of this file:  Some of the functions in this file are unused.
  * Early on, I was trying for compatibility with nvi's perl interface.
- * Now that I'm not, I've gotten lazy and have occasionally been skipping
+ * Now that I'm not, I've gotten lazy and have occassionally been skipping
  * this layer.
  *
  * Some of the code in this file is still used and is, in fact, very
@@ -15,7 +15,7 @@
  * in handy.
  *				- kev 4/7/1998
  *
- * $Id: api.c,v 1.56 2025/01/26 16:31:43 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/api.c,v 1.46 2010/05/13 00:24:54 tom Exp $
  */
 
 #include "estruct.h"
@@ -54,11 +54,13 @@ linsert_chars(char *s, int len)
 	    if (len > 1)
 		nlsuppress = TRUE;
 	    if (!mdnewline) {
-		set_local_b_val(curbp, MDNEWLINE, TRUE);
+		make_local_b_val(curbp, MDNEWLINE);
+		set_b_val(curbp, MDNEWLINE, TRUE);
 	    }
 	} else {
 	    if (mdnewline) {
-		set_local_b_val(curbp, MDNEWLINE, FALSE);
+		make_local_b_val(curbp, MDNEWLINE);
+		set_b_val(curbp, MDNEWLINE, FALSE);
 	    }
 	}
     }
@@ -68,7 +70,8 @@ linsert_chars(char *s, int len)
 	    && lforw(DOT.l) == buf_head(curbp)
 	    && DOT.o == llength(DOT.l)) {
 	    nlsuppress = TRUE;
-	    set_local_b_val(curbp, MDNEWLINE, TRUE);
+	    make_local_b_val(curbp, MDNEWLINE);
+	    set_b_val(curbp, MDNEWLINE, TRUE);
 	}
 	if (!nlsuppress) {
 
@@ -102,7 +105,7 @@ linsert_chars(char *s, int len)
 	    for (i = 1; i < len && s[i] != '\n'; i++) ;
 	    lins_bytes(i, *s);
 	    if (i > 1) {
-		memcpy(lvalue(DOT.l) + DOT.o - i + 1, s + 1, (size_t) (i - 1));
+		memcpy(lvalue(DOT.l) + DOT.o - i + 1, s + 1, i - 1);
 	    }
 	    len -= i;
 	    s += i;
@@ -111,7 +114,8 @@ linsert_chars(char *s, int len)
 
     if (nlatend) {
 	/* Advance DOT to where it's supposed to be */
-	dot_next_bol();
+	DOT.l = lforw(DOT.l);
+	DOT.o = 0;
     }
 
     return nlcount;
@@ -128,17 +132,17 @@ lreplace(char *s, int len)
 
     CopyForUndo(lp);
 
-    DOT.o = b_left_margin(curbp);
+    DOT.o = 0;
 
     if (len > (int) lp->l_size) {
-	size_t nlen;
+	int nlen;
 	char *ntext;
 
 #define roundlenup(n) ((n+NBLOCK-1) & ~(NBLOCK-1))
 
-	nlen = (size_t) roundlenup(len);
+	nlen = roundlenup(len);
 	ntext = castalloc(char, nlen);
-	if (ntext == NULL)
+	if (ntext == 0)
 	    return FALSE;
 	if (lvalue(lp))
 	    ltextfree(lp, curbp);
@@ -184,8 +188,8 @@ lreplace(char *s, int len)
 void
 api_setup_fake_win(VileBuf * vbp, int do_delete)
 {
-    if (vbp != NULL) {
-	if (curwp_visible == NULL)
+    if (vbp != 0) {
+	if (curwp_visible == 0)
 	    curwp_visible = curwp;
 
 	if (vbp->fwp) {
@@ -200,11 +204,12 @@ api_setup_fake_win(VileBuf * vbp, int do_delete)
 	if (vbp->ndel != 0 && do_delete) {
 	    int status;
 	    /* Do lazy delete; FALSE means don't put text in kill buffer */
-	    status = ldel_bytes(vbp->ndel, FALSE);
+	    status = ldel_chars(vbp->ndel, FALSE);
 	    vbp->ndel = 0;
 	    if (status == FALSE
 		|| (lforw(DOT.l) == buf_head(curbp) && DOT.o >= llength(DOT.l))) {
-		set_local_b_val(curbp, MDNEWLINE, FALSE);
+		make_local_b_val(curbp, MDNEWLINE);
+		set_b_val(curbp, MDNEWLINE, FALSE);
 	    }
 	}
     }
@@ -297,7 +302,7 @@ api_gotoline(VileBuf * vbp, int lno)
 	    break;
     }
 
-    DOT.o = b_left_margin(curbp);
+    DOT.o = 0;
 
     if (lp != buf_head(bp) && lno == lp->l_number) {
 	DOT.l = lp;
@@ -346,11 +351,12 @@ api_dotinsert(VileBuf * vbp, char *text, int len)
     linsert_chars(text, len);
     if (vbp->ndel) {
 	int status;
-	status = ldel_bytes(vbp->ndel, FALSE);
+	status = ldel_chars(vbp->ndel, FALSE);
 	vbp->ndel = 0;
 	if (status == FALSE
 	    || (lforw(DOT.l) == buf_head(curbp) && DOT.o >= llength(DOT.l))) {
-	    set_local_b_val(curbp, MDNEWLINE, FALSE);
+	    make_local_b_val(curbp, MDNEWLINE);
+	    set_b_val(curbp, MDNEWLINE, FALSE);
 	}
     }
     vbp->changed = 1;
@@ -367,7 +373,7 @@ api_dline(VileBuf * vbp, int lno)
     if (lno > 0 && lno <= vl_line_count(vbp->bp)) {
 	api_gotoline(vbp, lno);
 	gotobol(TRUE, TRUE);
-	status = ldel_bytes((B_COUNT) (llength(DOT.l) + 1), FALSE);
+	status = ldel_bytes(llength(DOT.l) + 1, FALSE);
     } else
 	status = FALSE;
 
@@ -377,7 +383,6 @@ api_dline(VileBuf * vbp, int lno)
 int
 api_gline(VileBuf * vbp, int lno, char **linep, int *lenp)
 {
-    static char empty[1];
     int status = TRUE;
 
     api_setup_fake_win(vbp, TRUE);
@@ -387,7 +392,7 @@ api_gline(VileBuf * vbp, int lno, char **linep, int *lenp)
 	*linep = lvalue(DOT.l);
 	*lenp = llength(DOT.l);
 	if (*lenp == 0) {
-	    *linep = empty;	/* Make sure we pass back a zero length,
+	    *linep = "";	/* Make sure we pass back a zero length,
 				   null terminated value when the length
 				   is zero.  Otherwise perl gets confused.
 				   (It thinks it should calculate the length
@@ -465,7 +470,8 @@ api_dotgline(VileBuf * vbp, char **linep, B_COUNT * lenp, int *neednewline)
 	    DOT.o += *lenp;
 	    *neednewline = 0;
 	} else {
-	    dot_next_bol();
+	    DOT.l = lforw(DOT.l);
+	    DOT.o = 0;
 	    *neednewline = 1;
 	}
     }
@@ -484,7 +490,7 @@ api_sline(VileBuf * vbp, int lno, char *line, int len)
 	api_gotoline(vbp, lno);
 	if (lvalue(DOT.l) != line
 	    && (llength(DOT.l) != len
-		|| memcmp(line, lvalue(DOT.l), (size_t) len) != 0)) {
+		|| memcmp(line, lvalue(DOT.l), len) != 0)) {
 	    lreplace(line, len);
 	    vbp->changed = 1;
 	}
@@ -517,7 +523,7 @@ api_fscreen(char *name)
     if (bp)
 	return api_bp2vbp(bp);
     else
-	return NULL;
+	return 0;
 }
 
 int
@@ -566,11 +572,11 @@ api_motion(VileBuf * vbp, char *mstr)
 
     mp = mstr + strlen(mstr);
 
-    mapungetc((int) ((unsigned char) esc_c | NOREMAP));
+    mapungetc(esc_c | NOREMAP);
     /* Should we allow remapping?  Seems to me like it introduces too
        many variables. */
     while (mp-- > mstr) {
-	mapungetc((int) ((unsigned char) *mp | NOREMAP));
+	mapungetc(*mp | NOREMAP);
     }
 
     while (mapped_ungotc_avail()) {
@@ -621,13 +627,13 @@ api_edit(char *fname, VileBuf ** retvbpp)
     if (fname == NULL) {
 	char bufname[NBUFN];
 	static int unnamed_cnt = 0;
-	sprintf(bufname, "[unnamed-%d]", (++unnamed_cnt % 1000));
+	sprintf(bufname, "[unnamed-%d]", ++unnamed_cnt);
 	bp = bfind(bufname, 0);
 	bp->b_active = TRUE;
     } else {
 	bp = getfile2bp(fname, FALSE, FALSE);
-	if (bp == NULL) {
-	    *retvbpp = NULL;
+	if (bp == 0) {
+	    *retvbpp = 0;
 	    return 1;
 	}
     }
@@ -642,7 +648,7 @@ api_swscreen(VileBuf * oldsp, VileBuf * newsp)
 {
     /*
      * Calling api_command_cleanup nukes various state, like DOT
-     * Now if DOT got propagated, all is (likely) well.  But if it didn't,
+     * Now if DOT got propogated, all is (likely) well.  But if it didn't,
      * then DOT will likely be in the wrong place if the executing perl
      * script expects to access a buffer on either side of a switchscreen
      * call.
@@ -677,9 +683,7 @@ api_swscreen(VileBuf * oldsp, VileBuf * newsp)
      * buried in the macro "for_each_visible_window".
      *          - kev 4/20/1998
      */
-    TRACE((T_CALLED "api_swscreen(oldsp=%p, newsp=%p)\n",
-	   (void *) oldsp,
-	   (void *) newsp));
+    TRACE((T_CALLED "api_swscreen(oldsp=%p, newsp=%p)\n", oldsp, newsp));
 
     curwp = curwp_visible ? curwp_visible : curwp;
     curbp = curwp->w_bufp;
@@ -765,7 +769,7 @@ api_command_cleanup(void)
 {
     BUFFER *bp;
 
-    if (curwp_visible == NULL)
+    if (curwp_visible == 0)
 	curwp_visible = curwp;
 
     /* Propgate dot to the visible windows and do any deferred deletes */
@@ -775,7 +779,7 @@ api_command_cleanup(void)
 
     while ((bp = pop_fake_win(curwp_visible, (BUFFER *) 0)) != NULL) {
 	if (bp2vbp(bp) != NULL) {
-	    bp2vbp(bp)->fwp = NULL;
+	    bp2vbp(bp)->fwp = 0;
 	    bp2vbp(bp)->dot_inited = 0;		/* for next time */
 	    bp2vbp(bp)->dot_changed = 0;	/* ditto */
 	    if (bp2vbp(bp)->changed) {
@@ -791,7 +795,7 @@ api_command_cleanup(void)
 	}
     }
 
-    curwp_visible = NULL;
+    curwp_visible = 0;
 
     /* Not needed? */
     if (curbp != curwp->w_bufp)
@@ -810,7 +814,7 @@ api_free_private(void *vsp)
     VileBuf *vbp = (VileBuf *) vsp;
 
     if (vbp) {
-	vbp->bp->b_api_private = NULL;
+	vbp->bp->b_api_private = 0;
 #if OPT_PERL && !NO_LEAKS
 	perl_free_handle(vbp->perl_handle);
 #endif
@@ -827,9 +831,9 @@ api_bp2vbp(BUFFER *bp)
     VileBuf *vbp;
 
     vbp = bp2vbp(bp);
-    if (vbp == NULL) {
+    if (vbp == 0) {
 	vbp = typecalloc(VileBuf);
-	if (vbp != NULL) {
+	if (vbp != 0) {
 	    bp->b_api_private = vbp;
 	    vbp->bp = bp;
 	    vbp->regionshape = rgn_FULLLINE;

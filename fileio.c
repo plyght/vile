@@ -2,7 +2,8 @@
  * The routines in this file read and write ASCII files from the disk. All of
  * the knowledge about files are here.
  *
- * $Id: fileio.c,v 1.212 2025/01/26 17:03:16 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/fileio.c,v 1.194 2010/02/21 23:07:52 Rick.Sladkey Exp $
+ *
  */
 
 #include <estruct.h>
@@ -54,8 +55,8 @@ copy_file(const char *src, const char *dst)
     int chr;
     int ok = FALSE;
 
-    if ((ifp = fopen(SL_TO_BSL(src), FOPEN_READ)) != NULL) {
-	if ((ofp = fopen(SL_TO_BSL(dst), FOPEN_WRITE)) != NULL) {
+    if ((ifp = fopen(SL_TO_BSL(src), FOPEN_READ)) != 0) {
+	if ((ofp = fopen(SL_TO_BSL(dst), FOPEN_WRITE)) != 0) {
 	    ok = TRUE;
 	    for_ever {
 		chr = vl_getc(ifp);
@@ -182,13 +183,13 @@ make_backup(char *fname)
 
     if (ffexists(fname)) {	/* if the file exists, attempt a backup */
 	char tname[NFILEN];
-	char *s = pathleaf(vl_strncpy(tname, fname, sizeof(tname)));
+	char *s = pathleaf(strcpy(tname, fname));
 	char *t = strrchr(s, '.');
-	char *gvalfileback = b_val_ptr(curbp, VAL_BACKUPSTYLE);
+	char *gvalfileback = global_g_val_ptr(GVAL_BACKUPSTYLE);
 
 	switch (choice_to_code(&fsm_backup_blist, gvalfileback, strlen(gvalfileback))) {
 	case bak_BAK:
-	    if (t == NULL	/* i.e. no '.' at all */
+	    if (t == 0		/* i.e. no '.' at all */
 #if SYS_UNIX
 		|| t == s	/* i.e. leading char is '.' */
 #endif
@@ -260,37 +261,36 @@ file_stat(const char *fn, struct stat *sb)
     unsigned n;
     int found = FALSE;
 
-    if (fn != NULL) {
+    if (fn != 0) {
 	for (n = 0; n < TABLESIZE(cache); ++n) {
 	    if (!strcmp(fn, cache[n].fn)) {
 		found = TRUE;
 		break;
 	    }
 	}
-	if (sb != NULL) {
+	if (sb != 0) {
 	    if (!found) {
 		for (n = TABLESIZE(cache) - 1; n != 0; --n) {
 		    if (strlen(cache[n].fn) == 0)
 			break;
 		}
-		cache[n].rc = stat(SL_TO_BSL(vl_strncpy(cache[n].fn, fn,
-							sizeof(cache[n].fn))),
+		cache[n].rc = stat(SL_TO_BSL(strcpy(cache[n].fn, fn)),
 				   &(cache[n].sb));
 	    }
 	    rc = cache[n].rc;
 	    *sb = cache[n].sb;
 	} else if (found) {
-	    vl_strncpy(cache[n].fn, "", (size_t) NFILEN);
+	    vl_strncpy(cache[n].fn, "", NFILEN);
 	}
     } else {
 	fn = "";
 	for (n = 0; n < TABLESIZE(cache); ++n) {
-	    vl_strncpy(cache[n].fn, fn, (size_t) NFILEN);
+	    vl_strncpy(cache[n].fn, fn, NFILEN);
 	}
     }
     TRACE(("file_stat(%s) = %d%s\n", fn, rc,
 	   (found
-	    ? ((sb != NULL)
+	    ? ((sb != 0)
 	       ? " cached"
 	       : " purged")
 	    : "")));
@@ -311,7 +311,7 @@ ffropen(char *fn)
     TRACE(("ffropen(fn=%s)\n", fn));
 #if OPT_SHELL
     if (isShellOrPipe(fn)) {
-	ffp = NULL;
+	ffp = 0;
 #if SYS_UNIX || SYS_MSDOS || SYS_OS2 || SYS_WINNT
 	ffp = npopen(fn + 1, FOPEN_READ);
 #endif
@@ -319,7 +319,7 @@ ffropen(char *fn)
 	ffp = vms_rpipe(fn + 1, 0, (char *) 0);
 	/* really a temp-file, but we cannot fstat it to get size */
 #endif
-	if (ffp == NULL) {
+	if (ffp == 0) {
 	    mlerror("opening pipe for read");
 	    rc = FIOERR;
 	} else {
@@ -373,8 +373,6 @@ ffwopen(char *fn, int forced)
     char *name;
     const char *mode = FOPEN_WRITE;
 
-    (void) forced;
-
     TRACE(("ffwopen(fn=%s, forced=%d)\n", fn, forced));
     ffstatus = file_is_closed;
     if (i_am_dead) {
@@ -411,7 +409,7 @@ ffwopen(char *fn, int forced)
 	    return (FIOERR);
 	}
 
-	if (*b_val_ptr(curbp, VAL_BACKUPSTYLE) != 'o') {	/* "off" ? */
+	if (*global_g_val_ptr(GVAL_BACKUPSTYLE) != 'o') {	/* "off" ? */
 	    if (!make_backup(fn)) {
 		if (!forced) {
 		    mlerror("making backup file");
@@ -551,16 +549,14 @@ ffsize(B_COUNT * have)
     long prev;
 
     prev = ftell(ffp);
-    *have = 0;
     if (fseek(ffp, 0, SEEK_END) >= 0) {
 	result = 0;
 	*have = ftell(ffp);
-	(void) fseek(ffp, prev, SEEK_SET);
+	fseek(ffp, prev, SEEK_SET);
     }
 #else
     struct stat statbuf;
 
-    *have = 0;
     if ((result = fstat(fileno(ffp), &statbuf)) == 0) {
 	*have = (B_COUNT) statbuf.st_size;
     }
@@ -594,7 +590,7 @@ ffexists(char *p)
 
     struct stat statbuf;
     if (!isInternalName(p)
-	&& file_stat(p, NULL) == 0
+	&& file_stat(p, 0) == 0
 	&& file_stat(p, &statbuf) == 0) {
 	status = TRUE;
     }
@@ -649,9 +645,9 @@ ffread(char *buf, B_COUNT want, B_COUNT * have)
 	 * avoid overflow.
 	 */
 	while (want != 0) {
-	    size_t ask = (((want - *have) > LONG_MAX)
-			  ? LONG_MAX
-			  : (want - *have));
+	    long ask = (((want - *have) > LONG_MAX)
+			? LONG_MAX
+			: (want - *have));
 
 #if FFREAD_FREAD
 	    /* size_t may not fit in long, making a sign-extension */
@@ -661,7 +657,7 @@ ffread(char *buf, B_COUNT want, B_COUNT * have)
 #endif
 	    if (got <= 0)
 		break;
-	    *have += (B_COUNT) got;
+	    *have += got;
 	}
 	if (*have == 0)
 	    result = -1;
@@ -676,7 +672,7 @@ ffseek(B_COUNT n)
 #if SYS_VMS
     ffrewind();			/* see below */
 #endif
-    (void) fseek(ffp, (long) n, SEEK_SET);
+    fseek(ffp, n, SEEK_SET);
 }
 
 void
@@ -693,7 +689,7 @@ ffrewind(void)
     (void) fclose(ffp);
     ffp = fopen(temp, FOPEN_READ);
 #else
-    (void) fseek(ffp, 0L, SEEK_SET);
+    fseek(ffp, 0L, SEEK_SET);
 #endif
 }
 
@@ -707,14 +703,14 @@ ffclose(void)
 
     if (ffstatus == file_is_unbuffered) {
 	if (fflinelen) {
-	    IGNORE_RC(write(ffd, fflinebuf, (unsigned) fflinelen));
+	    IGNORE_RC(write(ffd, fflinebuf, fflinelen));
 	    fflinelen = 0;
 	}
 	close(ffd);
     } else {
 	free_fline();
 
-	if (ffp != NULL) {
+	if (ffp != 0) {
 #if SYS_UNIX || SYS_MSDOS || SYS_OS2 || SYS_WINNT
 #if OPT_SHELL
 	    if (ffstatus == file_is_pipe) {
@@ -738,8 +734,8 @@ ffclose(void)
 	    (void) fclose(ffp);
 #endif
 	}
-	ffp = NULL;
-	ffbuffer = NULL;
+	ffp = 0;
+	ffbuffer = 0;
     }
     ffstatus = file_is_closed;
     return (FIOSUC);
@@ -754,13 +750,13 @@ ffputline(const char *buf, int nbuf, const char *ending)
 {
     int i = 0;
 
-    if (buf != NULL) {
+    if (buf != 0) {
 	for (i = 0; i < nbuf; ++i)
 	    if (ffputc(CharOf(buf[i])) == FIOERR)
 		return FIOERR;
     }
 
-    if (ending != NULL) {
+    if (ending != 0) {
 	while (*ending != EOS) {
 	    if (*ending != '\r' || i == 0 || buf[i - 1] != '\r')
 		ffputc(*ending);
@@ -768,7 +764,7 @@ ffputline(const char *buf, int nbuf, const char *ending)
 	}
     }
 
-    if (ffp != NULL && ferror(ffp)) {
+    if (ffp != 0 && ferror(ffp)) {
 	mlerror("writing");
 	return (FIOERR);
     }
@@ -787,12 +783,12 @@ ffputc(int c)
 
 #if OPT_ENCRYPT
     if (ffcrypting && (ffstatus != file_is_pipe))
-	d = (char) vl_encrypt_char(d);
+	d = vl_encrypt_char(d);
 #endif
     if (i_am_dead) {
 	fflinebuf[fflinelen++] = d;
 	if (fflinelen >= NSTRING) {
-	    IGNORE_RC(write(ffd, fflinebuf, (unsigned) fflinelen));
+	    IGNORE_RC(write(ffd, fflinebuf, fflinelen));
 	    fflinelen = 0;
 	}
     } else {
@@ -816,22 +812,22 @@ alloc_linebuf(size_t needed)
     if (needed < NSTRING)
 	needed = NSTRING;
 
-    if (fflinebuf == NULL) {
+    if (fflinebuf == 0) {
 	fflinelen = needed;
 	fflinebuf = castalloc(char, fflinelen);
     } else if (needed >= fflinelen) {
 	fflinelen = needed + (needed >> 3);
-	safe_castrealloc(char, fflinebuf, fflinelen);
+	fflinebuf = castrealloc(char, fflinebuf, fflinelen);
     }
 
-    if (fflinebuf == NULL)
+    if (fflinebuf == 0)
 	fflinelen = 0;
     endofDisplay();
-    return (fflinebuf != NULL);
+    return (fflinebuf != 0);
 }
 
 #define ALLOC_LINEBUF(i) \
-	    if ((i) >= fflinelen && !alloc_linebuf((size_t) i)) \
+	    if ((i) >= fflinelen && !alloc_linebuf(i)) \
 		return (FIOMEM)
 
 /*
@@ -856,12 +852,12 @@ ffgetline(size_t *lenp)
 #if COMPLETE_FILES || COMPLETE_DIRS
     if (ffstatus == file_is_internal) {
 	if (ffcursor == buf_head(ffbuffer)) {
-	    ffcursor = NULL;
+	    ffcursor = 0;
 	    fileeof = TRUE;
 	    return (FIOEOF);
 	}
 	if (llength(ffcursor) > 0) {
-	    i = (size_t) llength(ffcursor);
+	    i = llength(ffcursor);
 	    ALLOC_LINEBUF(i);
 	    memcpy(fflinebuf, lvalue(ffcursor), i);
 	}
@@ -890,7 +886,7 @@ ffgetline(size_t *lenp)
 		 */
 		if (count_fline == 0) {
 		    UCHAR *buffer = (UCHAR *) fflinebuf;
-		    B_COUNT length = (B_COUNT) i;
+		    B_COUNT length = i;
 		    make_global_b_val(btempp, VAL_BYTEORDER_MARK);
 		    make_global_b_val(btempp, VAL_FILE_ENCODING);
 		    if (decode_bom(btempp, buffer, &length))
@@ -900,14 +896,14 @@ ffgetline(size_t *lenp)
 
 		if (b_val(btempp, VAL_FILE_ENCODING) > enc_UTF8) {
 		    UCHAR *buffer = (UCHAR *) fflinebuf;
-		    B_COUNT length = (B_COUNT) (i + 1);
+		    B_COUNT length = (i + 1);
 
 		    if (!aligned_charset(btempp, buffer, &length)) {
 			do {
 			    ALLOC_LINEBUF(i + 2);
 			    fflinebuf[i++] = (char) c;
 			    c = vl_getc(ffp);	/* expecting a null... */
-			    length = (B_COUNT) (i + 1);
+			    length = (i + 1);
 			    buffer = (UCHAR *) fflinebuf;
 			} while (!aligned_charset(btempp, buffer, &length));
 			fflinebuf[i] = (char) c;
@@ -982,7 +978,7 @@ ffgetline(size_t *lenp)
 #  if SYS_VMS
 #    define	isready_c(p)	( (*p)->_cnt > 0)
 #  endif
-#  if SYS_WINNT && defined( _MSC_VER ) && ( _MSC_VER < 1700 )
+#  if SYS_WINNT && !defined( __BORLANDC__ )
 #    define	isready_c(p)	( (p)->_cnt > 0)
 #  endif
 #endif
@@ -996,8 +992,8 @@ ffhasdata(void)
 #endif
 #if defined(FIONREAD) && !SYS_WINNT
     {
-	long x = 0;
-	if ((ioctl(fileno(ffp), (long) FIONREAD, (void *) &x) >= 0) && x != 0)
+	long x;
+	if ((ioctl(fileno(ffp), FIONREAD, (void *) &x) >= 0) && x != 0)
 	    return TRUE;
     }
 #endif

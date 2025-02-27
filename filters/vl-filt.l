@@ -2,9 +2,8 @@
 %s RULES ACTIONS CODE COMMENT
 
 %{
-
 /*
- * $Id: vl-filt.l,v 1.24 2025/01/26 11:38:02 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/vl-filt.l,v 1.19 2009/12/10 00:37:58 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of VeriLog
  * program.
@@ -12,7 +11,7 @@
 
 #include <filters.h>
 
-DefineFilter(vlog);
+DefineFilter("vlog");
 
 static char *Comment_attr;
 static char *Error_attr;
@@ -44,20 +43,20 @@ DSTRING		\"(\\.|[^"\\])*\"
 
 %%
 
-<CODE>{ESCNAME}		{ WriteToken(get_keyword_attr(yytext)); }
-<CODE>{SYSNAME}		{ const char *attr = get_keyword_attr(yytext);
-			  if (attr != NULL) {
+<CODE>{ESCNAME}		{ WriteToken(keyword_attr(yytext)); }
+<CODE>{SYSNAME}		{ const char *attr = keyword_attr(yytext);
+			  if (attr != 0) {
 			      WriteToken(attr);
 			  } else {
 			      flt_error("unknown sysname");
 			      WriteToken(Error_attr);
 			  }
 			}
-<CODE>{IDENT}		{ WriteToken(get_keyword_attr(yytext)); }
+<CODE>{IDENT}		{ WriteToken(keyword_attr(yytext)); }
 
 <CODE>`define{SPACE}+{IDENT} { do_define(yytext); }
-<CODE>{DIRECTIVE}	{ const char *attr = get_keyword_attr(yytext);
-			  if (attr != NULL) {
+<CODE>{DIRECTIVE}	{ const char *attr = keyword_attr(yytext);
+			  if (attr != 0) {
 			      WriteToken(attr);
 			  } else {
 			      flt_error("unknown directive");
@@ -83,7 +82,7 @@ do_define(char *string)
     const char *keydef = "`define";
     int lendef = 7;
 
-    flt_puts(string, lendef, get_keyword_attr(keydef));
+    flt_puts(string, lendef, keyword_attr(keydef));
     for (string += lendef; isspace(CharOf(*string)); string++)
 	flt_putc(*string);
     string--;
@@ -103,13 +102,13 @@ do_filter(FILE *inputs)
 {
     InitLEX(inputs);
     Comment_attr = class_attr(NAME_COMMENT);
-    Error_attr = class_attr(NAME_ERROR);
-    Ident_attr = class_attr(NAME_IDENT);
-    Ident2_attr = class_attr(NAME_IDENT2);
+    Error_attr   = class_attr(NAME_ERROR);
+    Ident_attr   = class_attr(NAME_IDENT);
+    Ident2_attr  = class_attr(NAME_IDENT2);
     Keyword_attr = class_attr(NAME_KEYWORD);
-    Number_attr = class_attr(NAME_NUMBER);
+    Number_attr  = class_attr(NAME_NUMBER);
     Preproc_attr = class_attr(NAME_PREPROC);
-    String_attr = class_attr(NAME_LITERAL);
+    String_attr  = class_attr(NAME_LITERAL);
 
     BEGIN(CODE);
     RunLEX();

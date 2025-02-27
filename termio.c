@@ -3,7 +3,8 @@
  * characters, and write characters in a barely buffered fashion on the display.
  * All operating systems.
  *
- * $Id: termio.c,v 1.226 2025/01/26 14:33:43 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/termio.c,v 1.220 2010/05/01 12:33:07 tom Exp $
+ *
  */
 
 #include	"estruct.h"
@@ -64,7 +65,7 @@ error "No termios or sgtty"
 /* try harder to get it */
 # ifdef HAVE_SYS_FILIO_H
 #  include <sys/filio.h>
-# else /* if you have trouble including ioctl.h, try "sys/ioctl.h" instead */
+# else				/* if you have trouble including ioctl.h, try "sys/ioctl.h" instead */
 #  ifdef HAVE_IOCTL_H
 #   include <ioctl.h>
 #  else
@@ -266,7 +267,7 @@ ttopen(void)
 # ifdef SETVBUF_REVERSED
     setvbuf(stdout, _IOFBF, tobuf, TBUFSIZ);
 # else
-    setvbuf(stdout, tobuf, _IOFBF, (size_t) TBUFSIZ);
+    setvbuf(stdout, tobuf, _IOFBF, TBUFSIZ);
 # endif
 #else /* !HAVE_SETVBUF */
     setbuffer(stdout, tobuf, TBUFSIZ);
@@ -288,12 +289,12 @@ ttopen(void)
     /* new input settings: turn off crnl mapping, cr-ignoring,
      * case-conversion, and allow BREAK
      */
-    ntermios.c_iflag = (tcflag_t) (BRKINT | (otermios.c_iflag &
-					     (ULONG) ~ (INLCR | IGNCR | ICRNL
+    ntermios.c_iflag = BRKINT | (otermios.c_iflag &
+				 (ULONG) ~ (INLCR | IGNCR | ICRNL
 #ifdef IUCLC
-							| IUCLC
+					    | IUCLC
 #endif
-					     )));
+				 ));
 
     ntermios.c_oflag = 0;
     ntermios.c_lflag = ISIG;
@@ -327,8 +328,8 @@ flow_control_enable(int f GCC_UNUSED, int n GCC_UNUSED)
 {
 #if !DISP_X11
     if (!f) {
-	ntermios.c_cc[VSTART] = (cc_t) startc;
-	ntermios.c_cc[VSTOP] = (cc_t) stopc;
+	ntermios.c_cc[VSTART] = (char) startc;
+	ntermios.c_cc[VSTOP] = (char) stopc;
     } else {
 	ntermios.c_cc[VSTART] = VDISABLE;
 	ntermios.c_cc[VSTOP] = VDISABLE;
@@ -807,7 +808,7 @@ vl_getchar(void)
     char c;
     int n;
 
-    n = (int) read(0, &c, (size_t) 1);
+    n = read(0, &c, 1);
     if (n <= 0) {
 	if (n < 0 && errno == EINTR)
 	    return -1;
@@ -987,9 +988,9 @@ tttypahead(void)
 #   else
     /* otherwise give up */
     return FALSE;
-#   endif /* USE_FCNTL */
-#  endif /* USE_FIONREAD */
-# endif	/* using catnap */
+#   endif			/* USE_FCNTL */
+#  endif			/* USE_FIONREAD */
+# endif				/* using catnap */
 #endif /* DISP_X11 */
 }
 
@@ -1058,7 +1059,6 @@ ttunclean(void)
 OUTC_DCL
 ttputc(OUTC_ARGS)
 {
-    (void) c;
 #if SYS_OS2 && !DISP_VIO
     OUTC_RET putch(c);
 #endif
@@ -1193,7 +1193,7 @@ getscreensize(int *widthp, int *heightp)
     *widthp = 0;
     *heightp = 0;
 #ifdef HAVE_SIZECHANGE
-    if (ioctl(0, (long) IOCTL_GET_WINSIZE, (void *) &size) == 0) {
+    if (ioctl(0, IOCTL_GET_WINSIZE, (void *) &size) == 0) {
 	if ((int) (WINSIZE_ROWS(size)) > 0)
 	    *heightp = WINSIZE_ROWS(size);
 	if ((int) (WINSIZE_COLS(size)) > 0)
@@ -1251,10 +1251,10 @@ open_terminal(TERM * termp)
 	 * If the open and/or close slots are empty, fill them in with
 	 * the screen driver's functions.
 	 */
-	if (termp->open == NULL)
+	if (termp->open == 0)
 	    termp->open = term.open;
 
-	if (termp->close == NULL)
+	if (termp->close == 0)
 	    termp->close = term.close;
 
 	/*

@@ -2,9 +2,8 @@
 %s PRETEXT NOTE sTEXT
 
 %{
-
 /*
- * $Id: fdl-filt.l,v 1.21 2013/12/02 01:32:53 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/fdl-filt.l,v 1.17 2009/12/10 00:22:32 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of fdl
  * input text.  This treats all of the text area as quoted, except for
@@ -13,7 +12,7 @@
 
 #include <filters.h>
 
-DefineFilter(fdl);
+DefineFilter("fdl");
 
 static char *Comment_attr;
 static char *Ident2_attr;
@@ -56,7 +55,7 @@ KEYWORD		$[[:alpha:]_][[:alnum:]_]*
 static void
 handle_keyword(char *name)
 {
-    flt_puts(name, (int) strlen(name), get_keyword_attr(name));
+    flt_puts(name, (int) strlen(name), keyword_attr(name));
     next_state = INITIAL;
     if (!strcmp(name, "$rem")) {
 	BEGIN(NOTE);
@@ -80,9 +79,9 @@ do_filter(FILE *inputs)
     InitLEX(inputs);
 
     Comment_attr = class_attr(NAME_COMMENT);
-    Ident2_attr = class_attr(NAME_IDENT2);
+    Ident2_attr  = class_attr(NAME_IDENT2);
     Keyword_attr = class_attr(NAME_KEYWORD);
-    String_attr = class_attr(NAME_LITERAL);
+    String_attr  = class_attr(NAME_LITERAL);
 
     next_state = INITIAL;
 

@@ -1,168 +1,3 @@
-vile (9.8za) unstable; urgency=low
-
-  * maintenance updates
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Sat, 23 Mar 2024 16:26:16 -0400
-
-vile (9.8z) unstable; urgency=low
-
-  * maintenance updates
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Sun, 29 Jan 2023 16:12:18 -0500
-
-vile (9.8y) unstable; urgency=low
-
-  * maintenance updates
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Sun, 01 Jan 2023 12:09:44 -0500
-
-vile (9.8x) unstable; urgency=low
-
-  * maintenance updates
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Thu, 25 Aug 2022 14:29:57 -0400
-
-vile (9.8w) unstable; urgency=low
-
-  * maintenance updates
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Sat, 18 Dec 2021 06:50:27 -0500
-
-vile (9.8v) unstable; urgency=low
-
-  * maintenance updates
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Tue, 19 May 2020 19:22:34 -0400
-
-vile (9.8u) unstable; urgency=low
-
-  * maintenance updates
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Sun, 30 Dec 2018 20:53:46 -0500
-
-vile (9.8t) unstable; urgency=low
-
-  * maintenance updates
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Fri, 17 Feb 2017 15:22:53 -0500
-
-vile (9.8s) unstable; urgency=low
-
-  * maintenance updates
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Fri, 29 Jul 2016 04:58:58 -0400
-
-vile (9.8r) unstable; urgency=low
-
-  * maintenance updates
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Mon, 02 Nov 2015 04:52:25 -0500
-
-vile (9.8q) unstable; urgency=low
-
-  * maintenance updates
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Wed, 04 Mar 2015 20:12:05 -0500
-
-vile (9.8p) unstable; urgency=low
-
-  * maintenance updates
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Wed, 15 Oct 2014 20:51:30 -0400
-
-vile (9.8o) unstable; urgency=low
-
-  * maintenance updates
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Mon, 21 Jul 2014 04:21:26 -0400
-
-vile (9.8n) unstable; urgency=low
-
-  * maintenance updates
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Mon, 31 Mar 2014 19:13:33 -0400
-
-vile (9.8m) unstable; urgency=low
-
-  * maintenance updates
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Sat, 01 Feb 2014 20:00:20 -0500
-
-vile (9.8l) unstable; urgency=low
-
-  * miscellaneous fixes.
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Wed, 28 Aug 2013 13:35:16 -0400
-
-vile (9.8k) unstable; urgency=low
-
-  * miscellaneous fixes.
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Tue, 14 May 2013 04:49:55 -0400
-
-vile (9.8j) unstable; urgency=low
-
-  * miscellaneous fixes.
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Tue, 16 Oct 2012 05:22:53 -0400
-
-vile (9.8i) unstable; urgency=low
-
-  * miscellaneous fixes.
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Mon, 20 Aug 2012 05:26:22 -0400
-
-vile (9.8h) unstable; urgency=low
-
-  * miscellaneous fixes.
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Sun, 11 Mar 2012 20:44:01 -0400
-
-vile (9.8g) unstable; urgency=low
-
-  * miscellaneous fixes.
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Sun, 11 Dec 2011 09:37:35 -0500
-
-vile (9.8f) unstable; urgency=low
-
-  * build-fix for winvile with ole.
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Mon, 11 Apr 2011 18:24:05 -0400
-
-vile (9.8e) unstable; urgency=low
-
-  * build-fix for xvile with cygwin.
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Wed, 29 Dec 2010 13:57:20 -0500
-
-vile (9.8d) unstable; urgency=low
-
-  * merge changes from Debian package scripts for 9.8c.
-  * extend built-in locale support.
-  * add $kbd-encoding variable.
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Sun, 12 Dec 2010 16:43:25 -0500
-
-vile (9.8c) unstable; urgency=low
-
-  * add built-in character encoding tables.
-  * code-cleanup
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Wed, 10 Nov 2010 05:58:29 -0500
-
-vile (9.8b) unstable; urgency=low
-
-  * build-fix for Ubuntu dpkg.
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Thu, 09 Sep 2010 18:07:26 -0400
-
-vile (9.8a) unstable; urgency=low
-
-  * build-fixes for very-old platforms, e.g., OS/2.
-
- -- Thomas E. Dickey <dickey@invisible-island.net>  Thu, 12 Aug 2010 17:04:05 -0400
-
 vile (9.8) unstable; urgency=low
 
   * major release
@@ -325,7 +160,7 @@ vile (9.7j-1) unstable; urgency=low
   * Now that an upstream tarball is available next to version revision
     patches, removed the version 9.6 revision patches and the patch
     rules from debian/control.
-  * Bumped the standards version to 3.8.0; no changes required.
+  * Bumped the standars version to 3.8.0; no changes required.
 
  -- Paul van Tilburg <paulvt@debian.org>  Fri, 09 Jan 2009 13:51:50 +0100
 
@@ -356,7 +191,7 @@ vile (9.6-j1) unstable; urgency=low
       * removed DH_COMPAT declaration, use debian/compat.
       * install the vile lintian override; man-page for vile
         is in vile-common, not vile, so lintian should ignore it.
-    - debian/compat: added, set to 5. 
+    - debian/compat: addded, set to 5. 
     - debian/control: 
       * replaced ${Source-Version} by ${source:Version} to allow for
         binNMUs (closes: #435962).
@@ -559,7 +394,7 @@ vile (9.4-a1) unstable; urgency=low
 
   * New upstream patch version.
   * Update build-dep version for libperl-dev to ensure that packages
-    are built against 5.8.1 due to a binary incompatibility with
+    are built against 5.8.1 due to a binary incompatability with
     DynaLoader (closes: #213850).
 
  -- Brendan O'Dea <bod@debian.org>  Tue, 21 Oct 2003 08:39:11 +1000
@@ -795,7 +630,7 @@ vile (9.1d-1) unstable; urgency=low
 vile (9.1-1) unstable; urgency=low
 
   * New upstream version.
-  * Add libio-pty-perl dependency.
+  * Add libio-pty-perl dependancy.
 
  -- Brendan O'Dea <bod@compusol.com.au>  Thu, 20 Jan 2000 19:29:49 +1100
 
@@ -807,7 +642,7 @@ vile (9.0s-1) unstable; urgency=low
 
 vile (9.0r-2) unstable; urgency=low
 
-  * Remove libio-pty-perl dependency (not in by freeze).
+  * Remove libio-pty-perl dependancy (not in by freeze).
 
  -- Brendan O'Dea <bod@compusol.com.au>  Fri, 14 Jan 2000 20:40:11 +1100
 

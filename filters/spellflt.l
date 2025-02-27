@@ -3,7 +3,7 @@
 %{
 
 /*
- * $Id: spellflt.l,v 1.64 2025/01/26 15:00:33 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/spellflt.l,v 1.49 2010/07/13 13:47:24 tom Exp $
  *
  * Filter to add vile "attribution" sequences to misspelled words.
  */
@@ -15,7 +15,7 @@
 
 #include <filters.h>
 
-DefineFilter(spell);
+DefineFilter("spell");
 
 #define BUFFER_SIZE	BUFSIZ
 
@@ -42,9 +42,9 @@ static void ChopWords(FILE *fp, char *text, int len);
 
 #ifdef HAVE_POPEN
 #define pipe_open(command)	popen(command, "r")
-#define	pipe_read(b,s)		fgets(b, (int) sizeof(b), s)
+#define	pipe_read(b,s)		fgets(b, sizeof(b), s)
 #define pipe_close(s)		pclose(s)
-#else /* platforms with no workable popen */
+#else				/* platforms with no workable popen */
 #ifdef filter_def		/* built-in filter? */
 #define HAVE_POPEN		/* we can fake it */
 static char lastdata[BUFFER_SIZE];
@@ -113,31 +113,29 @@ pipe_close(FILE *s)
     (void) s;
     ffclose();
 }
-#endif /* filter_def */
-#endif /* HAVE_POPEN */
+#endif				/* filter_def */
+#endif				/* HAVE_POPEN */
 
 static FILE *
 open_tempfile(char **fname)
 {
-    FILE *fp = NULL;
+    FILE *fp = 0;
 #ifdef HAVE_MKSTEMP
     const char fmt[] = "%s/vileXXXXXX";
     const char *tmpdir = getenv("TMPDIR");
     int fd;
 
     if (tmpdir == NULL)
-	tmpdir = "/tmp";
-    if ((*fname = (char *) malloc(strlen(tmpdir) + sizeof(fmt))) != NULL) {
-	mode_t oldmask = umask(0077);
+        tmpdir = "/tmp";
+    if ((*fname = (char *) malloc(strlen(tmpdir) + sizeof(fmt))) != 0) {
 	sprintf(*fname, fmt, tmpdir);
 	fd = mkstemp(*fname);
 	if (fd >= 0)
 	    fp = fdopen(fd, "w");
-	umask(oldmask);
     }
 #else
-    mode_t oldmask = umask(0077);
-    char *result = tmpnam((char *) 0);
+    int oldmask = umask(0077);
+    char *result = tmpnam((char *)0);
     if (result != 0 && (*fname = malloc(2 * strlen(result) + 1)) != 0) {
 	strcpy(*fname, result);
 	fp = fopen(*fname, "w");
@@ -150,23 +148,20 @@ open_tempfile(char **fname)
 static void
 zap_tempfile(char **fname)
 {
-    (void) remove(*fname);
+    remove(*fname);
     free(*fname);
-    *fname = NULL;
+    *fname = 0;
 }
 
 %}
 
-ALPHA		[[:alpha:]]
-UMLAUT		\xc3[\x80-\xbf]
-LETTER		({ALPHA}|{UMLAUT})+
-WORD		{LETTER}({LETTER}|[[:digit:]])*
+WORD		[[:alpha:]]([[:alnum:]])*
 
 %%
 
 {WORD}		{ ChopWords(ChopFP, yytext, yyleng); }
 [\n\r]		|
-.		{ if (ChopFP == NULL) flt_putc(*yytext); }
+.		{ if (ChopFP == 0) flt_putc(*yytext); }
 
 %%
 
@@ -181,11 +176,11 @@ ChopWords(FILE *fp, char *text, int len)
     /*
      * Write the whole "word", just in case the chopped flavor is not needed.
      */
-    if (fp != NULL) {
+    if (fp != 0) {
 	IGNORE_RC(fwrite(text, sizeof(*text), (size_t) len, fp));
 	fputc('\n', fp);
     } else {
-	attr = get_keyword_attr(text);
+	attr = keyword_attr(text);
 	if (isEmpty(attr)) {
 	    flt_puts(text, next, attr);
 	    return;
@@ -234,7 +229,7 @@ ChopWords(FILE *fp, char *text, int len)
 	    }
 	}
 
-	if (fp != NULL) {
+	if (fp != 0) {
 	    if (text != base || next != len) {
 		IGNORE_RC(fwrite(text, sizeof(*text), (size_t) next, fp));
 		IGNORE_RC(fputc('\n', fp));
@@ -243,8 +238,8 @@ ChopWords(FILE *fp, char *text, int len)
 	    if (next > 1) {
 		save = text[next];
 		text[next] = '\0';
-		attr = get_keyword_attr(text);
-		if (attr != NULL)
+		attr = keyword_attr(text);
+		if (attr != 0)
 		    flt_error("%s", text);
 		text[next] = save;
 	    } else {
@@ -274,22 +269,20 @@ do_filter(FILE *inputs GCC_UNUSED)
     char *from;
     int ch;
 #endif
-    char *chop = NULL;
+    char *chop;
     FILE *fp;
     char buffer[BUFFER_SIZE + 2];
     const char *attr = class_attr(NAME_ERROR);
     const char *prog;
-    char *command;
 
     (void) inputs;
 
     /*
      * Create a temporary file which will hold the words to check spelling.
      */
-    if ((ChopFP = open_tempfile(&chop)) == NULL) {
-	free(chop);
+    if ((ChopFP = open_tempfile(&chop)) == 0)
 	return;
-    }
+
 #ifdef filter_def		/* built-in filter? */
     ffp = ChopFP;
 #if OPT_ENCRYPT
@@ -299,7 +292,7 @@ do_filter(FILE *inputs GCC_UNUSED)
 	ffputline(lp->l_text, llength(lp), "\n");
     }
     RunLEX();
-#else /* external filter */
+#else				/* external filter */
     if ((FromFP = open_tempfile(&from)) == 0) {
 	fclose(ChopFP);
 	zap_tempfile(&from);
@@ -318,49 +311,37 @@ do_filter(FILE *inputs GCC_UNUSED)
 #endif
 
     fclose(ChopFP);
-    ChopFP = NULL;
+    ChopFP = 0;
 
 #ifdef filter_def		/* built-in filter? */
     ffstatus = file_is_closed;
-    ffp = NULL;
+    ffp = 0;
 #endif
 
     /*
      * Run the spelling checker, reading the misspelled words from the pipe.
      * Record those in the keyword table.
      */
-    if ((prog = vile_getenv("VILE_SPELL_FILT")) == NULL)
+    if ((prog = vile_getenv("VILE_SPELL_FILT")) == 0)
 	prog = SPELL_PIPE;
-    command = malloc(strlen(prog) + strlen(chop) + 4);
-    if (command != NULL) {
-	sprintf(command, "%s <%s", prog, chop);
-	if ((fp = pipe_open(command)) != NULL) {
-	    while (pipe_read(buffer, fp)) {
-		size_t len = strlen(buffer);
-		while (len-- && isspace(CharOf(buffer[len]))) {
-		    buffer[len] = 0;
-		}
+    sprintf(buffer, "%s <%s", prog, chop);
+    if ((fp = pipe_open(buffer)) != 0) {
+	while (pipe_read(buffer, fp)) {
+	    size_t len  = strlen(buffer);
+	    while (len-- && isspace(CharOf(buffer[len]))) {
+		buffer[len] = 0;
+	    }
+	    if (*buffer) {
 		/*
-		 * Ignore the word if it is all blanks, or if it contains
-		 * wildcards which would make the insertion expand into
-		 * multiple entries.
+		 * If user did not override with an entry in spell.keywords,
+		 * add the latest as a misspelled word to highlight.
 		 */
-		if (len != 0
-		    && vl_index(buffer, zero_or_more) == NULL
-		    && vl_index(buffer, zero_or_all) == NULL) {
-		    /*
-		     * If user did not override with an entry in
-		     * spell.keywords, add the latest as a misspelled word to
-		     * highlight.
-		     */
-		    if (get_keyword_attr(buffer) == NULL) {
-			insert_keyword(buffer, attr, 0);
-		    }
+		if (keyword_attr(buffer) == 0) {
+		    insert_keyword(buffer, attr, 0);
 		}
 	    }
-	    pipe_close(fp);
 	}
-	free(command);
+	pipe_close(fp);
     }
     zap_tempfile(&chop);
 

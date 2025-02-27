@@ -1,5 +1,5 @@
 /*
- * $Id: api.h,v 1.16 2020/01/17 23:11:59 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/api.h,v 1.14 2008/10/15 21:01:34 tom Exp $
  */
 
 /*
@@ -29,7 +29,7 @@ typedef struct {
 	int         changed;		/* Were any changes done? */
 	int         dot_changed;	/* DOT explicitly changed --
 					   implies that DOT should
-					   be propagated */
+					   be propogated */
 	B_COUNT	    ndel;		/* number of characters to delete upon
 					   setup; related to the inplace_edit
 					   stuff */

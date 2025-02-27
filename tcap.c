@@ -1,7 +1,7 @@
 /*	tcap:	Unix V5, V7 and BS4.2 Termcap video driver
  *		for MicroEMACS
  *
- * $Id: tcap.c,v 1.195 2025/01/26 17:07:24 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/tcap.c,v 1.184 2009/12/09 01:45:35 tom Exp $
  *
  */
 
@@ -15,17 +15,10 @@
 #undef WINDOW
 #define WINDOW vile_WINDOW
 
-#if USE_TERMINFO
-#define VALID_TERM (cur_term != NULL)
-#endif
-
 #if USE_TERMCAP
-#define VALID_TERM already_open
 #  define TCAPSLEN 1024
 static char tc_parsed[TCAPSLEN];
 #endif
-
-static int already_open = FALSE;
 
 static char *tc_CM, *tc_CE, *tc_CL, *tc_ME, *tc_MR, *tc_SO, *tc_SE;
 static char *tc_TI, *tc_TE, *tc_KS, *tc_KE;
@@ -115,7 +108,7 @@ static void tcapscrollregion(int top, int bot);
 #if OPT_COLOR
 static void tcap_fcol(int color);
 static void tcap_bcol(int color);
-static int tcap_spal(const char *s);
+static void tcap_spal(const char *s);
 #else
 #define tcap_fcol nullterm_setfore
 #define tcap_bcol nullterm_setback
@@ -164,6 +157,7 @@ tcap_open(void)
     char *tv_stype;
     size_t i;
     int j;
+    static int already_open = 0;
     /* *INDENT-OFF* */
     static const struct {
 	    const char *name;
@@ -222,7 +216,7 @@ tcap_open(void)
 	    i_was_closed = FALSE;
 #if OPT_XTERM
 	    if (i_am_xterm) {
-		xterm_open(NULL);
+		xterm_open(0);
 	    }
 #endif /* OPT_XTERM */
 #if OPT_TITLE
@@ -289,7 +283,7 @@ tcap_open(void)
 	    TRACE(("TGETSTR(%s) = %s\n", tc_strings[i].name, str_visible(t)));
 	    /* simplify subsequent checks */
 	    if (NO_CAP(t))
-		t = NULL;
+		t = 0;
 	    *(tc_strings[i].data) = t;
 	}
     }
@@ -303,22 +297,22 @@ tcap_open(void)
 #endif
 
     /* if start/end sequences are not consistent, ignore them */
-    if ((tc_SO != NULL) ^ (tc_SE != NULL))
-	tc_SO = tc_SE = NULL;
-    if ((tc_MR != NULL) ^ (tc_ME != NULL))
-	tc_MR = tc_ME = NULL;
+    if ((tc_SO != 0) ^ (tc_SE != 0))
+	tc_SO = tc_SE = 0;
+    if ((tc_MR != 0) ^ (tc_ME != 0))
+	tc_MR = tc_ME = 0;
 #if OPT_VIDEO_ATTRS
-    if ((tc_MD != NULL) ^ (tc_ME != NULL))
-	tc_MD = tc_ME = NULL;
-    if ((tc_US != NULL) ^ (tc_UE != NULL))
-	tc_US = tc_UE = NULL;
-    if ((tc_ZH == NULL) || (tc_ZR == NULL)) {
+    if ((tc_MD != 0) ^ (tc_ME != 0))
+	tc_MD = tc_ME = 0;
+    if ((tc_US != 0) ^ (tc_UE != 0))
+	tc_US = tc_UE = 0;
+    if ((tc_ZH == 0) || (tc_ZR == 0)) {
 	tc_ZH = tc_US;
 	tc_ZR = tc_UE;
     }
 #endif
 
-    if ((tc_SO != NULL && tc_SE != NULL) || (tc_MR != NULL && tc_ME != NULL))
+    if ((tc_SO != 0 && tc_SE != 0) || (tc_MR != 0 && tc_ME != 0))
 	revexist = TRUE;
 
     if (tc_CL == NULL || tc_CM == NULL) {
@@ -343,7 +337,7 @@ tcap_open(void)
      * If we've got one of the canonical strings for resetting to the
      * default colors, we don't have to assume the screen is black/white.
      */
-    if (OrigColors != NULL) {
+    if (OrigColors != 0) {
 	set_global_g_val(GVAL_FCOLOR, NO_COLOR);	/* foreground color */
 	set_global_g_val(GVAL_BCOLOR, NO_COLOR);	/* background color */
     }
@@ -352,10 +346,10 @@ tcap_open(void)
     have_bce = TGETFLAG(CAPNAME("ut", "bce")) > 0;
 
 #if OPT_VIDEO_ATTRS
-    if (OrigColors == NULL)
+    if (OrigColors == 0)
 	OrigColors = tc_ME;
 #endif
-    if (ncolors >= 8 && AF != NULL && AB != NULL) {
+    if (ncolors >= 8 && AF != 0 && AB != 0) {
 	Sf = AF;
 	Sb = AB;
 	set_palette(ANSI_palette);
@@ -367,7 +361,7 @@ tcap_open(void)
 #if OPT_VIDEO_ATTRS
     if ((tc_NC = TGETNUM(CAPNAME("NC", "ncv"))) < 0)
 	tc_NC = 0;
-    if (tc_US == NULL && tc_UE == NULL) {	/* if we don't have underline, do bold */
+    if (tc_US == 0 && tc_UE == 0) {	/* if we don't have underline, do bold */
 	tc_US = tc_MD;
 	tc_UE = tc_ME;
     }
@@ -381,7 +375,7 @@ tcap_open(void)
 	keyseqs[i].result = TGETSTR(keyseqs[i].capname, &p);
 #if USE_TERMINFO
 	if (NO_CAP(keyseqs[i].result))
-	    keyseqs[i].result = NULL;
+	    keyseqs[i].result = 0;
 #endif
     }
     tcap_init_fkeys();
@@ -403,8 +397,6 @@ static void
 tcap_close(void)
 {
     TRACE((T_CALLED "tcap_close()\n"));
-    if (i_was_closed)
-	returnVoid();
 #if OPT_VIDEO_ATTRS
     if (tc_SE)
 	putpad(tc_SE);
@@ -429,10 +421,6 @@ tcap_close(void)
 #endif
 #if OPT_LOCALE
     vl_close_mbterm();
-#endif
-#if NO_LEAKS && USE_TERMINFO
-    del_curterm(cur_term);
-    cur_term = NULL;
 #endif
     i_was_closed = TRUE;
     returnVoid();
@@ -482,31 +470,29 @@ tcap_kclose(void)
 static void
 tcap_move(register int row, register int col)
 {
-    if (VALID_TERM)
-	putpad(tgoto(tc_CM, col, row));
+    putpad(tgoto(tc_CM, col, row));
 }
 
 static void
 begin_reverse(void)
 {
-    if (tc_MR != NULL)
+    if (tc_MR != 0)
 	putpad(tc_MR);
-    else if (tc_SO != NULL)
+    else if (tc_SO != 0)
 	putpad(tc_SO);
 }
 
 static void
 end_reverse(void)
 {
-    if (tc_MR != NULL) {
+    if (tc_MR != 0)
 	putpad(tc_ME);
-    } else if (tc_SO != NULL) {
+    else if (tc_SO != 0)
 	putpad(tc_SE);
-    }
 }
 
 #ifdef GVAL_VIDEO
-#define REVERSED ((UINT) global_g_val(GVAL_VIDEO) & VAREV)
+#define REVERSED (global_g_val(GVAL_VIDEO) & VAREV)
 static void
 set_reverse(void)
 {
@@ -543,7 +529,7 @@ erase_non_bce(int row, int col)
 	term.curmove(row, col);
 }
 
-#define NEED_BCE_FIX ((UINT) (!have_bce && shown_bcolor != NO_COLOR) || REVERSED)
+#define NEED_BCE_FIX ((!have_bce && shown_bcolor != NO_COLOR) || REVERSED)
 #define FILL_BCOLOR(row,col) if(NEED_BCE_FIX) erase_non_bce(row, col)
 #else
 #define FILL_BCOLOR(row,col)	/*nothing */
@@ -590,12 +576,8 @@ static void
 tcapscroll_reg(int from, int to, int n)
 {
     int i;
-
-    if (!VALID_TERM)
-	return;
     if (to == from)
 	return;
-
     if (to < from) {
 	tcapscrollregion(to, from + n - 1);
 	tcap_move(from + n - 1, 0);
@@ -624,12 +606,8 @@ static void
 tcapscroll_delins(int from, int to, int n)
 {
     int i;
-
-    if (!VALID_TERM)
-	return;
     if (to == from)
 	return;
-
     if (tc_DL && tc_AL) {
 	if (to < from) {
 	    tcap_move(to, 0);
@@ -680,8 +658,7 @@ tcapscroll_delins(int from, int to, int n)
 static void
 tcapscrollregion(int top, int bot)
 {
-    if (VALID_TERM)
-	putpad(tgoto(tc_CS, bot, top));
+    putpad(tgoto(tc_CS, bot, top));
 }
 
 #if OPT_COLOR
@@ -696,13 +673,13 @@ colors_are_really_ANSI(void)
     int n;
     char cmp[BUFSIZ], *t;
 
-    if (Sf != NULL && Sb != NULL && ncolors == 8) {
+    if (Sf != 0 && Sb != 0 && ncolors == 8) {
 	for (n = 0; n < ncolors; n++) {
 	    (void) lsprintf(cmp, "\033[4%dm", n);
-	    if ((t = CALL_TPARM(Sb, n)) == NULL || strcmp(t, cmp))
+	    if ((t = CALL_TPARM(Sb, n)) == 0 || strcmp(t, cmp))
 		break;
 	    (void) lsprintf(cmp, "\033[3%dm", n);
-	    if ((t = CALL_TPARM(Sf, n)) == NULL || strcmp(t, cmp))
+	    if ((t = CALL_TPARM(Sf, n)) == 0 || strcmp(t, cmp))
 		break;
 	}
 	if (n >= ncolors)	/* everything matched */
@@ -716,7 +693,7 @@ show_ansi_colors(void)
 {
     char *t;
 
-    if (VALID_TERM && Sf != NULL && Sb != NULL) {
+    if (Sf != 0 || Sb != 0) {
 	if (shown_fcolor == NO_COLOR
 	    || shown_bcolor == NO_COLOR) {
 	    if (OrigColors)
@@ -724,11 +701,11 @@ show_ansi_colors(void)
 	}
 
 	if ((shown_fcolor != NO_COLOR)
-	    && (t = CALL_TPARM(Sf, shown_fcolor)) != NULL) {
+	    && (t = CALL_TPARM(Sf, shown_fcolor)) != 0) {
 	    putpad(t);
 	}
 	if ((shown_bcolor != NO_COLOR)
-	    && (t = CALL_TPARM(Sb, shown_bcolor)) != NULL) {
+	    && (t = CALL_TPARM(Sb, shown_bcolor)) != 0) {
 	    putpad(t);
 	}
     }
@@ -752,7 +729,7 @@ tcap_fcol(int color)
 {
     if (color != given_fcolor) {
 	given_fcolor = color;
-	shown_fcolor = (Sf != NULL) ? Num2Color(color) : NO_COLOR;
+	shown_fcolor = (Sf != 0) ? Num2Color(color) : NO_COLOR;
 	show_ansi_colors();
     }
 }
@@ -762,17 +739,16 @@ tcap_bcol(int color)
 {
     if (color != given_bcolor) {
 	given_bcolor = color;
-	shown_bcolor = (Sb != NULL) ? Num2Color(color) : NO_COLOR;
+	shown_bcolor = (Sb != 0) ? Num2Color(color) : NO_COLOR;
 	show_ansi_colors();
     }
 }
 
-static int
+static void
 tcap_spal(const char *thePalette)	/* reset the palette registers */
 {
-    int rc = set_ctrans(thePalette);
+    set_ctrans(thePalette);
     reinitialize_colors();
-    return rc;
 }
 #endif /* OPT_COLOR */
 
@@ -823,10 +799,10 @@ tcap_attr(UINT attr)
 	all_sgr0 = 0;
 	for (n = 0; n < TABLESIZE(tbl); n++) {
 	    unsigned m = (n + 1) % TABLESIZE(tbl);
-	    if (*tbl[n].end != NULL
-		&& *tbl[m].end != NULL
+	    if (*tbl[n].end != 0
+		&& *tbl[m].end != 0
 		&& (!strcmp(*tbl[n].end, *tbl[m].end)
-		    || strstr(*tbl[n].end, "\033[m") != NULL)) {
+		    || strstr(*tbl[n].end, "\033[m") != 0)) {
 		all_sgr0 = 1;
 		break;
 	    }
@@ -844,13 +820,13 @@ tcap_attr(UINT attr)
 #endif
     if (!colored
 	&& (attr & (VASPCOL | VACOLOR)) != 0) {
-	attr &= (UINT) (~(VASPCOL | VACOLOR));
+	attr &= ~(VASPCOL | VACOLOR);
     }
     if (attr & VASPCOL) {
 	attr = VCOLORATTR((VCOLORNUM(attr) & (ncolors - 1)));
     } else {
 	if (attr & VACOLOR) {
-	    attr &= (UINT) (VCOLORATTR(ncolors - 1) | ~VACOLOR);
+	    attr &= (VCOLORATTR(ncolors - 1) | ~VACOLOR);
 	}
 	attr &= ~(VAML | VAMLFOC);
     }
@@ -865,13 +841,12 @@ tcap_attr(UINT attr)
     if (tc_NC != 0
 	&& (attr & VACOLOR) != 0) {
 	for (n = 0; n < TABLESIZE(tbl); n++) {
-	    if ((tbl[n].NC_bit & (UINT) tc_NC) != 0
+	    if ((tbl[n].NC_bit & tc_NC) != 0
 		&& (tbl[n].mask & attr) != 0) {
-		if ((tbl[n].mask & (VASEL | VAREV)) != 0) {
-		    attr &= (UINT) (~VACOLOR);
-		} else {
+		if ((tbl[n].mask & (VASEL | VAREV)) != 0)
+		    attr &= ~VACOLOR;
+		else
 		    attr &= ~tbl[n].mask;
-		}
 	    }
 	}
     }
@@ -881,33 +856,22 @@ tcap_attr(UINT attr)
 	register char *s;
 	UINT diff;
 	int ends = !colored;
-#if OPT_COLOR
-	int redo_color = FALSE;
-#endif
 
 	diff = last & ~attr;
 	/* turn OFF old attributes */
 	for (n = 0; n < TABLESIZE(tbl); n++) {
 	    if ((tbl[n].mask & diff) != 0
 		&& (tbl[n].mask & attr) == 0
-		&& (s = *(tbl[n].end)) != NULL) {
+		&& (s = *(tbl[n].end)) != 0) {
 		putpad(s);
 #if OPT_COLOR
-		/*
-		 * Any of the resets can turn off color, but especially those
-		 * for reverse/bold since they use the sgr0 value.
-		 */
-		if (colored)
-		    redo_color = TRUE;
+		if (!ends)	/* do this once */
+		    reinitialize_colors();
 #endif
 		ends = TRUE;
 		diff &= ~(tbl[n].mask);
 	    }
 	}
-#if OPT_COLOR
-	if (redo_color)		/* do this once */
-	    reinitialize_colors();
-#endif
 
 	if (all_sgr0)
 	    diff = attr;
@@ -918,7 +882,7 @@ tcap_attr(UINT attr)
 	for (n = 0; n < TABLESIZE(tbl); n++) {
 	    if ((tbl[n].mask & diff) != 0
 		&& (tbl[n].mask & attr) != 0
-		&& (s = *(tbl[n].start)) != NULL) {
+		&& (s = *(tbl[n].start)) != 0) {
 		putpad(s);
 		diff &= ~(tbl[n].mask);
 	    }
@@ -971,9 +935,8 @@ static void
 tcap_cursor(int flag)
 {
     static int level;
-    if (VALID_TERM
-	&& tc_VI != NULL
-	&& tc_VE != NULL) {
+    if (tc_VI != 0
+	&& tc_VE != 0) {
 	if (flag) {
 	    if (!++level) {
 		TRACE(("CURSOR ON\n"));
@@ -1029,8 +992,7 @@ tcap_beep(void)
 static void
 putpad(const char *str)
 {
-    if (VALID_TERM)
-	tputs(str, 1, ttputc);
+    tputs(str, 1, ttputc);
 }
 
 TERM term =
@@ -1077,19 +1039,5 @@ TERM term =
     nullterm_mclose,		/* filled in by xterm_open() */
     nullterm_mevent,		/* filled in by xterm_open() */
 };
-
-#if NO_LEAKS
-void
-tcap_leaks(void)
-{
-#if defined(HAVE_EXIT_TERMINFO)
-    exit_terminfo(0);
-#elif defined(HAVE__NC_FREEALL)
-    _nc_freeall();
-#elif defined(HAVE__NC_FREE_TINFO)
-    _nc_free_tinfo();
-#endif
-}
-#endif
 
 #endif /* DISP_TERMCAP */

@@ -3,7 +3,8 @@
  * and mark.  Some functions are commands.  Some functions are just for
  * internal use.
  *
- * $Id: region.c,v 1.174 2025/01/26 14:31:19 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/region.c,v 1.158 2010/02/06 00:02:10 tom Exp $
+ *
  */
 
 #include	"estruct.h"
@@ -105,7 +106,7 @@ do_lines_in_region(int (*linefunc) (REGN_ARGS), void *argp, int convert_cols)
 		if (sameline(region.r_end, DOT)) {
 		    r = region.r_end.o;
 		    /*
-		     * if we're on the end-of- region, in col 0, we're done.
+		     * if we're on the end-of- region, in col 0, we're done. 
 		     * we don't want to call the line function for the empty
 		     * case.
 		     */
@@ -188,7 +189,7 @@ get_do_lines_rgn(void)
 }
 
 /*
- * Kill the region.  Ask "getregion" to figure out the bounds of the region.
+ * Kill the region.  Ask "getregion" to figure out the bounds of the region. 
  * Move "." to the start, and kill the characters.
  */
 int
@@ -429,7 +430,7 @@ detabline(void *flagp, int l GCC_UNUSED, int r GCC_UNUSED)
     int s;
     int c;
     int ocol;
-    int leadingonly = (flagp != NULL);
+    int leadingonly = (flagp != 0);
     LINE *lp = DOT.l;
 
     if (llength(lp) == 0)
@@ -437,7 +438,7 @@ detabline(void *flagp, int l GCC_UNUSED, int r GCC_UNUSED)
 
     ocol = getccol(FALSE);
 
-    DOT.o = b_left_margin(curbp);
+    DOT.o = 0;
 
     /* remove tabs from the entire line */
     while (DOT.o < llength(lp)) {
@@ -488,7 +489,7 @@ int
 entabline(void *flagp, int l GCC_UNUSED, int r GCC_UNUSED)
 {
     int savecol;
-    int leadingonly = (flagp != NULL);
+    int leadingonly = (flagp != 0);
     LINE *lp = DOT.l;
     C_NUM ocol, ncol;
     C_NUM ooff, noff;
@@ -605,7 +606,7 @@ trimline(void *flag GCC_UNUSED, int l GCC_UNUSED, int r GCC_UNUSED)
     }
 
     if (odoto < 0)
-	DOT.o = b_left_margin(curbp);
+	DOT.o = 0;
     else
 	DOT.o = odoto;
     return s;
@@ -724,7 +725,7 @@ _yankchar(int ch)
 {
 #if OPT_MULTIBYTE
     if (b_is_utfXX(curbp)) {
-	UCHAR buffer[MAX_UTF8];
+	UCHAR buffer[10];
 	int len = vl_conv_to_utf8(buffer, (UINT) ch, sizeof(buffer));
 	int n;
 	for (n = 0; n < len; ++n)
@@ -897,7 +898,7 @@ set_rect_columns(REGION * rp)
 static int
 found_region(REGION * rp)
 {
-    if (wantregion != NULL)
+    if (wantregion != 0)
 	*wantregion = *rp;
 #if OPT_TRACE > 1
     trace_region(rp, curbp);
@@ -934,11 +935,7 @@ getregion(BUFFER *bp, REGION * rp)
     /*
      * If the buffer is completely empty, the region has to match.
      */
-    if (!valid_buffer(bp)) {
-	mlforce("BUG: getregion: no buffer found");
-	memset(rp, 0, sizeof(*rp));
-	return2Code(FALSE);
-    } else if (is_empty_buf(bp)) {
+    if (valid_buffer(bp) && is_empty_buf(bp)) {
 	memset(rp, 0, sizeof(*rp));
 	rp->r_orig.l = rp->r_end.l = buf_head(bp);
 	return2Code(TRUE);
@@ -1084,121 +1081,6 @@ get_fl_region(BUFFER *bp, REGION * rp)
     return status;
 }
 
-#if !SMALLER
-static int
-isEmptyLine(LINE *lp, int l, int r)
-{
-    int empty = TRUE;
-
-    if (lp == buf_head(curbp)) {
-	empty = FALSE;		/* we cannot treat this line as empty! */
-    } else if (llength(lp) > 0) {
-	int n;
-
-	if (r > llength(lp))
-	    r = llength(lp);
-
-	for (n = l; n < r; ++n) {
-	    int ch = lgetc(lp, n);
-	    if (!isSpace(ch)) {
-		empty = FALSE;
-		break;
-	    }
-	}
-    }
-
-    return empty;
-}
-
-/* delete line if it contains nothing (except possibly blanks) */
-/*ARGSUSED*/
-static int
-delete_empty_line(void *flagp GCC_UNUSED, int l, int r)
-{
-    LINE *lp = DOT.l;
-    int rc = TRUE;
-
-    if (isEmptyLine(lp, l, r)) {
-	DOT.o = l;
-	if (r > llength(lp))
-	    r = llength(lp);
-	if (l > 0 || r < llength(lp)) {
-	    rc = ldel_bytes((B_COUNT) (r - l), FALSE);
-	} else {
-	    TossToUndo(lp);
-	    lremove(curbp, lp);
-	    lines_deleted++;
-	    chg_buff(curbp, WFEDIT);
-	}
-    }
-
-    return rc;
-}
-
-/*
- * Workaround to distinguish the given right-limit from the line's length.
- */
-#define EmptyRight(lp,r) \
-    ((regionshape == rgn_RECTANGLE) ? (r) : llength(lp))
-
-static int
-force_empty_line(void *flagp, int l, int r)
-{
-    int rc;
-    LINE *lp = DOT.l;
-    LINE *lp0 = lback(lp);
-
-    /*
-     * Only do work if we are at the beginning of a blank-line sequence.
-     */
-    if (!isEmptyLine(lp0, l, EmptyRight(lp0, r))
-	&& isEmptyLine(lp, l, r)) {
-	int count = 0;
-	while (isEmptyLine(lp, l, EmptyRight(lp, r))) {
-	    ++count;
-	    lp = lforw(lp);
-	}
-	if (count > var_empty_lines) {
-	    while (count > var_empty_lines) {
-		--count;
-		rc = delete_empty_line(flagp, l, r);
-		if (rc != TRUE)
-		    break;
-	    }
-	} else if (count < var_empty_lines) {
-	    while (count < var_empty_lines) {
-		++count;
-		--lines_deleted;
-		DOT.o = b_left_margin(curbp);
-		rc = lnewline();
-		if (rc != TRUE)
-		    break;
-	    }
-	}
-    }
-    return TRUE;
-}
-
-/*
- * Delete blank lines in the region.
- */
-int
-del_emptylines_region(void)
-{
-    return do_lines_in_region(delete_empty_line, (void *) NULL, FALSE);
-}
-
-/*
- * Adjust blank-line sequences to be $empty-lines uniformly.
- */
-int
-frc_emptylines_region(void)
-{
-    return do_lines_in_region(force_empty_line, (void *) NULL, FALSE);
-}
-
-#endif
-
 #if OPT_SELECTIONS
 
 typedef struct {
@@ -1207,7 +1089,7 @@ typedef struct {
 } ENCODEREG;
 
 static void
-encode_one_attribute(TBUFF **result, long count, char *hypercmd, unsigned attr)
+encode_one_attribute(TBUFF **result, long count, char *hypercmd, VIDEO_ATTR attr)
 {
     char temp[80];
 
@@ -1226,15 +1108,13 @@ encode_one_attribute(TBUFF **result, long count, char *hypercmd, unsigned attr)
 
     if (attr & VACOLOR) {
 	int color = VCOLORNUM(attr);
-#if OPT_COLOR
 	if (filter_only)
 	    color = ctrans[color % NCOLORS];
-#endif
 	sprintf(temp, "C%X", color);
 	tb_sappend(result, temp);
     }
 #if OPT_HYPERTEXT
-    if (hypercmd != NULL) {
+    if (hypercmd != 0) {
 	tb_append(result, 'H');
 	tb_sappend(result, hypercmd);
 	tb_append(result, EOS);
@@ -1252,7 +1132,7 @@ recompute_regionsize(REGION * region)
     save_MK = MK;
     DOT = region->r_orig;
     MK = region->r_end;
-    (void) getregion(curbp, region);
+    getregion(curbp, region);
     DOT = save_DOT;
     MK = save_MK;
 }
@@ -1264,15 +1144,15 @@ recompute_regionsize(REGION * region)
 TBUFF *
 encode_attributes(LINE *lp, BUFFER *bp, REGION * top_region)
 {
-    TBUFF *result = NULL;
+    TBUFF *result = 0;
     int j, k, len;
 
     if ((len = llength(lp)) > 0) {
 	AREGION *ap;
-	AREGION *my_list = NULL;
+	AREGION *my_list = 0;
 	AREGION ar_temp;
-	size_t my_used = 0;
-	size_t my_size = 0;
+	unsigned my_used = 0;
+	unsigned my_size = 0;
 	L_NUM top_rsl = line_no(bp, top_region->r_orig.l);
 	L_NUM top_rel = line_no(bp, top_region->r_end.l);
 	L_NUM tst_rsl, tst_rel;
@@ -1316,13 +1196,13 @@ encode_attributes(LINE *lp, BUFFER *bp, REGION * top_region)
 		if (found < 0) {	/* recompute limits */
 		    recompute_regionsize(&ar_temp.ar_region);
 		}
-		if (my_list == NULL)
+		if (my_list == 0)
 		    my_list = typeallocn(AREGION, my_size = 10);
 		else if (my_used + 1 > my_size)
-		    safe_typereallocn(AREGION, my_list, my_size *= 2);
-		if (my_list == NULL) {
+		    my_list = typereallocn(AREGION, my_list, my_size *= 2);
+		if (my_list == 0) {
 		    no_memory("encode_attributes");
-		    return NULL;
+		    return 0;
 		}
 		my_list[my_used++] = ar_temp;
 	    }
@@ -1347,24 +1227,24 @@ encode_attributes(LINE *lp, BUFFER *bp, REGION * top_region)
 		}
 	    }
 #if OPT_LINE_ATTRS
-	    if (lp->l_attrs != NULL) {
+	    if (lp->l_attrs != 0) {
 		if (lp->l_attrs[j] > 1
 		    && (j == 0 || lp->l_attrs[j - 1] != lp->l_attrs[j])) {
 		    for (k = j + 1; k < len; ++k) {
 			if (lp->l_attrs[j] != lp->l_attrs[k])
 			    break;
 		    }
-		    encode_one_attribute(&result, (long) (k - j), (char *) 0,
+		    encode_one_attribute(&result, k - j, (char *) 0,
 					 line_attr_tbl[lp->l_attrs[j]].vattr);
 		}
 	    }
 #endif
-	    if (tb_append(&result, lgetc(lp, j)) == NULL) {
+	    if (tb_append(&result, lgetc(lp, j)) == 0) {
 		break;
 	    }
 	}
 	FreeIfNeeded(my_list);
-	if (result == NULL)
+	if (result == 0)
 	    (void) no_memory("encode_attributes");
     }
     return result;
@@ -1380,12 +1260,12 @@ encode_line(void *flagp GCC_UNUSED, int l GCC_UNUSED, int r GCC_UNUSED)
     L_NUM base_line = line_no(curbp, work->enc_region.r_orig.l);
 
     if (llength(lp) != 0) {
-	if ((text = encode_attributes(lp, curbp, &(work->enc_region))) == NULL) {
+	if ((text = encode_attributes(lp, curbp, &(work->enc_region))) == 0) {
 	    return FALSE;
 	}
 	work->enc_list[this_line - base_line] = text;
     } else {
-	work->enc_list[this_line - base_line] = NULL;
+	work->enc_list[this_line - base_line] = 0;
     }
     return TRUE;
 }
@@ -1412,7 +1292,7 @@ encode_region(void)
 	&& (base_line = line_no(bp, work.enc_region.r_orig.l)) > 0
 	&& (last_line = line_no(bp, work.enc_region.r_end.l)) > base_line) {
 	total = (last_line - base_line);
-	if ((work.enc_list = typeallocn(TBUFF *, (size_t) total)) == NULL) {
+	if ((work.enc_list = typeallocn(TBUFF *, (size_t) total)) == 0) {
 	    status = no_memory("encode_region");
 	} else {
 	    status = do_lines_in_region(encode_line, (void *) &work, FALSE);
@@ -1426,7 +1306,8 @@ encode_region(void)
 		videoattribute = 0;
 		attributeregion();
 #if OPT_MAJORMODE
-		set_local_b_val(bp, MDHILITE, FALSE);
+		make_local_b_val(bp, MDHILITE);
+		set_b_val(bp, MDHILITE, FALSE);
 #endif
 
 		DOT = work.enc_region.r_orig;

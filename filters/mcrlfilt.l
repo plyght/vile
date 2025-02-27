@@ -1,12 +1,12 @@
 %pointer
-%s NORMAL
+%s NORMAL 
 
 %o 6000
 
 %{
 
 /*
- * $Id: mcrlfilt.l,v 1.9 2025/01/26 11:08:22 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/mcrlfilt.l,v 1.4 2008/11/19 23:11:46 tom Exp $
  *
  * Filter to add vile "attribution" sequences to a mCRL(2) specification
  * or model, based on the text filter.
@@ -16,7 +16,7 @@
 
 #include <filters.h>
 
-DefineFilter(mcrl);
+DefineFilter("mcrl");
 
 static char *Comment_attr;
 static char *Keyword_attr;
@@ -35,7 +35,7 @@ NUMBER		{SIGN}?({DECIMAL}|{REAL})
 
 %%
 
-<NORMAL>{KEYWORD}	{ WriteToken(get_keyword_attr(yytext)); }
+<NORMAL>{KEYWORD}	{ WriteToken(keyword_attr(yytext)); }
 
 <NORMAL>{COMMENT}	{ WriteToken(Comment_attr); }
 
@@ -56,7 +56,7 @@ do_filter(FILE *inputs)
 
     Comment_attr = class_attr(NAME_COMMENT);
     Keyword_attr = class_attr(NAME_KEYWORD);
-    Number_attr = class_attr(NAME_NUMBER);
+    Number_attr  = class_attr(NAME_NUMBER);
 
     BEGIN(NORMAL);
     RunLEX();

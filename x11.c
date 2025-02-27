@@ -2,7 +2,8 @@
  *	X11 support, Dave Lemke, 11/91
  *	X Toolkit support, Kevin Buettner, 2/94
  *
- * $Id: x11.c,v 1.436 2025/01/26 21:38:08 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/x11.c,v 1.370 2010/06/12 18:28:36 tom Exp $
+ *
  */
 
 /*
@@ -13,6 +14,7 @@
  *    NO_WIDGETS	-- Use only Xlib and X toolkit (Xt)
  *    ATHENA_WIDGETS	-- Use Xlib, Xt, and Xaw widget set
  *    MOTIF_WIDGETS	-- Use Xlib, Xt, and Motif widget set
+ *    OL_WIDGETS	-- Use Xlib, Xt, and Openlook widget set
  *
  * We derive/set from the configure script some flags that allow intermediate
  * configurations between NO_WIDGETS and ATHENA_WIDGETS
@@ -22,17 +24,481 @@
  *    OPT_KEV_SCROLLBARS
  */
 
-#include <x11vile.h>
+#define NEED_X_INCLUDES 1
+#include	"estruct.h"
+#include	"edef.h"
+#include	"nefunc.h"
+#include	"pscreen.h"
 
-#ifndef GCC_NORETURN
-#ifdef _X_NORETURN
-#define GCC_NORETURN		_X_NORETURN
-#else
-#define GCC_NORETURN		/* nothing */
+#include	<X11/cursorfont.h>
+
+#if defined(lint) && defined(HAVE_X11_INTRINSICI_H)
+#include	<X11/IntrinsicI.h>
 #endif
+
+#define Nval(name,value) name, (XtArgVal)(value)
+#define Sval(name,value) name, (value)
+
+#if XtSpecificationRelease < 4
+#define XtPointer caddr_t
 #endif
 
 #if DISP_X11 && XTOOLKIT
+
+/* sanity-check, so we know it's safe to not nest ifdef's */
+
+#if NO_WIDGETS
+# if ATHENA_WIDGETS || MOTIF_WIDGETS || OL_WIDGETS
+> make an error <
+# endif
+#else
+# if ATHENA_WIDGETS
+#  if MOTIF_WIDGETS || OL_WIDGETS
+> make an error <
+#  endif
+# else
+#  if MOTIF_WIDGETS
+#   if OL_WIDGETS
+>make an error <
+#   endif
+#  else
+#   if !OL_WIDGETS
+>make an error <
+#   endif
+#  endif
+# endif
+#endif
+
+#ifndef OPT_KEV_SCROLLBARS
+# if NO_WIDGETS
+#  define OPT_KEV_SCROLLBARS 1
+# else
+#  define OPT_KEV_SCROLLBARS 0
+# endif
+#endif
+
+#ifndef OPT_KEV_DRAGGING
+# if NO_WIDGETS
+#  define OPT_KEV_DRAGGING 1
+# else
+#  define OPT_KEV_DRAGGING 0
+# endif
+#endif
+
+#ifndef KEV_WIDGETS
+# if NO_WIDGETS || OPT_KEV_SCROLLBARS
+#  define KEV_WIDGETS 1
+# else
+#  define KEV_WIDGETS 0
+# endif
+#endif
+
+#ifndef OPT_XAW_SCROLLBARS
+# if ATHENA_WIDGETS && !OPT_KEV_SCROLLBARS
+#  define OPT_XAW_SCROLLBARS 1
+# else
+#  define OPT_XAW_SCROLLBARS 0
+# endif
+#endif
+
+#define MY_CLASS	"XVile"
+
+#if SYS_VMS
+#undef SYS_UNIX
+#define coreWidgetClass widgetClass	/* patch for VMS 5.4-3 (dickey) */
+#endif
+
+/* redefined in X11/Xos.h */
+#undef strchr
+#undef strrchr
+
+#define OPT_INPUT_METHOD OPT_LOCALE
+
+#if ATHENA_WIDGETS
+#include	<X11/IntrinsicP.h>
+#ifdef HAVE_LIB_XAW
+#include	<X11/Xaw/Form.h>
+#include	<X11/Xaw/Grip.h>
+#include	<X11/Xaw/Scrollbar.h>
+#include	<X11/Xaw/XawImP.h>
+#endif
+#ifdef HAVE_LIB_XAW3D
+#include	<X11/Xaw3d/Form.h>
+#include	<X11/Xaw3d/Grip.h>
+#include	<X11/Xaw3d/Scrollbar.h>
+#include	<X11/Xaw3d/XawImP.h>
+#endif
+#ifdef HAVE_LIB_XAWPLUS
+#include	<X11/XawPlus/Form.h>
+#include	<X11/XawPlus/Grip.h>
+#include	<X11/XawPlus/Scrollbar.h>
+#include	<X11/XawPlus/XawImP.h>
+#endif
+#ifdef HAVE_LIB_NEXTAW
+#include	<X11/neXtaw/Form.h>
+#include	<X11/neXtaw/Grip.h>
+#include	<X11/neXtaw/Scrollbar.h>
+#include	<X11/neXtaw/XawImP.h>
+#endif
+#endif /* OPT_XAW_SCROLLBARS */
+
+#if OL_WIDGETS
+#undef BANG
+#define OWTOOLKIT_WARNING_DISABLED
+#include	<Xol/OpenLook.h>
+#include	<Xol/Form.h>
+#include	<Xol/BulletinBo.h>
+#include	<Xol/Slider.h>
+#include	<Xol/Scrollbar.h>
+#endif /* OL_WIDGETS */
+
+#include	<X11/Shell.h>
+#include	<X11/keysym.h>
+#include	<X11/Xatom.h>
+
+#ifdef HAVE_X11_XMU_ATOMS_H
+#include	<X11/Xmu/Atoms.h>
+#endif
+
+#if MOTIF_WIDGETS
+#include	<Xm/Form.h>
+#include	<Xm/PanedW.h>
+#include	<Xm/ScrollBar.h>
+#include	<Xm/SashP.h>
+#if defined(lint) && defined(HAVE_XM_XMP_H)
+#include	<Xm/XmP.h>
+#endif
+#endif /* MOTIF_WIDGETS */
+
+#ifndef XtNinputMethod
+#define XtNinputMethod		"inputMethod"
+#define XtCInputMethod		"InputMethod"
+#endif
+
+#ifndef XtNpreeditType
+#define XtNpreeditType		"preeditType"
+#define XtCPreeditType		"PreeditType"
+#endif
+
+#ifndef XtNopenIm
+#define XtNopenIm		"openIm"
+#define XtCOpenIm		"OpenIm"
+#endif
+
+#if OPT_X11_ICON
+#ifdef HAVE_LIBXPM
+#include <X11/xpm.h>
+#endif
+#endif
+
+#if OPT_INPUT_METHOD
+#include <locale.h>
+#endif
+
+#ifndef CI_NONEXISTCHAR
+/* from X11/Xlibint.h - not all vendors install this file */
+#define CI_NONEXISTCHAR(cs) (((cs)->width == 0) && \
+			     (((cs)->rbearing|(cs)->lbearing| \
+			       (cs)->ascent|(cs)->descent) == 0))
+
+#define CI_GET_CHAR_INFO_1D(fs,col,def,cs) \
+{ \
+    cs = def; \
+    if (col >= fs->min_char_or_byte2 && col <= fs->max_char_or_byte2) { \
+	if (fs->per_char == NULL) { \
+	    cs = &fs->min_bounds; \
+	} else { \
+	    cs = &fs->per_char[(col - fs->min_char_or_byte2)]; \
+	    if (CI_NONEXISTCHAR(cs)) cs = def; \
+	} \
+    } \
+}
+
+#define CI_GET_CHAR_INFO_2D(fs,row,col,def,cs) \
+{ \
+    cs = def; \
+    if (row >= fs->min_byte1 && row <= fs->max_byte1 && \
+	col >= fs->min_char_or_byte2 && col <= fs->max_char_or_byte2) { \
+	if (fs->per_char == NULL) { \
+	    cs = &fs->min_bounds; \
+	} else { \
+	    cs = &fs->per_char[((row - fs->min_byte1) * \
+				(fs->max_char_or_byte2 - \
+				 fs->min_char_or_byte2 + 1)) + \
+			       (col - fs->min_char_or_byte2)]; \
+	    if (CI_NONEXISTCHAR(cs)) cs = def; \
+	} \
+    } \
+}
+#endif /* CI_NONEXISTCHAR */
+
+#define TRACE_RES_I(res,val) TRACE(("\t%s: %d\n", res, cur_win->val));
+#define TRACE_RES_B(res,val) TRACE(("\t%s: %s\n", res, cur_win->val ? "true" : "false"));
+#define TRACE_RES_P(res,val) TRACE(("\t%s: %#lx\n", res, cur_win->val));
+#define TRACE_RES_S(res,val) TRACE(("\t%s: %s\n", res, cur_win->val));
+
+#define IsPrimary(s)    ((s) == XA_PRIMARY)
+
+#define	absol(x)	((x) > 0 ? (x) : -(x))
+#define	CEIL(a,b)	((a + b - 1) / (b))
+
+#define onMsgRow(tw)	(ttrow == (int)(tw->rows - 1))
+
+/* XXX -- use xcutsel instead */
+#undef	SABER_HACK		/* hack to support Saber since it doesn't do
+				 * selections right */
+
+#undef btop			/* defined in SunOS includes */
+
+#define PANE_WIDTH_MAX 200
+
+#if OPT_KEV_SCROLLBARS || OPT_XAW_SCROLLBARS
+# define PANE_WIDTH_DEFAULT 15
+# define PANE_WIDTH_MIN 7
+#else
+# if MOTIF_WIDGETS || OL_WIDGETS
+#  define PANE_WIDTH_DEFAULT 20
+#  define PANE_WIDTH_MIN 10
+# endif
+#endif
+
+#ifndef XtNmenuHeight
+#define XtNmenuHeight "menuHeight"
+#endif
+
+#ifndef XtCMenuHeight
+#define XtCMenuHeight "MenuHeight"
+#endif
+
+#if OPT_MENUS_COLORED
+#define XtNmenuBackground "menuBackground"
+#define XtNmenuForeground "menuForeground"
+#define XtCMenuBackground "MenuBackground"
+#define XtCMenuForeground "MenuForeground"
+#endif
+
+#define MENU_HEIGHT_DEFAULT 20
+
+#define MINCOLS	30
+#define MINROWS MINWLNS
+#define MAXSBS	((MAXROWS) / 2)
+
+/* Blinking cursor toggle...defined this way to leave room for future
+ * cursor flags.
+ */
+#define	BLINK_TOGGLE	0x1
+
+/*
+ * Fonts searched flags
+ */
+
+#define FSRCH_BOLD	0x1
+#define FSRCH_ITAL	0x2
+#define FSRCH_BOLDITAL	0x4
+
+/* Keyboard queue size */
+#define KQSIZE 64
+
+#if OPT_MENUS
+#if ATHENA_WIDGETS
+#include <X11/Xaw/SimpleMenu.h>
+#include <X11/Xaw/Box.h>
+#include <X11/Xaw/Form.h>
+#include <X11/Xaw/Paned.h>
+#endif
+#if MOTIF_WIDGETS
+#include <Xm/RowColumn.h>
+#endif
+#endif /* OPT_MENUS */
+
+#if OPT_XAW_SCROLLBARS
+typedef struct _scroll_info {
+    int totlen;			/* total length of scrollbar */
+} ScrollInfo;
+
+#else
+#if OPT_KEV_SCROLLBARS
+typedef struct _scroll_info {
+    int top;			/* top of "thumb" */
+    int bot;			/* bottom of "thumb" */
+    int totlen;			/* total length of scrollbar */
+    Boolean exposed;		/* has scrollbar received expose event? */
+} ScrollInfo;
+#endif
+#endif
+
+typedef struct _text_gc {
+    GC gc;
+    Boolean reset;
+} ColorGC;
+
+typedef struct _text_win {
+    /* X stuff */
+    Window win;			/* window corresponding to screen */
+    XtAppContext app_context;	/* application context */
+    Widget top_widget;		/* top level widget */
+    Widget screen;		/* screen widget */
+    UINT screen_depth;
+#if OPT_MENUS
+#if ATHENA_WIDGETS
+    Widget pane_widget;		/* pane widget, actually a form */
+#endif
+    Widget menu_widget;		/* menu-bar widget, actually a box */
+#endif
+    Widget form_widget;		/* form enclosing text-display + scrollbars */
+    Widget pane;		/* panes in which scrollbars live */
+
+    int maxscrollbars;		/* how many scrollbars, sliders, etc. */
+    Widget *scrollbars;		/* the scrollbars */
+    int nscrollbars;		/* number of currently active scroll bars */
+#if OL_WIDGETS
+    Widget *sliders;
+#endif
+
+#if OPT_MENUS_COLORED
+    Pixel menubar_fg;		/* color of the menubar */
+    Pixel menubar_bg;
+#endif
+#if OPT_KEV_SCROLLBARS || OPT_XAW_SCROLLBARS
+    Pixel scrollbar_fg;
+    Pixel scrollbar_bg;
+    Bool slider_is_solid;
+    Bool slider_is_3D;
+    GC scrollbargc;		/* graphics context for scrollbar "thumb" */
+    Pixmap trough_pixmap;
+    Pixmap slider_pixmap;
+    ScrollInfo *scrollinfo;
+    Widget *grips;		/* grips for resizing scrollbars */
+    XtIntervalId scroll_repeat_id;
+    int scroll_repeat_timeout;
+#endif				/* OPT_KEV_SCROLLBARS */
+#if OPT_XAW_SCROLLBARS
+    Pixmap thumb_bm;		/* bitmap for scrollbar thumb */
+#endif
+    int scroll_repeat_interval;
+    Bool reverse_video;
+    XtIntervalId blink_id;
+    int blink_status;
+    int blink_interval;
+    Bool exposed;		/* Have we received any expose events? */
+    int visibility;		/* How visible is the window? */
+
+    int base_width;		/* width with screen widgets' width zero */
+    int base_height;
+    UINT pane_width;		/* full width of scrollbar pane */
+    Dimension menu_height;	/* height of menu-bar */
+    Dimension top_width;	/* width of top widget as of last resize */
+    Dimension top_height;	/* height of top widget as of last resize */
+
+    int fsrch_flags;		/* flags which indicate which fonts have
+				 * been searched for
+				 */
+    XFontStruct *pfont;		/* Normal font */
+    XFontStruct *pfont_bold;
+    XFontStruct *pfont_ital;
+    XFontStruct *pfont_boldital;
+    GC textgc;
+    GC reversegc;
+    GC selgc;
+    GC revselgc;
+    int is_color_cursor;
+    GC cursgc;
+    GC revcursgc;
+    GC modeline_focus_gc;	/* GC for modeline w/ focus */
+    GC modeline_gc;		/* GC for other modelines  */
+    ColorGC fore_color[NCOLORS];
+    ColorGC back_color[NCOLORS];
+    Boolean bg_follows_fg;
+    Pixel fg;
+    Pixel bg;
+    Pixel default_fg;
+    Pixel default_bg;
+    Pixel colors_fg[NCOLORS];
+    Pixel colors_bg[NCOLORS];
+    Pixel modeline_fg;
+    Pixel modeline_bg;
+    Pixel modeline_focus_fg;
+    Pixel modeline_focus_bg;
+    Pixel selection_fg;
+    Pixel selection_bg;
+    int char_width;
+    int char_ascent;
+    int char_descent;
+    int char_height;
+    Bool left_ink;		/* font has "ink" past bounding box on left */
+    Bool right_ink;		/* font has "ink" past bounding box on right */
+    int wheel_scroll_amount;
+    char *geometry;
+    char *starting_fontname;	/* name of font at startup */
+    char *fontname;		/* name of current font */
+    Bool focus_follows_mouse;
+    Bool fork_on_startup;
+    Bool scrollbar_on_left;
+    Bool update_window_name;
+    Bool update_icon_name;
+    Bool persistent_selections;
+    Bool selection_sets_DOT;
+
+    /* text stuff */
+    Bool reverse;
+    UINT rows, cols;
+    Bool show_cursor;
+
+    /* cursor stuff */
+    Pixel cursor_fg;
+    Pixel cursor_bg;
+
+    /* pointer stuff */
+    Pixel pointer_fg;
+    Pixel pointer_bg;
+    Cursor normal_pointer;
+#if OPT_WORKING
+    Cursor watch_pointer;
+    Bool want_to_work;
+#endif
+
+    /* selection stuff */
+    String multi_click_char_class;	/* ?? */
+    Time lasttime;		/* for multi-click */
+    unsigned click_timeout;
+    int numclicks;
+    int last_getc;
+    Bool have_selection;
+    Bool wipe_permitted;
+    Bool was_on_msgline;
+    Bool did_select;
+    Bool pasting;
+    MARK prevDOT;		/* DOT prior to selection */
+    XtIntervalId sel_scroll_id;
+
+    /* key press queue */
+    int kqhead;
+    int kqtail;
+    int kq[KQSIZE];
+
+    /* Special translations */
+    XtTranslations my_scrollbars_trans;
+#if OPT_KEV_SCROLLBARS || OPT_XAW_SCROLLBARS
+    XtTranslations my_resizeGrip_trans;
+#endif
+#if OPT_INPUT_METHOD
+    Bool open_im;
+    Bool cannot_im;
+    char *rs_imFont;		/* XtNximFont */
+    char *rs_inputMethod;	/* XtNinputMethod */
+    char *rs_preeditType;	/* XtNpreeditType */
+    XFontSet imFontSet;
+    int imFontHeight;
+    XIC imInputContext;		/* input context */
+    XIM xim;
+#endif
+
+} TextWindowRec, *TextWindow;
+
+typedef struct {
+    Atom *targets;
+    Time time;
+} SelectionList;
 
 static Display *dpy;
 static ENC_CHOICES term_encoding = enc_DEFAULT;
@@ -44,6 +510,28 @@ static ENC_CHOICES font_encoding = enc_DEFAULT;
 static TextWindowRec cur_win_rec;
 static TextWindow cur_win = &cur_win_rec;
 static TBUFF *PasteBuf;
+
+static Atom atom_WM_PROTOCOLS;
+static Atom atom_WM_DELETE_WINDOW;
+static Atom atom_FONT;
+static Atom atom_FOUNDRY;
+static Atom atom_WEIGHT_NAME;
+static Atom atom_SLANT;
+static Atom atom_SETWIDTH_NAME;
+static Atom atom_PIXEL_SIZE;
+static Atom atom_RESOLUTION_X;
+static Atom atom_RESOLUTION_Y;
+static Atom atom_SPACING;
+static Atom atom_AVERAGE_WIDTH;
+static Atom atom_CHARSET_REGISTRY;
+static Atom atom_CHARSET_ENCODING;
+static Atom atom_TARGETS;
+static Atom atom_MULTIPLE;
+static Atom atom_TIMESTAMP;
+static Atom atom_TEXT;
+static Atom atom_CLIPBOARD;
+static Atom atom_COMPOUND_TEXT;
+static Atom atom_UTF8_STRING;
 
 #if OPT_KEV_SCROLLBARS || OPT_XAW_SCROLLBARS
 static Cursor curs_sb_v_double_arrow;
@@ -70,44 +558,40 @@ static void x_flush(void);
 static void x_beep(void);
 
 #if OPT_COLOR
-static void x_set_cursor_color(int);
+static void x_ccol(int);
 #else
-#define	x_set_foreground	nullterm_setfore
-#define	x_set_background	nullterm_setback
-#define	x_set_cursor_color	nullterm_setccol
+#define	x_fcol	nullterm_setfore
+#define	x_bcol	nullterm_setback
+#define	x_ccol	nullterm_setccol
 #endif
 
-static int set_character_class(const char *s);
+static int set_character_class(char *s);
 static void x_touch(TextWindow tw, int sc, int sr, UINT ec, UINT er);
 static void x_own_selection(Atom selection);
 static Boolean x_get_selected_text(UCHAR ** datp, size_t *lenp);
 static void extend_selection(TextWindow tw, int nr, int nc, Bool wipe);
-static void x_process_event(Widget w, XtPointer unused, XEvent *ev,
-			    Boolean *continue_to_dispatch);
-static void x_configure_window(Widget w, XtPointer unused, XEvent *ev,
-			       Boolean *continue_to_dispatch);
-static void x_change_focus(Widget w, XtPointer unused, XEvent *ev,
-			   Boolean *continue_to_dispatch);
+static void x_process_event(Widget w, XtPointer unused, XEvent * ev,
+			    Boolean * continue_to_dispatch);
+static void x_configure_window(Widget w, XtPointer unused, XEvent * ev,
+			       Boolean * continue_to_dispatch);
+static void x_change_focus(Widget w, XtPointer unused, XEvent * ev,
+			   Boolean * continue_to_dispatch);
 static void x_typahead_timeout(XtPointer flagp, XtIntervalId * id);
-static void x_key_press(Widget w, XtPointer unused, XEvent *ev,
-			Boolean *continue_to_dispatch);
-static void x_wm_delwin(Widget w, XtPointer unused, XEvent *ev,
-			Boolean *continue_to_dispatch);
-#if OPT_COLOR&&!SMALLER
+static void x_key_press(Widget w, XtPointer unused, XEvent * ev,
+			Boolean * continue_to_dispatch);
+static void x_wm_delwin(Widget w, XtPointer unused, XEvent * ev,
+			Boolean * continue_to_dispatch);
 static void x_start_autocolor_timer(void);
 static void x_autocolor_timeout(XtPointer flagp, XtIntervalId * id);
 static void x_stop_autocolor_timer(void);
-#else
-#define x_start_autocolor_timer()	/* nothing */
-#define x_stop_autocolor_timer()	/* nothing */
-#endif
 #if OPT_KEV_SCROLLBARS || OPT_XAW_SCROLLBARS
 static Boolean too_light_or_too_dark(Pixel pixel);
 #endif
 #if OPT_KEV_SCROLLBARS
-static Boolean alloc_shadows(Pixel pixel, Pixel *light, Pixel *dark);
+static Boolean alloc_shadows(Pixel pixel, Pixel * light, Pixel * dark);
 #endif
-static void configure_bar(Widget w, XEvent *event, String *params,
+static XFontStruct *query_font(TextWindow tw, const char *fname);
+static void configure_bar(Widget w, XEvent * event, String * params,
 			  Cardinal *num_params);
 static int check_scrollbar_allocs(void);
 static void kqinit(TextWindow tw);
@@ -116,13 +600,16 @@ static int kqfull(TextWindow tw);
 static void kqadd(TextWindow tw, int c);
 static int kqpop(TextWindow tw);
 static void display_cursor(XtPointer client_data, XtIntervalId * idp);
+#if 0
+static void check_visuals(void);
+#endif
 #if MOTIF_WIDGETS
-static void pane_button(Widget w, XtPointer unused, XEvent *ev,
-			Boolean *continue_to_dispatch);
+static void pane_button(Widget w, XtPointer unused, XEvent * ev,
+			Boolean * continue_to_dispatch);
 #endif /* MOTIF_WIDGETS */
 #if OPT_KEV_SCROLLBARS
-static void x_expose_scrollbar(Widget w, XtPointer unused, XEvent *ev,
-			       Boolean *continue_to_dispatch);
+static void x_expose_scrollbar(Widget w, XtPointer unused, XEvent * ev,
+			       Boolean * continue_to_dispatch);
 #endif /* OPT_KEV_SCROLLBARS */
 #if OPT_KEV_DRAGGING
 static void repeat_scroll(XtPointer count, XtIntervalId * id);
@@ -136,23 +623,21 @@ static int x_has_events(void);
 #else
 #define x_has_events() (XtAppPending(cur_win->app_context) & XtIMXEvent)
 #endif /* OPT_WORKING */
-static void evqadd(const XEvent *evp);
+static void evqadd(const XEvent * evp);
+
+#define	FONTNAME	"7x13"
 
 #define	x_width(tw)		((tw)->cols * (UINT) (tw)->char_width)
 #define	x_height(tw)		((tw)->rows * (UINT) (tw)->char_height)
 #define	x_pos(tw, c)		((c) * (tw)->char_width)
 #define	y_pos(tw, r)		((r) * (tw)->char_height)
 #define	text_y_pos(tw, r)	(y_pos((tw), (r)) + (tw)->char_ascent)
-
-#undef min
 #define min(a,b)		((a) < (b) ? (a) : (b))
-
-#undef max
 #define max(a,b)		((a) > (b) ? (a) : (b))
 
 #if KEV_WIDGETS
 /* We define our own little bulletin board widget here...if this gets
- * too unwieldy, we should move it to another file.
+ * too unwieldly, we should move it to another file.
  */
 
 #include	<X11/IntrinsicP.h>
@@ -282,11 +767,9 @@ set_pointer(Window win, Cursor cursor)
     XRecolorCursor(dpy, cursor, colordefs, colordefs + 1);
 }
 
-#if !OPT_KEV_SCROLLBARS && !OPT_XAW_SCROLLBARS
-static int dont_update_sb = FALSE;
-#endif
-
 #if !OPT_KEV_DRAGGING
+static int dont_update_sb = FALSE;
+
 static void
 set_scroll_window(long n)
 {
@@ -300,6 +783,136 @@ set_scroll_window(long n)
 }
 #endif /* !OPT_KEV_DRAGGING */
 
+#if OL_WIDGETS
+static void
+JumpProc(Widget scrollbar,
+	 XtPointer closure,
+	 XtPointer call_data)
+{
+    long value = (long) closure;
+    OlScrollbarVerify *cbs = (OlScrollbarVerify *) call_data;
+
+    if (value >= cur_win->nscrollbars)
+	return;
+    set_scroll_window(value);
+    mvupwind(TRUE,
+	     line_no(curwp->w_bufp, curwp->w_line.l) - cbs->new_location);
+    dont_update_sb = TRUE;
+    (void) update(TRUE);
+    dont_update_sb = FALSE;
+}
+
+static void
+grip_moved(Widget slider,
+	   XtPointer closure,
+	   XtPointer call_data)
+{
+    WINDOW *wp, *saved_curwp;
+    int nlines;
+    long i = (long) closure;
+    OlScrollbarVerify *cbs = (OlScrollbarVerify *) call_data;
+
+    for_each_visible_window(wp) {
+	if (i-- == 0)
+	    break;
+    }
+    if (!wp)
+	return;
+    saved_curwp = curwp;
+    nlines = -cbs->new_location;
+    if (nlines < 1)
+	nlines = 1;
+    curwp = wp;
+    resize(TRUE, nlines);
+    set_curwp(saved_curwp);
+    (void) update(TRUE);
+}
+
+static void
+update_scrollbar_sizes(void)
+{
+    WINDOW *wp;
+    int i, newsbcnt;
+    Dimension new_height;
+
+    i = 0;
+    for_each_visible_window(wp)
+	i++;
+    newsbcnt = i;
+
+    /* Create any needed new scrollbars and sliders */
+    for (i = cur_win->nscrollbars + 1; i <= newsbcnt; i++)
+	if (cur_win->scrollbars[i] == NULL) {
+	    cur_win->scrollbars[i] = XtVaCreateWidget("scrollbar",
+						      scrollbarWidgetClass,
+						      cur_win->pane,
+						      Nval(XtNtranslations, cur_win->my_scrollbars_trans),
+						      NULL);
+	    XtAddCallback(cur_win->scrollbars[i],
+			  XtNsliderMoved, JumpProc, (XtPointer) i);
+	    cur_win->sliders[i] = XtVaCreateWidget("slider",
+						   sliderWidgetClass,
+						   cur_win->pane,
+						   NULL);
+	    XtAddCallback(cur_win->sliders[i],
+			  XtNsliderMoved, grip_moved, (XtPointer) i);
+	}
+
+    /* Unmanage current set of scrollbars */
+    if (cur_win->nscrollbars > 0)
+	XtUnmanageChildren(cur_win->scrollbars,
+			   (Cardinal) (cur_win->nscrollbars));
+    if (cur_win->nscrollbars > 1)
+	XtUnmanageChildren(cur_win->sliders,
+			   (Cardinal) (cur_win->nscrollbars - 1));
+
+    /* Set sizes and positions on scrollbars and sliders */
+    cur_win->nscrollbars = newsbcnt;
+    i = 0;
+    for_each_visible_window(wp) {
+	new_height = wp->w_ntrows * cur_win->char_height;
+	XtVaSetValues(cur_win->scrollbars[i],
+		      Nval(XtNy, wp->w_toprow * cur_win->char_height),
+		      Nval(XtNheight, new_height),
+		      Nval(XtNsliderMin, 1),
+		      Nval(XtNsliderMax, 200),
+		      Nval(XtNproportionLength, 2),
+		      Nval(XtNsliderValue, 3),
+		      NULL);
+	if (wp->w_wndp) {
+	    XtVaSetValues(cur_win->sliders[i],
+			  Nval(XtNy, wp->w_toprow * cur_win->char_height),
+			  Nval(XtNheight, ((wp->w_ntrows
+					    + wp->w_wndp->w_ntrows + 1)
+					   * cur_win->char_height)),
+			  Nval(XtNsliderMax, 0),
+			  Nval(XtNsliderMin, -(wp->w_ntrows + wp->w_wndp->w_ntrows)),
+			  Nval(XtNsliderValue, -wp->w_ntrows),
+			  Nval(XtNstopPosition, OL_GRANULARITY),
+			  Nval(XtNendBoxes, FALSE),
+			  Nval(XtNdragCBType, OL_RELEASE),
+			  Nval(XtNbackground, cur_win->fg),
+			  NULL);
+	}
+	wp->w_flag &= ~WFSBAR;
+	gui_update_scrollbar(wp);
+	i++;
+    }
+
+    /* Manage the sliders */
+    if (cur_win->nscrollbars > 1)
+	XtManageChildren(cur_win->sliders,
+			 (Cardinal) (cur_win->nscrollbars - 1));
+
+    /* Manage the current set of scrollbars */
+    XtManageChildren(cur_win->scrollbars,
+		     (Cardinal) (cur_win->nscrollbars));
+
+    for (i = 0; i < cur_win->nscrollbars; i++)
+	XRaiseWindow(dpy, XtWindow(cur_win->scrollbars[i]));
+}
+
+#else
 #if MOTIF_WIDGETS
 
 static void
@@ -324,8 +937,8 @@ JumpProc(Widget scrollbar GCC_UNUSED,
 static void
 grip_moved(Widget w GCC_UNUSED,
 	   XtPointer unused GCC_UNUSED,
-	   XEvent *ev GCC_UNUSED,
-	   Boolean *continue_to_dispatch GCC_UNUSED)
+	   XEvent * ev GCC_UNUSED,
+	   Boolean * continue_to_dispatch GCC_UNUSED)
 {
     int i;
     WINDOW *wp, *saved_curwp;
@@ -366,7 +979,7 @@ update_scrollbar_sizes(void)
 
     for_each_visible_window(wp)
 	i++;
-    newsbcnt = (int) i;
+    newsbcnt = i;
 
     /* Remove event handlers on sashes */
     XtVaGetValues(cur_win->pane,
@@ -415,7 +1028,7 @@ update_scrollbar_sizes(void)
     cur_win->nscrollbars = newsbcnt;
     i = 0;
     for_each_visible_window(wp) {
-	new_height = (Dimension) (wp->w_ntrows * cur_win->char_height);
+	new_height = wp->w_ntrows * cur_win->char_height;
 	XtVaSetValues(cur_win->scrollbars[i],
 		      Nval(XmNallowResize, TRUE),
 		      Nval(XmNheight, new_height),
@@ -423,7 +1036,7 @@ update_scrollbar_sizes(void)
 		      Nval(XmNpaneMaximum, DisplayHeight(dpy, DefaultScreen(dpy))),
 		      Nval(XmNshowArrows, wp->w_ntrows > 3 ? TRUE : FALSE),
 		      NULL);
-	wp->w_flag &= (USHORT) (~WFSBAR);
+	wp->w_flag &= ~WFSBAR;
 	gui_update_scrollbar(wp);
 	i++;
     }
@@ -470,7 +1083,7 @@ JumpProc(Widget scrollbar GCC_UNUSED,
 	set_scroll_window(value);
 	lcur = line_no(curwp->w_bufp, curwp->w_line.l);
 	lmax = vl_line_count(curwp->w_bufp);
-	mvupwind(TRUE, (int) ((float) lcur - (float) lmax * (*percent)));
+	mvupwind(TRUE, (int) (lcur - lmax * (*percent)));
 	(void) update(TRUE);
     }
 }
@@ -517,9 +1130,9 @@ update_scrollbar_sizes(void)
 				 NULL);
 #if !OPT_KEV_DRAGGING
 	    XtAddCallback(cur_win->scrollbars[i],
-			  XtNjumpProc, JumpProc, (XtPointer) (intptr_t) i);
+			  XtNjumpProc, JumpProc, (XtPointer) i);
 	    XtAddCallback(cur_win->scrollbars[i],
-			  XtNscrollProc, ScrollProc, (XtPointer) (intptr_t) i);
+			  XtNscrollProc, ScrollProc, (XtPointer) i);
 #endif
 	}
     }
@@ -554,7 +1167,7 @@ update_scrollbar_sizes(void)
 	L_NUM total = vl_line_count(curwp->w_bufp);
 	L_NUM thumb = line_no(curwp->w_bufp, curwp->w_line.l);
 
-	new_height = (Dimension) (wp->w_ntrows * cur_win->char_height);
+	new_height = wp->w_ntrows * cur_win->char_height;
 	cur_win->scrollinfo[i].totlen = new_height;
 	XtVaSetValues(cur_win->scrollbars[i],
 		      Nval(XtNy, wp->w_toprow * cur_win->char_height),
@@ -565,9 +1178,9 @@ update_scrollbar_sizes(void)
 		      Nval(XtNhorizDistance, 1),
 		      NULL);
 	XawScrollbarSetThumb(cur_win->scrollbars[i],
-			     ((float) (thumb - 1)) / (float) max(total, 1),
-			     ((float) wp->w_ntrows) / (float) max(total, wp->w_ntrows));
-	clr_typed_flags(wp->w_flag, USHORT, WFSBAR);
+			     ((float) (thumb - 1)) / max(total, 1),
+			     ((float) wp->w_ntrows) / max(total, wp->w_ntrows));
+	wp->w_flag &= ~WFSBAR;
 	gui_update_scrollbar(wp);
 	if (wp->w_wndp) {
 	    XtVaSetValues(cur_win->grips[i],
@@ -742,7 +1355,7 @@ draw_thumb(Widget w, int top, int bot, int dofill)
 	XClearArea(XtDisplay(w), XtWindow(w), cur_win->slider_is_3D ? 2 : 1,
 		   top, cur_win->pane_width - 2, length, FALSE);
     else if (!cur_win->slider_is_3D)
-	XFillRectangle(XtDisplay(w), XtWindow(w), cur_win->scrollbar_gc,
+	XFillRectangle(XtDisplay(w), XtWindow(w), cur_win->scrollbargc,
 		       1, top, cur_win->pane_width - 2, length);
     else {
 	if (dofill & FILL_TOP) {
@@ -753,7 +1366,7 @@ draw_thumb(Widget w, int top, int bot, int dofill)
 	    if (top + (SP_HT - 2) < tbot)
 		tbot = top + (SP_HT - 2);
 	    XCopyArea(dpy, cur_win->slider_pixmap, XtWindow(w),
-		      cur_win->scrollbar_gc,
+		      cur_win->scrollbargc,
 		      0, 0, cur_win->pane_width - 2, (UINT) (tbot - top),
 		      2, top);
 
@@ -762,7 +1375,7 @@ draw_thumb(Widget w, int top, int bot, int dofill)
 	if (dofill & FILL_BOT) {
 	    int btop = max(top, bot - (SP_HT - 2));
 	    XCopyArea(dpy, cur_win->slider_pixmap, XtWindow(w),
-		      cur_win->scrollbar_gc,
+		      cur_win->scrollbargc,
 		      0, SP_HT - (bot - btop),
 		      cur_win->pane_width - 2, (UINT) (bot - btop),
 		      2, btop);
@@ -770,7 +1383,7 @@ draw_thumb(Widget w, int top, int bot, int dofill)
 
 	}
 	if (top < bot) {
-	    XFillRectangle(XtDisplay(w), XtWindow(w), cur_win->scrollbar_gc,
+	    XFillRectangle(XtDisplay(w), XtWindow(w), cur_win->scrollbargc,
 			   2, top,
 			   cur_win->pane_width - 2, (UINT) (bot - top));
 	}
@@ -826,8 +1439,8 @@ update_thumb(int barnum, int newtop, int newlen)
 static void
 x_expose_scrollbar(Widget w,
 		   XtPointer unused GCC_UNUSED,
-		   XEvent *ev,
-		   Boolean *continue_to_dispatch GCC_UNUSED)
+		   XEvent * ev,
+		   Boolean * continue_to_dispatch GCC_UNUSED)
 {
     int i;
 
@@ -849,12 +1462,13 @@ x_expose_scrollbar(Widget w,
 #endif /* OPT_KEV_SCROLLBARS  */
 #endif /* OPT_XAW_SCROLLBARS  */
 #endif /* MOTIF_WIDGETS */
+#endif /* OL_WIDGETS */
 
 #if OPT_KEV_DRAGGING
 static void
 do_scroll(Widget w,
-	  XEvent *event,
-	  String *params,
+	  XEvent * event,
+	  String * params,
 	  Cardinal *num_params)
 {
     static enum {
@@ -982,8 +1596,8 @@ repeat_scroll(XtPointer count,
 #if OPT_KEV_SCROLLBARS || OPT_XAW_SCROLLBARS
 static void
 resize_bar(Widget w,
-	   XEvent *event,
-	   String *params,
+	   XEvent * event,
+	   String * params,
 	   Cardinal *num_params)
 {
     static int motion_permitted = False;
@@ -1090,7 +1704,7 @@ gui_update_scrollbar(WINDOW *uwp)
 	    break;
 	i++;
     }
-    if (wp == NULL)
+    if (wp == 0)
 	return;
     if (i >= cur_win->nscrollbars || (wp->w_flag & WFSBAR)) {
 	/*
@@ -1115,10 +1729,19 @@ gui_update_scrollbar(WINDOW *uwp)
 					  : 1)),
 		  NULL);
 #else
+#if OL_WIDGETS
+    lcnt += 1;
+    XtVaSetValues(cur_win->scrollbars[i],
+		  Nval(XtNsliderMin, 1),
+		  Nval(XtNsliderMax, lcnt + wp->w_ntrows),
+		  Nval(XtNproportionLength, wp->w_ntrows),
+		  Nval(XtNsliderValue, lnum),
+		  NULL);
+#else
 #if OPT_XAW_SCROLLBARS
     XawScrollbarSetThumb(cur_win->scrollbars[i],
-			 ((float) (lnum - 1)) / (float) max(lcnt, wp->w_ntrows),
-			 ((float) wp->w_ntrows) / (float) max(lcnt, wp->w_ntrows));
+			 ((float) (lnum - 1)) / max(lcnt, wp->w_ntrows),
+			 ((float) wp->w_ntrows) / max(lcnt, wp->w_ntrows));
 #else
 #if OPT_KEV_SCROLLBARS
     {
@@ -1132,6 +1755,7 @@ gui_update_scrollbar(WINDOW *uwp)
     }
 #endif /* OPT_KEV_SCROLLBARS */
 #endif /* OPT_XAW_SCROLLBARS */
+#endif /* OL_WIDGETS */
 #endif /* MOTIF_WIDGETS */
 }
 
@@ -1343,13 +1967,8 @@ static XtResource app_resources[] =
     XRES_INTEGER(XtNscrollRepeatInterval, XtCScrollRepeatInterval,
 		 scroll_repeat_interval, 60),	/* 60 milliseconds */
     XRES_BOOL(XtNreverseVideo, XtCReverseVideo, reverse_video, False),
-    XRES_STRING(XtNiconName, XtCIconName, iconname, ""),
     XRES_STRING(XtNgeometry, XtCGeometry, geometry, "80x36"),
-#ifdef XRENDERFONT
-    XRES_STRING(XtNfontFamily, XtCString, starting_fontname, "monospace"),
-#else
     XRES_STRING(XtNfont, XtCFont, starting_fontname, "fixed"),
-#endif
     XRES_FG(XtNforeground, XtCForeground, fg),
     XRES_BG(XtNbackground, XtCBackground, bg),
     XRES_BOOL(XtNforkOnStartup, XtCForkOnStartup, fork_on_startup, False),
@@ -1505,7 +2124,7 @@ static XtResource pointer_resources[] =
 	    else if ((v) < (min))	\
 		(v) = (min);		\
 	} one_time
-static GCC_NORETURN void initial_error_handler(String message);
+
 static void
 initial_error_handler(String message)
 {
@@ -1514,7 +2133,6 @@ initial_error_handler(String message)
     print_usage(BADEXIT);
 }
 
-static GCC_NORETURN void runtime_error_handler(String message);
 static void
 runtime_error_handler(String message)
 {
@@ -1522,139 +2140,6 @@ runtime_error_handler(String message)
     fprintf(stderr, "%s: %s\n", prog_arg, NonNull(message));
     imdying(SIGINT);		/* save files and exit, do not abort() */
 }
-
-/***====================================================================***/
-
-#ifdef XRENDERFONT
-static unsigned
-maskToShift(unsigned long mask)
-{
-    unsigned result = 0;
-    if (mask != 0) {
-	while ((mask & 1) == 0) {
-	    mask >>= 1;
-	    ++result;
-	}
-    }
-    return result;
-}
-
-static unsigned
-maskToWidth(unsigned long mask)
-{
-    unsigned result = 0;
-    while (mask != 0) {
-	if ((mask & 1) != 0)
-	    ++result;
-	mask >>= 1;
-    }
-    return result;
-}
-
-static XVisualInfo *
-getVisualInfo(TextWindow tw)
-{
-#define MYFMT "getVisualInfo \
-depth %d, \
-type %d (%s), \
-size %d \
-rgb masks (%04lx/%04lx/%04lx)\n"
-#define MYARG \
-       vi->depth,\
-       vi->class,\
-       ((vi->class & 1) ? "dynamic" : "static"),\
-       vi->colormap_size,\
-       vi->red_mask,\
-       vi->green_mask,\
-       vi->blue_mask
-
-    XVisualInfo myTemplate;
-
-    if (tw->visInfo == 0 && tw->numVisuals == 0) {
-	myTemplate.visualid = XVisualIDFromVisual(DefaultVisual(dpy,
-								XDefaultScreen(dpy)));
-	tw->visInfo = XGetVisualInfo(dpy, (long) VisualIDMask,
-				     &myTemplate, &tw->numVisuals);
-
-	if ((tw->visInfo != 0) && (tw->numVisuals > 0)) {
-	    XVisualInfo *vi = tw->visInfo;
-	    tw->rgb_widths[0] = maskToWidth(vi->red_mask);
-	    tw->rgb_widths[1] = maskToWidth(vi->green_mask);
-	    tw->rgb_widths[2] = maskToWidth(vi->blue_mask);
-	    tw->rgb_shifts[0] = maskToShift(vi->red_mask);
-	    tw->rgb_shifts[1] = maskToShift(vi->green_mask);
-	    tw->rgb_shifts[2] = maskToShift(vi->blue_mask);
-
-	    tw->has_rgb = ((vi->red_mask != 0) &&
-			   (vi->green_mask != 0) &&
-			   (vi->blue_mask != 0) &&
-			   ((vi->red_mask & vi->green_mask) == 0) &&
-			   ((vi->green_mask & vi->blue_mask) == 0) &&
-			   ((vi->blue_mask & vi->red_mask) == 0) &&
-			   (vi->class == TrueColor
-			    || vi->class == DirectColor));
-
-	    TRACE((MYFMT, MYARG));
-	    TRACE(("...shifts %u/%u/%u\n",
-		   tw->rgb_shifts[0],
-		   tw->rgb_shifts[1],
-		   tw->rgb_shifts[2]));
-	    TRACE(("...widths %u/%u/%u\n",
-		   tw->rgb_widths[0],
-		   tw->rgb_widths[1],
-		   tw->rgb_widths[2]));
-	}
-    }
-    return (tw->visInfo != 0) && (tw->numVisuals > 0) ? tw->visInfo : NULL;
-#undef MYFMT
-#undef MYARG
-}
-#endif /* XRENDERFONT */
-
-/***====================================================================***/
-
-#ifdef XRENDERFONT
-static void
-pixelToXftColor(TextWindow tw, XftColor *target, Pixel source)
-{
-#define UnMaskIt(name,nn) \
-	((unsigned short)((def.pixel & tw->visInfo->name ##_mask) >> tw->rgb_shifts[nn]))
-#define UnMaskIt2(name,nn) \
-	(unsigned short)((((UnMaskIt(name,nn) << 8) \
-			   |UnMaskIt(name,nn))) << (8 - tw->rgb_widths[nn]))
-    XColor def;
-    Boolean result = True;
-
-    memset(&def, 0, sizeof(def));
-    def.pixel = source;
-
-    if ((tw->visInfo = getVisualInfo(tw)) != NULL && tw->has_rgb) {
-	/* *INDENT-EQLS* */
-	def.red   = UnMaskIt2(red, 0);
-	def.green = UnMaskIt2(green, 1);
-	def.blue  = UnMaskIt2(blue, 2);
-    } else if (!XQueryColor(dpy, tw->colormap, &def)) {
-	result    = False;
-    }
-
-    if (result) {
-	/* *INDENT-EQLS* */
-	target->pixel       = source;
-	target->color.red   = def.red;
-	target->color.green = def.green;
-	target->color.blue  = def.blue;
-	target->color.alpha = 0xffff;
-    } else {
-	memset(target, 0, sizeof(*target));
-    }
-
-    TRACE2((".. pixelToXftColor %06lx -> %04x/%04x/%04x\n",
-	    source,
-	    target->color.red,
-	    target->color.green,
-	    target->color.blue));
-}
-#endif
 
 #define MIN_UDIFF  0x1000
 #define UDIFF(a,b) ((a)>(b)?(a)-(b):(b)-(a))
@@ -1667,30 +2152,22 @@ static Boolean
 SamePixel(Pixel a, Pixel b)
 {
     Boolean result = True;
+    XColor a_color;
+    XColor b_color;
+    Colormap colormap;
 
     if (a != b) {
 	result = False;
-	if (cur_win->top_widget != NULL) {
-#ifdef XRENDERFONT
-	    XftColor a_color;
-	    XftColor b_color;
-
-	    pixelToXftColor(cur_win, &a_color, a);
-	    pixelToXftColor(cur_win, &b_color, b);
-
-	    if (UDIFF(a_color.color.red, b_color.color.red) < MIN_UDIFF
-		&& UDIFF(a_color.color.green, b_color.color.green) < MIN_UDIFF
-		&& UDIFF(a_color.color.blue, b_color.color.blue) < MIN_UDIFF)
-		result = True;
-#else
-	    XColor a_color;
-	    XColor b_color;
+	if (cur_win->top_widget != 0) {
+	    XtVaGetValues(cur_win->top_widget,
+			  XtNcolormap, &colormap,
+			  NULL);
 
 	    a_color.pixel = a;
 	    b_color.pixel = b;
 
-	    if (XQueryColor(dpy, cur_win->colormap, &a_color)
-		&& XQueryColor(dpy, cur_win->colormap, &b_color)) {
+	    if (XQueryColor(dpy, colormap, &a_color)
+		&& XQueryColor(dpy, colormap, &b_color)) {
 		if (UDIFF(a_color.red, b_color.red) < MIN_UDIFF
 		    && UDIFF(a_color.green, b_color.green) < MIN_UDIFF
 		    && UDIFF(a_color.blue, b_color.blue) < MIN_UDIFF)
@@ -1698,7 +2175,6 @@ SamePixel(Pixel a, Pixel b)
 	    } else {
 		TRACE(("FIXME: SamePixel failed\n"));
 	    }
-#endif
 	} else {
 	    TRACE(("FIXME: SamePixel cannot compute (too soon)\n"));
 	}
@@ -1706,163 +2182,107 @@ SamePixel(Pixel a, Pixel b)
     return result;
 }
 
-/***====================================================================***/
-
-#if OPT_TRACE
-static Boolean
-retraceBoolean(Boolean code)
-{
-    Trace(T_RETURN "%s\n", code ? "True" : "False");
-    return code;
-}
-
-static const char *
-traceColorGC(TextWindow win, ColorGC * source)
-{
-    static char temp[20];
-    const char *result = "?";
-
-#define if_CASE(name) \
-    	if (source == &win->name) \
-		result = #name
-
-#define if_MANY(name) \
-	if (source >= &win->name[0] && \
-	    source < &win->name[NCOLORS]) { \
-	    sprintf(temp, "%s[%d]", #name, (int)(source - win->name)); \
-	    result = temp; \
-	}
-    /* *INDENT-OFF* */
-    if_CASE(tt_info);
-    else if_CASE(rt_info);
-    else if_CASE(ss_info);
-    else if_CASE(rs_info);
-    else if_CASE(mm_info);
-    else if_CASE(rm_info);
-    else if_CASE(oo_info);
-    else if_CASE(ro_info);
-    else if_CASE(cc_info);
-    else if_CASE(rc_info);
-    else if_MANY(fg_info)
-    else if_MANY(bg_info)
-    /* *INDENT-ON* */
-    return result;
-}
-#define returnBoolean(code) return retraceBoolean(code)
-#else
-#define returnBoolean(code) return(code)
-#endif
-
-/*
- * Set parameters in a ColorGC so that a subsequent makeColorGC can evaluate
- * the parameters to allocate a GC.
- */
 static void
-initColorGC(TextWindow win, ColorGC * data, Pixel new_fg, Pixel new_bg)
+monochrome_cursor(void)
 {
-    (void) win;
-
-    data->gcmask = GCForeground | GCBackground | GCGraphicsExposures;
-#ifndef XRENDERFONT
-    data->gcmask |= GCFont;
-    data->gcvals.font = win->fonts.norm->fid;
-#endif
-    data->gcvals.graphics_exposures = False;
-
-    data->gcvals.foreground = new_fg;
-    data->gcvals.background = new_bg;
-    data->state = sgINIT;
-}
-
-static void
-freeColorGC(ColorGC * target)
-{
-    if (target->gc != NULL) {
-	XFreeGC(dpy, target->gc);
-	memset(target, 0, sizeof(*target));
-    }
-}
-
-static void
-copyColorGC(TextWindow win, ColorGC * target, ColorGC * source)
-{
-    if (target != source) {
-	(void) win;
-	TRACE(("copyColorGC %s", traceColorGC(win, source)));
-	TRACE((" -> %s\n", traceColorGC(win, target)));
-	*target = *source;
-	target->gc = NULL;
-	if (target->state >= sgINIT)
-	    target->state = sgREDO;
-    }
-}
-
-/*
- * Given the parameters in gcmask/gcvals, allocate a GC if none exists, and
- * return pointer to the target.
- */
-ColorGC *
-makeColorGC(TextWindow win, ColorGC * target)
-{
-    int changed = 0;
-
-    (void) win;
-
-    if (target->gc == NULL) {
-	target->gc = XCreateGC(dpy, DefaultRootWindow(dpy), target->gcmask, &target->gcvals);
-	changed = 1;
-    } else if (target->state < sgMADE) {
-	XChangeGC(dpy, target->gc, target->gcmask, &target->gcvals);
-	changed = 2;
-    }
-
-    if (changed) {
-	(void) changed;
-
-	TRACE(("makeColorGC(%s) %06lx/%06lx -> %p (%s)\n",
-	       traceColorGC(win, target),
-	       (long) target->gcvals.foreground,
-	       (long) target->gcvals.background,
-	       (void *) target->gc,
-	       (changed == 1) ? "created" : "changed"));
-    }
-#ifdef XRENDERFONT
-    if (changed) {
-	pixelToXftColor(win, &target->xft, target->gcvals.foreground);
-    }
-#endif
-    target->state = sgMADE;
-    return target;
-}
-
-static void
-monochrome_cursor(TextWindow win)
-{
-    TRACE((T_CALLED "monochrome_cursor\n"));
-    win->is_color_cursor = False;
-    win->cursor_fg = cur_win->bg;	/* undo our trickery */
-    win->cursor_bg = cur_win->fg;
-    copyColorGC(win, &win->cc_info, &win->rt_info);
-    copyColorGC(win, &win->rc_info, &win->tt_info);
-    returnVoid();
+    cur_win->is_color_cursor = FALSE;
+    cur_win->cursor_fg = cur_win->bg;	/* undo our trickery */
+    cur_win->cursor_bg = cur_win->fg;
+    cur_win->cursgc = cur_win->reversegc;
+    cur_win->revcursgc = cur_win->textgc;
 }
 
 static int
-color_cursor(TextWindow win)
+color_cursor(void)
 {
-    TRACE((T_CALLED "color_cursor\n"));
-    initColorGC(win, &cur_win->cc_info, cur_win->fg, cur_win->bg);
-    initColorGC(win, &cur_win->rc_info, cur_win->fg, cur_win->bg);
+    ULONG gcmask;
+    XGCValues gcvals;
 
-    if (win->cc_info.gc == NULL
-	|| win->rc_info.gc == NULL) {
-	freeColorGC(&win->cc_info);
-	freeColorGC(&win->rc_info);
-	monochrome_cursor(win);
+    gcmask = GCForeground | GCBackground | GCFont | GCGraphicsExposures;
+    gcvals.foreground = cur_win->fg;
+    gcvals.background = cur_win->bg;
+    gcvals.font = cur_win->pfont->fid;
+    gcvals.graphics_exposures = False;
+
+    cur_win->cursgc = XCreateGC(dpy,
+				DefaultRootWindow(dpy),
+				gcmask, &gcvals);
+    cur_win->revcursgc = XCreateGC(dpy,
+				   DefaultRootWindow(dpy),
+				   gcmask, &gcvals);
+
+    if (cur_win->cursgc == 0
+	|| cur_win->revcursgc == 0) {
+	if (cur_win->cursgc != 0)
+	    XFreeGC(dpy, cur_win->cursgc);
+	if (cur_win->revcursgc != 0)
+	    XFreeGC(dpy, cur_win->revcursgc);
+	monochrome_cursor();
     }
 
-    win->is_color_cursor = True;
-    returnCode(TRUE);
+    cur_win->is_color_cursor = TRUE;
+    return TRUE;
+}
+
+static GC
+get_color_gc(int n, Boolean normal)
+{
+    ColorGC *data;
+
+    assert(n >= 0 && n < NCOLORS);
+
+    if (n < 0 || n > NCOLORS)
+	n = 0;			/* shouldn't happen */
+    data = (normal
+	    ? &(cur_win->fore_color[n])
+	    : &(cur_win->back_color[n]));
+    if (cur_win->screen_depth == 1) {
+	data->gc = (normal
+		    ? cur_win->textgc
+		    : cur_win->reversegc);
+    } else if (data->reset) {
+	XGCValues gcvals;
+	ULONG gcmask;
+
+	gcmask = GCForeground | GCBackground | GCFont | GCGraphicsExposures;
+	if (cur_win->bg_follows_fg) {
+	    gcvals.foreground = (normal
+				 ? cur_win->colors_fg[n]
+				 : cur_win->colors_bg[n]);
+	    gcvals.background = (normal
+				 ? cur_win->colors_bg[n]
+				 : cur_win->colors_fg[n]);
+	} else {
+	    if (normal) {
+		gcvals.foreground = cur_win->colors_fg[n];
+		gcvals.background = cur_win->bg;
+	    } else {
+		gcvals.foreground = cur_win->bg;
+		gcvals.background = cur_win->colors_fg[n];
+	    }
+	}
+	if (gcvals.foreground == gcvals.background) {
+	    gcvals.foreground = normal ? cur_win->fg : cur_win->bg;
+	    gcvals.background = normal ? cur_win->bg : cur_win->fg;
+	}
+	gcvals.font = cur_win->pfont->fid;
+	gcvals.graphics_exposures = False;
+
+	TRACE(("get_color_gc(%d,%s) %#lx/%#lx\n",
+	       n,
+	       normal ? "fg" : "bg",
+	       (long) gcvals.foreground,
+	       (long) gcvals.background));
+
+	if (data->gc == 0)
+	    data->gc = XCreateGC(dpy, DefaultRootWindow(dpy), gcmask, &gcvals);
+	else
+	    XChangeGC(dpy, data->gc, gcmask, &gcvals);
+
+	TRACE(("... gc %#lx\n", (long) data->gc));
+	data->reset = False;
+    }
+    return data->gc;
 }
 
 static void
@@ -1871,52 +2291,9 @@ reset_color_gcs(void)
     int n;
 
     for (n = 0; n < NCOLORS; n++) {
-	cur_win->fg_info[n].state = sgREDO;
-	cur_win->bg_info[n].state = sgREDO;
+	cur_win->fore_color[n].reset = True;
+	cur_win->back_color[n].reset = True;
     }
-}
-
-ColorGC *
-x_get_color_gc(TextWindow win, int n, Bool normal)
-{
-    ColorGC *data;
-
-    assert(n >= 0 && n < NCOLORS);
-
-    if (n < 0 || n >= NCOLORS)
-	n = 0;			/* shouldn't happen */
-    data = (normal
-	    ? &(win->fg_info[n])
-	    : &(win->bg_info[n]));
-    if (win->screen_depth == 1) {
-	copyColorGC(win, data, (normal ? &win->tt_info : &win->rt_info));
-    } else if (data->state == sgREDO) {
-	Pixel new_fg = data->gcvals.foreground;
-	Pixel new_bg = data->gcvals.background;
-
-	if (win->bg_follows_fg) {
-	    new_fg = (normal
-		      ? win->colors_fg[n]
-		      : win->colors_bg[n]);
-	    new_bg = (normal
-		      ? win->colors_bg[n]
-		      : win->colors_fg[n]);
-	} else {
-	    if (normal) {
-		new_fg = win->colors_fg[n];
-		new_bg = win->bg;
-	    } else {
-		new_fg = win->bg;
-		new_fg = win->colors_fg[n];
-	    }
-	}
-	if (new_fg == new_bg) {
-	    new_fg = normal ? win->fg : win->bg;
-	    new_bg = normal ? win->bg : win->fg;
-	}
-	initColorGC(win, data, new_fg, new_bg);
-    }
-    return data;
 }
 
 #if OPT_TRACE
@@ -1926,9 +2303,14 @@ ColorsOf(Pixel pixel)
     static char result[80];
 
     XColor color;
+    Colormap colormap;
+
+    XtVaGetValues(cur_win->screen,
+		  XtNcolormap, &colormap,
+		  NULL);
 
     color.pixel = pixel;
-    XQueryColor(dpy, cur_win->colormap, &color);
+    XQueryColor(dpy, colormap, &color);
     sprintf(result, "%4X/%4X/%4X", color.red, color.green, color.blue);
     return result;
 }
@@ -1941,23 +2323,23 @@ visibleAtoms(Atom value)
 	result = "None";
     else if (value == XA_ATOM)
 	result = "XA_ATOM";
-    else if (value == GetAtom(CLIPBOARD))
+    else if (value == atom_CLIPBOARD)
 	result = "XA_CLIPBOARD";
-    else if (value == GetAtom(COMPOUND_TEXT))
+    else if (value == atom_COMPOUND_TEXT)
 	result = "XA_COMPOUND_TEXT";
-    else if (value == GetAtom(MULTIPLE))
+    else if (value == atom_MULTIPLE)
 	result = "MULTIPLE";
     else if (value == XA_PRIMARY)
 	result = "XA_PRIMARY";
     else if (value == XA_STRING)
 	result = "XA_STRING";
-    else if (value == GetAtom(TARGETS))
+    else if (value == atom_TARGETS)
 	result = "XA_TARGETS";
-    else if (value == GetAtom(TEXT))
+    else if (value == atom_TEXT)
 	result = "XA_TEXT";
-    else if (value == GetAtom(TIMESTAMP))
+    else if (value == atom_TIMESTAMP)
 	result = "XA_TIMESTAMP";
-    else if (value == GetAtom(UTF8_STRING))
+    else if (value == atom_UTF8_STRING)
 	result = "XA_UTF8_STRING";
     else
 	result = "unknown";
@@ -1965,202 +2347,18 @@ visibleAtoms(Atom value)
 }
 #endif
 
-#ifndef PIXMAP_ROOTDIR
-#define PIXMAP_ROOTDIR "/usr/share/pixmaps/"
-#endif
-
-#ifdef HAVE_LIBXPM
-static int
-getVisualDepth(void)
-{
-    XVisualInfo myTemplate, *visInfoPtr;
-    int numFound;
-    int result = 0;
-
-    myTemplate.visualid = XVisualIDFromVisual(DefaultVisual(dpy,
-							    XDefaultScreen(dpy)));
-    visInfoPtr = XGetVisualInfo(dpy, (long) VisualIDMask,
-				&myTemplate, &numFound);
-    if (visInfoPtr != NULL) {
-	if (numFound != 0) {
-	    result = visInfoPtr->depth;
-	}
-	XFree(visInfoPtr);
-    }
-    return result;
-}
-#endif /* HAVE_LIBXPM */
-
-static char *
-x_find_icon(char **work, int *state, const char *suffix)
-{
-    const char *filename = cur_win->iconname;
-    const char *prefix = "";
-    char *result = NULL;
-    size_t length;
-
-    switch (*state) {
-    case 0:
-	suffix = "";
-	break;
-    case 1:
-	break;
-    case 2:
-	if (!strncmp(filename, "/", 1) ||
-	    !strncmp(filename, "./", 2) ||
-	    !strncmp(filename, "../", 3))
-	    goto giveup;
-	prefix = PIXMAP_ROOTDIR;
-	suffix = "";
-	break;
-    case 3:
-	prefix = PIXMAP_ROOTDIR;
-	break;
-      giveup:
-    default:
-	*state = -1;
-	break;
-    }
-    if (*state >= 0) {
-	if (*work) {
-	    free(*work);
-	    *work = NULL;
-	}
-	length = 3 + strlen(prefix) + strlen(filename) + strlen(suffix);
-	if ((result = malloc(length)) != NULL) {
-	    sprintf(result, "%s%s%s", prefix, filename, suffix);
-	    *work = result;
-	}
-	*state += 1;
-	TRACE(("x_find_icon %d:%s\n", *state, result));
-    }
-    return result;
-}
-
-static void
-x_load_icon(void)
-{
-    Pixmap myIcon = 0;
-    Pixmap myMask = 0;
-    char *workname = NULL;
-
-    TRACE((T_CALLED "x_load_icon\n"));
-    /*
-     * Use the compiled-in icon as a resource default.
-     */
-#if OPT_X11_ICON
-    {
-#ifdef VILE_ICON
-# include VILE_ICON
-#else
-# ifdef HAVE_LIBXPM
-#  include <icons/vile.xpm>
-# else
-#  if SYS_VMS
-#   include "icons/vile.xbm"
-#  else
-#   include <icons/vile.xbm>
-#  endif
-# endif
-#endif
-#ifdef HAVE_LIBXPM
-	if (XpmCreatePixmapFromData(dpy,
-				    DefaultRootWindow(dpy),
-				    vile, &myIcon, &myMask, NULL) != 0) {
-	    myIcon = 0;
-	    myMask = 0;
-	}
-#else
-	myIcon = XCreateBitmapFromData(dpy,
-				       DefaultRootWindow(dpy),
-				       (char *) vile_bits,
-				       vile_width,
-				       vile_height);
-#endif
-    }
-#endif /* OPT_X11_ICON */
-
-    if (!isEmpty(cur_win->iconname)) {
-	int state = 0;
-#ifdef HAVE_LIBXPM
-	while (x_find_icon(&workname, &state, ".xpm") != NULL) {
-	    Pixmap resIcon = 0;
-	    Pixmap shapemask = 0;
-	    XpmAttributes attributes;
-
-	    attributes.depth = (unsigned) getVisualDepth();
-	    attributes.valuemask = XpmDepth;
-
-	    if (XpmReadFileToPixmap(dpy,
-				    DefaultRootWindow(dpy),
-				    workname,
-				    &resIcon,
-				    &shapemask,
-				    &attributes) == XpmSuccess) {
-		myIcon = resIcon;
-		myMask = shapemask;
-		TRACE(("...success\n"));
-		break;
-	    }
-	}
-#else
-	while (x_find_icon(&workname, &state, ".xbm") != 0) {
-	    Pixmap resIcon = 0;
-	    unsigned width;
-	    unsigned height;
-	    int x_hot;
-	    int y_hot;
-
-	    if (XReadBitmapFile(dpy,
-				DefaultRootWindow(dpy),
-				workname,
-				&width, &height,
-				&resIcon,
-				&x_hot, &y_hot) == BitmapSuccess) {
-		myIcon = resIcon;
-		TRACE(("...success\n"));
-		break;
-	    }
-	}
-#endif
-    }
-
-    if (myIcon != 0) {
-	XWMHints *hints = XGetWMHints(dpy, XtWindow(cur_win->top_widget));
-	if (!hints)
-	    hints = XAllocWMHints();
-
-	if (hints) {
-	    hints->flags |= IconPixmapHint;
-	    hints->icon_pixmap = myIcon;
-	    if (myMask) {
-		hints->flags |= IconMaskHint;
-		hints->icon_mask = myMask;
-	    }
-
-	    XSetWMHints(dpy, XtWindow(cur_win->top_widget), hints);
-	    XFree(hints);
-	}
-    }
-
-    if (workname != NULL)
-	free(workname);
-
-    returnVoid();
-}
-
 /* ARGSUSED */
 int
 x_preparse_args(int *pargc, char ***pargv)
 {
-    XVileFont *pfont;
+    XFontStruct *pfont;
     XGCValues gcvals;
     ULONG gcmask;
     int geo_mask, startx, starty;
     int i;
     int status = TRUE;
     Cardinal start_cols, start_rows;
-    const char *xvile_class = MY_CLASS;
+    char *xvile_class = MY_CLASS;
     static XrmOptionDescRec options[] =
     {
 	{"-t", (char *) 0, XrmoptionSkipArg, (caddr_t) 0},
@@ -2170,7 +2368,7 @@ x_preparse_args(int *pargc, char ***pargv)
 	{"-rightbar", "*scrollbarOnLeft", XrmoptionNoArg, "false"},
 	{"-class", NULL, XrmoptionSkipArg, (caddr_t) 0},
     };
-#if MOTIF_WIDGETS
+#if MOTIF_WIDGETS || OL_WIDGETS
     static XtActionsRec new_actions[] =
     {
 	{"ConfigureBar", configure_bar}
@@ -2240,13 +2438,24 @@ x_preparse_args(int *pargc, char ***pargv)
 #endif
     static char stippled_pixmap_bits[] =
     {'\002', '\001'};
-#endif /* MOTIF_WIDGETS */
+#endif /* MOTIF_WIDGETS || OL_WIDGETS */
 
     TRACE((T_CALLED "x_preparse_args\n"));
+#if OL_WIDGETS
+    /* There is a cryptic statement in the poor documentation that I have
+     * on OpenLook that OlToolkitInitialize is now preferred to the older
+     * OlInitialize (which is used in the examples and is documented better).
+     * The documentation I have says that OlToolkitInitialize returns a
+     * widget.  I don't believe it, nor do I understand what kind of widget
+     * it would be.  I get the impression that it takes one argument, but
+     * I don't know what that argument is supposed to be.
+     */
+    (void) OlToolkitInitialize(NULL);
+#endif /* OL_WIDGETS */
 
     for (i = 1; i < (*pargc) - 1; i++) {
 	char *param = (*pargv)[i];
-	size_t len = strlen(param);
+	UINT len = (UINT) strlen(param);
 	if (len > 1) {
 #if OPT_TITLE
 	    /*
@@ -2277,9 +2486,9 @@ x_preparse_args(int *pargc, char ***pargv)
     XtSetErrorHandler(runtime_error_handler);
     dpy = XtDisplay(cur_win->top_widget);
 
-    XtVaGetValues(cur_win->top_widget,
-		  XtNcolormap, &cur_win->colormap,
-		  NULL);
+#if 0
+    check_visuals();
+#endif
 
     XtVaGetValues(cur_win->top_widget,
 		  XtNdepth, &cur_win->screen_depth,
@@ -2299,11 +2508,7 @@ x_preparse_args(int *pargc, char ***pargv)
 #endif
     TRACE_RES_I(XtNscrollRepeatInterval, scroll_repeat_interval);
     TRACE_RES_B(XtNreverseVideo, reverse_video);
-#ifdef XRENDERFONT
-    TRACE_RES_S(XtNfontFamily, starting_fontname);
-#else
     TRACE_RES_S(XtNfont, starting_fontname);
-#endif
     TRACE_RES_S(XtNgeometry, geometry);
     TRACE_RES_P(XtNforeground, fg);
     TRACE_RES_P(XtNbackground, bg);
@@ -2469,19 +2674,27 @@ x_preparse_args(int *pargc, char ***pargv)
     TRACE_RES_P(XtNfcolorF, colors_fg[15]);
     TRACE_RES_P(XtNbcolorF, colors_bg[15]);
 
-    pfont = xvileQueryFont(dpy, cur_win, cur_win->starting_fontname);
+    /* Initialize atoms needed for getting a fully specified font name */
+    atom_FONT = XInternAtom(dpy, "FONT", False);
+    atom_FOUNDRY = XInternAtom(dpy, "FOUNDRY", False);
+    atom_WEIGHT_NAME = XInternAtom(dpy, "WEIGHT_NAME", False);
+    atom_SLANT = XInternAtom(dpy, "SLANT", False);
+    atom_SETWIDTH_NAME = XInternAtom(dpy, "SETWIDTH_NAME", False);
+    atom_PIXEL_SIZE = XInternAtom(dpy, "PIXEL_SIZE", False);
+    atom_RESOLUTION_X = XInternAtom(dpy, "RESOLUTION_X", False);
+    atom_RESOLUTION_Y = XInternAtom(dpy, "RESOLUTION_Y", False);
+    atom_SPACING = XInternAtom(dpy, "SPACING", False);
+    atom_AVERAGE_WIDTH = XInternAtom(dpy, "AVERAGE_WIDTH", False);
+    atom_CHARSET_REGISTRY = XInternAtom(dpy, "CHARSET_REGISTRY", False);
+    atom_CHARSET_ENCODING = XInternAtom(dpy, "CHARSET_ENCODING", False);
+
+    pfont = query_font(cur_win, cur_win->starting_fontname);
     if (!pfont) {
-	pfont = xvileQueryFont(dpy, cur_win, FONTNAME);
+	pfont = query_font(cur_win, FONTNAME);
 	if (!pfont) {
-	    if (strcmp(cur_win->starting_fontname, FONTNAME)) {
-		(void) fprintf(stderr,
-			       "couldn't get font \"%s\" or \"%s\", exiting\n",
-			       cur_win->starting_fontname, FONTNAME);
-	    } else {
-		(void) fprintf(stderr,
-			       "couldn't get font \"%s\", exiting\n",
-			       FONTNAME);
-	    }
+	    (void) fprintf(stderr,
+			   "couldn't get font \"%s\" or \"%s\", exiting\n",
+			   cur_win->starting_fontname, FONTNAME);
 	    ExitProgram(BADEXIT);
 	}
     }
@@ -2526,6 +2739,13 @@ x_preparse_args(int *pargc, char ***pargv)
 				cur_win->top_widget,
 				NULL);
 #else
+#if OL_WIDGETS
+    cur_win->form_widget =
+	XtVaCreateManagedWidget("form",
+				formWidgetClass,
+				cur_win->top_widget,
+				NULL);
+#else
 #if ATHENA_WIDGETS && OPT_MENUS
     cur_win->pane_widget =
 	XtVaCreateManagedWidget("pane",
@@ -2557,7 +2777,7 @@ x_preparse_args(int *pargc, char ***pargv)
 				Nval(XtNfromVert, cur_win->menu_widget),
 				Nval(XtNvertDistance, 0),
 				NULL);
-#else /* !(ATHENA_WIDGETS && OPT_MENUS) */
+#else
 #if ATHENA_WIDGETS
     cur_win->form_widget =
 	XtVaCreateManagedWidget("form",
@@ -2572,6 +2792,9 @@ x_preparse_args(int *pargc, char ***pargv)
 					   + 2),
 				XtNheight, x_height(cur_win),
 				XtNbackground, cur_win->bg,
+				XtNbottom, XtChainBottom,
+				XtNleft, XtChainLeft,
+				XtNright, XtChainRight,
 				NULL);
 #else
 #if NO_WIDGETS
@@ -2588,6 +2811,7 @@ x_preparse_args(int *pargc, char ***pargv)
 #endif /* NO_WIDGETS */
 #endif /* ATHENA_WIDGETS */
 #endif /* ATHENA_WIDGETS && OPT_MENUS */
+#endif /* OL_WIDGETS */
 #endif /* MOTIF_WIDGETS */
 
 #if OPT_MENUS
@@ -2632,6 +2856,12 @@ x_preparse_args(int *pargc, char ***pargv)
 				Nval(XmNleftAttachment, XmATTACH_FORM),
 				Nval(XmNrightAttachment, XmATTACH_NONE),
 #else
+#if OL_WIDGETS
+				Nval(XtNyAttachBottom, TRUE),
+				Nval(XtNyVaryOffset, FALSE),
+				Nval(XtNxAddWidth, TRUE),
+				Nval(XtNyAddHeight, TRUE),
+#else
 #if OPT_KEV_SCROLLBARS || OPT_XAW_SCROLLBARS
 #if !OPT_KEV_SCROLLBARS
 				Sval(XtNleft, XtChainLeft),
@@ -2642,6 +2872,7 @@ x_preparse_args(int *pargc, char ***pargv)
 					    : 0)),
 				Nval(XtNy, 0),
 #endif /* OPT_KEV_SCROLLBARS */
+#endif /* OL_WIDGETS */
 #endif /* MOTIF_WIDGETS */
 				NULL);
 
@@ -2663,16 +2894,27 @@ x_preparse_args(int *pargc, char ***pargv)
 #endif /* LESSTIF_VERSION */
 
     /* Initialize graphics context for display of normal and reverse text */
-    initColorGC(cur_win, &cur_win->tt_info, cur_win->fg, cur_win->bg);
-
+    gcmask = GCForeground | GCBackground | GCFont | GCGraphicsExposures;
+    gcvals.foreground = cur_win->fg;
+    gcvals.background = cur_win->bg;
+    gcvals.font = cur_win->pfont->fid;
+    gcvals.graphics_exposures = False;
+    cur_win->textgc = XCreateGC(dpy,
+				DefaultRootWindow(dpy),
+				gcmask, &gcvals);
     cur_win->exposed = FALSE;
     cur_win->visibility = VisibilityUnobscured;
 
-    initColorGC(cur_win, &cur_win->rt_info, cur_win->bg, cur_win->fg);
+    gcvals.foreground = cur_win->bg;
+    gcvals.background = cur_win->fg;
+    gcvals.font = cur_win->pfont->fid;
+    cur_win->reversegc = XCreateGC(dpy,
+				   DefaultRootWindow(dpy),
+				   gcmask, &gcvals);
 
-    cur_win->bg_follows_fg = (Boolean) (gbcolor == ENUM_FCOLOR);
+    cur_win->bg_follows_fg = (gbcolor == ENUM_FCOLOR);
 
-#define COLOR_FMT " %06lx %s"
+#define COLOR_FMT " %#8lx %s"
 #define COLOR_ARG(name) name, ColorsOf(name)
 #define COLOR_ONE(name) "%-20s " COLOR_FMT "\n", #name, COLOR_ARG(cur_win->name)
 
@@ -2692,24 +2934,26 @@ x_preparse_args(int *pargc, char ***pargv)
     TRACE((COLOR_ONE(selection_bg)));
 
     /* Initialize graphics context for display of selections */
-    if (
-#ifdef XRENDERFONT
-	   0 &&			/* FIXME - difference should not exist */
-#endif
-	   (cur_win->screen_depth == 1
-	    || SamePixel(cur_win->selection_bg, cur_win->selection_fg)
-	    || (SamePixel(cur_win->fg, cur_win->selection_fg)
-		&& SamePixel(cur_win->bg, cur_win->selection_bg))
-	    || (SamePixel(cur_win->fg, cur_win->selection_bg)
-		&& SamePixel(cur_win->bg, cur_win->selection_fg)))) {
+    if (cur_win->screen_depth == 1
+	|| SamePixel(cur_win->selection_bg, cur_win->selection_fg)
+	|| (SamePixel(cur_win->fg, cur_win->selection_fg)
+	    && SamePixel(cur_win->bg, cur_win->selection_bg))
+	|| (SamePixel(cur_win->fg, cur_win->selection_bg)
+	    && SamePixel(cur_win->bg, cur_win->selection_fg))) {
+	cur_win->selgc = cur_win->reversegc;
+	cur_win->revselgc = cur_win->textgc;
 	TRACE(("...Forcing selection GC to reverse\n"));
-	copyColorGC(cur_win, &cur_win->ss_info, &cur_win->rt_info);
-	copyColorGC(cur_win, &cur_win->rs_info, &cur_win->tt_info);
     } else {
-	initColorGC(cur_win, &cur_win->ss_info,
-		    cur_win->selection_fg, cur_win->selection_bg);
-	initColorGC(cur_win, &cur_win->rs_info,
-		    cur_win->selection_bg, cur_win->selection_fg);
+	gcvals.foreground = cur_win->selection_fg;
+	gcvals.background = cur_win->selection_bg;
+	cur_win->selgc = XCreateGC(dpy,
+				   DefaultRootWindow(dpy),
+				   gcmask, &gcvals);
+	gcvals.foreground = cur_win->selection_bg;
+	gcvals.background = cur_win->selection_fg;
+	cur_win->revselgc = XCreateGC(dpy,
+				      DefaultRootWindow(dpy),
+				      gcmask, &gcvals);
 	TRACE(("...Created selection GC\n"));
     }
 
@@ -2727,14 +2971,14 @@ x_preparse_args(int *pargc, char ***pargv)
 	    && SamePixel(cur_win->bg, cur_win->modeline_bg))
 	|| (SamePixel(cur_win->fg, cur_win->modeline_bg)
 	    && SamePixel(cur_win->bg, cur_win->modeline_fg))) {
-	copyColorGC(cur_win, &cur_win->oo_info, &cur_win->rt_info);
-	copyColorGC(cur_win, &cur_win->ro_info, &cur_win->tt_info);
+	cur_win->modeline_gc = cur_win->reversegc;
 	TRACE(("...Forcing modeline GC to reverse\n"));
     } else {
-	initColorGC(cur_win, &cur_win->oo_info,
-		    cur_win->modeline_fg, cur_win->modeline_bg);
-	initColorGC(cur_win, &cur_win->ro_info,
-		    cur_win->modeline_bg, cur_win->modeline_fg);
+	gcvals.foreground = cur_win->modeline_fg;
+	gcvals.background = cur_win->modeline_bg;
+	cur_win->modeline_gc = XCreateGC(dpy,
+					 DefaultRootWindow(dpy),
+					 gcmask, &gcvals);
 	TRACE(("...Created modeline GC\n"));
     }
 
@@ -2751,14 +2995,14 @@ x_preparse_args(int *pargc, char ***pargv)
 	    && SamePixel(cur_win->bg, cur_win->modeline_focus_bg))
 	|| (SamePixel(cur_win->fg, cur_win->modeline_focus_bg)
 	    && SamePixel(cur_win->bg, cur_win->modeline_focus_fg))) {
-	copyColorGC(cur_win, &cur_win->mm_info, &cur_win->rt_info);
-	copyColorGC(cur_win, &cur_win->rm_info, &cur_win->tt_info);
+	cur_win->modeline_focus_gc = cur_win->reversegc;
 	TRACE(("...Forcing modeline focus GC to reverse\n"));
     } else {
-	initColorGC(cur_win, &cur_win->mm_info,
-		    cur_win->modeline_focus_fg, cur_win->modeline_focus_bg);
-	initColorGC(cur_win, &cur_win->rm_info,
-		    cur_win->modeline_focus_bg, cur_win->modeline_focus_fg);
+	gcvals.foreground = cur_win->modeline_focus_fg;
+	gcvals.background = cur_win->modeline_focus_bg;
+	cur_win->modeline_focus_gc = XCreateGC(dpy,
+					       DefaultRootWindow(dpy),
+					       gcmask, &gcvals);
 	TRACE(("...Created modeline focus GC\n"));
     }
 
@@ -2774,11 +3018,11 @@ x_preparse_args(int *pargc, char ***pargv)
 	    && SamePixel(cur_win->bg, cur_win->cursor_bg))
 	|| (SamePixel(cur_win->fg, cur_win->cursor_bg)
 	    && SamePixel(cur_win->bg, cur_win->cursor_fg))) {
-	monochrome_cursor(cur_win);
+	monochrome_cursor();
 	TRACE(("...Forcing monochrome cursor\n"));
-    } else if (color_cursor(cur_win)) {
+    } else if (color_cursor()) {
 	TRACE(("...Created color cursor\n"));
-	x_set_cursor_color(-1);
+	x_ccol(-1);
     }
 #if OPT_KEV_SCROLLBARS || OPT_XAW_SCROLLBARS
     if (SamePixel(cur_win->scrollbar_bg, cur_win->scrollbar_fg)) {
@@ -2818,16 +3062,16 @@ x_preparse_args(int *pargc, char ***pargv)
     }
     gcmask |= GCGraphicsExposures;
     gcvals.graphics_exposures = False;
-    cur_win->scrollbar_gc = XCreateGC(dpy,
-				      DefaultRootWindow(dpy),
-				      gcmask, &gcvals);
+    cur_win->scrollbargc = XCreateGC(dpy,
+				     DefaultRootWindow(dpy),
+				     gcmask, &gcvals);
 
     if (cur_win->screen_depth >= 6 && cur_win->slider_is_solid) {
 	Pixel fg_light, fg_dark, bg_light, bg_dark;
 	if (alloc_shadows(cur_win->scrollbar_fg, &fg_light, &fg_dark)
 	    && alloc_shadows(cur_win->scrollbar_bg, &bg_light, &bg_dark)) {
 	    GC gc;
-	    Pixmap my_slider_pixmap;
+	    Pixmap slider_pixmap;
 	    cur_win->slider_is_3D = True;
 
 	    cur_win->trough_pixmap =
@@ -2846,29 +3090,29 @@ x_preparse_args(int *pargc, char ***pargv)
 	    XFillRectangle(dpy, cur_win->trough_pixmap, gc,
 			   (int) cur_win->pane_width, 0, 2, TROUGH_HT);
 
-	    my_slider_pixmap = XCreatePixmap(dpy, DefaultRootWindow(dpy),
-					     cur_win->pane_width - 2,
-					     SP_HT,
-					     cur_win->screen_depth);
+	    slider_pixmap = XCreatePixmap(dpy, DefaultRootWindow(dpy),
+					  cur_win->pane_width - 2,
+					  SP_HT,
+					  cur_win->screen_depth);
 
 	    XSetForeground(dpy, gc, cur_win->scrollbar_fg);
-	    XFillRectangle(dpy, my_slider_pixmap, gc, 0, 0,
+	    XFillRectangle(dpy, slider_pixmap, gc, 0, 0,
 			   cur_win->pane_width - 2, SP_HT);
 	    XSetForeground(dpy, gc, fg_light);
-	    XFillRectangle(dpy, my_slider_pixmap, gc, 0, 0, 2, SP_HT);
+	    XFillRectangle(dpy, slider_pixmap, gc, 0, 0, 2, SP_HT);
 	    XSetForeground(dpy, gc, fg_dark);
-	    XFillRectangle(dpy, my_slider_pixmap, gc,
+	    XFillRectangle(dpy, slider_pixmap, gc,
 			   (int) cur_win->pane_width - 4, 0, 2, SP_HT);
 
-	    XSetTile(dpy, cur_win->scrollbar_gc, my_slider_pixmap);
-	    XSetFillStyle(dpy, cur_win->scrollbar_gc, FillTiled);
-	    XSetTSOrigin(dpy, cur_win->scrollbar_gc, 2, 0);
+	    XSetTile(dpy, cur_win->scrollbargc, slider_pixmap);
+	    XSetFillStyle(dpy, cur_win->scrollbargc, FillTiled);
+	    XSetTSOrigin(dpy, cur_win->scrollbargc, 2, 0);
 
 	    cur_win->slider_pixmap =
 		XCreatePixmap(dpy, DefaultRootWindow(dpy),
 			      cur_win->pane_width - 2,
 			      SP_HT, cur_win->screen_depth);
-	    XCopyArea(dpy, my_slider_pixmap, cur_win->slider_pixmap, gc,
+	    XCopyArea(dpy, slider_pixmap, cur_win->slider_pixmap, gc,
 		      0, 0, cur_win->pane_width - 2, SP_HT, 0, 0);
 
 	    /* Draw top bevel */
@@ -2918,6 +3162,21 @@ x_preparse_args(int *pargc, char ***pargv)
 				Nval(XmNseparatorOn, FALSE),
 				NULL);
 #else
+#if OL_WIDGETS
+    cur_win->pane =
+	XtVaCreateManagedWidget("scrollPane",
+				bulletinBoardWidgetClass,
+				cur_win->form_widget,
+				Nval(XtNwidth, cur_win->pane_width),
+				Nval(XtNheight, x_height(cur_win)),
+				Nval(XtNxRefWidget, cur_win->screen),
+				Nval(XtNyAttachBottom, TRUE),
+				Nval(XtNyVaryOffset, FALSE),
+				Nval(XtNxAddWidth, TRUE),
+				Nval(XtNyAddHeight, TRUE),
+				Nval(XtNlayout, OL_IGNORE),
+				NULL);
+#else
 #if OPT_XAW_SCROLLBARS
     cur_win->my_resizeGrip_trans = XtParseTranslationTable(resizeGrip_translations);
     cur_win->pane =
@@ -2925,7 +3184,7 @@ x_preparse_args(int *pargc, char ***pargv)
 				formWidgetClass,
 				cur_win->form_widget,
 				Nval(XtNwidth, cur_win->pane_width + 2),
-				Nval(XtNheight, ((int) x_height(cur_win)
+				Nval(XtNheight, (x_height(cur_win)
 						 - cur_win->char_height)),
 				Nval(XtNx, (cur_win->scrollbar_on_left
 					    ? 0
@@ -2967,6 +3226,7 @@ x_preparse_args(int *pargc, char ***pargv)
 				NULL);
 #endif /* OPT_KEV_SCROLLBARS */
 #endif /* OPT_XAW_SCROLLBARS */
+#endif /* OL_WIDGETS */
 #endif /* MOTIF_WIDGETS */
 
 #if OPT_KEV_SCROLLBARS || OPT_XAW_SCROLLBARS
@@ -2999,6 +3259,17 @@ x_preparse_args(int *pargc, char ***pargv)
 		      Nval(XmNleftAttachment, XmATTACH_NONE),
 		      Nval(XmNrightAttachment, XmATTACH_FORM),
 		      NULL);
+#else /* !MOTIF_WIDGETS */
+# if OL_WIDGETS
+	XtVaSetValues(cur_win->pane,
+		      Nval(XtNxRefWidget, cur_win->form_widget),
+		      NULL);
+	XtVaSetValues(cur_win->screen,
+		      Nval(XtNxRefWidget, cur_win->pane),
+		      NULL);
+# else
+	/* EMPTY */ ;
+# endif				/* OL_WIDGETS */
 #endif /* !MOTIF_WIDGETS */
     }
 
@@ -3126,13 +3397,51 @@ x_preparse_args(int *pargc, char ***pargv)
     }
 #endif
 
-    x_load_icon();
+#if OPT_X11_ICON
+    {
+#ifdef VILE_ICON
+# include VILE_ICON
+#else
+# ifdef HAVE_LIBXPM
+#  include <icons/vile.xpm>
+# else
+#  if SYS_VMS
+#   include "icons/vile.xbm"
+#  else
+#   include <icons/vile.xbm>
+#  endif
+# endif
+#endif
+	XWMHints *hints = XGetWMHints(dpy, XtWindow(cur_win->top_widget));
+	if (!hints)
+	    hints = XAllocWMHints();
+
+	if (hints) {
+	    hints->flags = IconPixmapHint;
+#ifdef HAVE_LIBXPM
+	    XpmCreatePixmapFromData(dpy, DefaultRootWindow(dpy),
+				    vile, &hints->icon_pixmap, 0, 0
+		);
+#else
+	    hints->icon_pixmap =
+		XCreateBitmapFromData(dpy, DefaultRootWindow(dpy),
+				      (char *) vile_bits, vile_width, vile_height
+		);
+#endif
+
+	    XSetWMHints(dpy, XtWindow(cur_win->top_widget), hints);
+	    XFree(hints);
+	}
+    }
+#endif /* OPT_X11_ICON */
 
     /* We wish to participate in the "delete window" protocol */
+    atom_WM_PROTOCOLS = XInternAtom(dpy, "WM_PROTOCOLS", False);
+    atom_WM_DELETE_WINDOW = XInternAtom(dpy, "WM_DELETE_WINDOW", False);
     {
 	Atom atoms[2];
 	i = 0;
-	atoms[i++] = GetAtom(WM_DELETE_WINDOW);
+	atoms[i++] = atom_WM_DELETE_WINDOW;
 	XSetWMProtocols(dpy,
 			XtWindow(cur_win->top_widget),
 			atoms,
@@ -3144,40 +3453,81 @@ x_preparse_args(int *pargc, char ***pargv)
 		      x_wm_delwin,
 		      (XtPointer) 0);
 
+    /* Atoms needed for selections */
+    atom_TARGETS = XInternAtom(dpy, "TARGETS", False);
+    atom_MULTIPLE = XInternAtom(dpy, "MULTIPLE", False);
+    atom_TIMESTAMP = XInternAtom(dpy, "TIMESTAMP", False);
+    atom_TEXT = XInternAtom(dpy, "TEXT", False);
+    atom_CLIPBOARD = XInternAtom(dpy, "CLIPBOARD", False);
+    atom_COMPOUND_TEXT = XInternAtom(dpy, "COMPOUND_TEXT", False);
+    atom_UTF8_STRING = XInternAtom(dpy, "UTF8_STRING", False);
+
     set_pointer(XtWindow(cur_win->screen), cur_win->normal_pointer);
 
     returnCode(status);
 }
 
+#if 0
+static void
+check_visuals(void)
+{
+    static char *classes[] =
+    {
+	"StaticGray",
+	"GrayScale",
+	"StaticColor",
+	"PseudoColor",
+	"TrueColor",
+	"DirectColor"
+    };
+    XVisualInfo *visuals, visual_template;
+    int nvisuals;
+
+    visuals = XGetVisualInfo(dpy, VisualNoMask, &visual_template, &nvisuals);
+    if (visuals != NULL) {
+	int i;
+	for (i = 0; i < nvisuals; i++) {
+	    printf("Class: %s, Depth: %d\n",
+		   classes[visuals[i].class], visuals[i].depth);
+	}
+	XFree(visuals);
+    }
+}
+#endif
+
 #if OPT_KEV_SCROLLBARS || OPT_XAW_SCROLLBARS
 static Boolean
-#define TooLight(color) ((color) > 0xfff0)
-#define TooDark(color)  ((color) < 0x0020)
 too_light_or_too_dark(Pixel pixel)
 {
     XColor color;
+    Colormap colormap;
+
+    XtVaGetValues(cur_win->screen,
+		  XtNcolormap, &colormap,
+		  NULL);
 
     color.pixel = pixel;
-    XQueryColor(dpy, cur_win->colormap, &color);
+    XQueryColor(dpy, colormap, &color);
 
-    return (Boolean) ((TooLight(color.red) &&
-		       TooLight(color.green) &&
-		       TooLight(color.blue)) ||
-		      (TooDark(color.red) &&
-		       TooDark(color.green) &&
-		       TooDark(color.blue)));
+    return (color.red > 0xfff0 && color.green > 0xfff0 && color.blue > 0xfff0)
+	|| (color.red < 0x0020 && color.green < 0x0020 && color.blue < 0x0020);
 }
 #endif
 
 #if OPT_KEV_SCROLLBARS
 static Boolean
-alloc_shadows(Pixel pixel, Pixel *light, Pixel *dark)
+alloc_shadows(Pixel pixel, Pixel * light, Pixel * dark)
 {
     XColor color;
+    Colormap colormap;
     ULONG lred, lgreen, lblue, dred, dgreen, dblue;
 
+    XtVaGetValues(cur_win->screen,
+		  XtNcolormap, &colormap,
+		  NULL);
+
     color.pixel = pixel;
-    XQueryColor(dpy, cur_win->colormap, &color);
+    XQueryColor(dpy, colormap, &color);
 
     if ((color.red > 0xfff0 && color.green > 0xfff0 && color.blue > 0xfff0)
 	|| (color.red < 0x0020 && color.green < 0x0020 && color.blue < 0x0020))
@@ -3207,7 +3557,7 @@ alloc_shadows(Pixel pixel, Pixel *light, Pixel *dark)
     color.green = (USHORT) lgreen;
     color.blue = (USHORT) lblue;
 
-    if (!XAllocColor(dpy, cur_win->colormap, &color))
+    if (!XAllocColor(dpy, colormap, &color))
 	return False;
 
     *light = color.pixel;
@@ -3216,7 +3566,7 @@ alloc_shadows(Pixel pixel, Pixel *light, Pixel *dark)
     color.green = (USHORT) dgreen;
     color.blue = (USHORT) dblue;
 
-    if (!XAllocColor(dpy, cur_win->colormap, &color))
+    if (!XAllocColor(dpy, colormap, &color))
 	return False;
 
     *dark = color.pixel;
@@ -3225,27 +3575,13 @@ alloc_shadows(Pixel pixel, Pixel *light, Pixel *dark)
 }
 #endif
 
-#if OPT_MULTIBYTE
-void
-x_set_font_encoding(ENC_CHOICES new_encoding)
-{
-    ENC_CHOICES old_encoding = font_encoding;
-
-    if (old_encoding != new_encoding) {
-	TRACE(("set $font-encoding to %s\n", encoding2s(new_encoding)));
-	font_encoding = new_encoding;
-	set_winflags(TRUE, WFHARD);
-    }
-}
-#endif
-
-void
+static void
 x_set_fontname(TextWindow tw, const char *fname)
 {
     char *newfont;
 
-    if (fname != NULL
-	&& (newfont = strmalloc(fname)) != NULL) {
+    if (fname != 0
+	&& (newfont = strmalloc(fname)) != 0) {
 	FreeIfNeeded(tw->fontname);
 	tw->fontname = newfont;
     }
@@ -3255,6 +3591,256 @@ char *
 x_current_fontname(void)
 {
     return cur_win->fontname;
+}
+
+static char *
+x_get_font_atom_property(XFontStruct * pf, Atom atom)
+{
+    XFontProp *pp;
+    int i;
+    char *retval = NULL;
+
+    for (i = 0, pp = pf->properties; i < pf->n_properties; i++, pp++)
+	if (pp->name == atom) {
+	    retval = XGetAtomName(dpy, pp->card32);
+	    break;
+	}
+    return retval;
+}
+
+static XFontStruct *
+query_font(TextWindow tw, const char *fname)
+{
+    XFontStruct *pf;
+
+    TRACE(("x11:query_font(%s)\n", fname));
+    if ((pf = XLoadQueryFont(dpy, fname)) != 0) {
+	char *fullname = NULL;
+
+	if (pf->max_bounds.width != pf->min_bounds.width) {
+	    (void) fprintf(stderr,
+			   "proportional font, things will be miserable\n");
+	}
+
+	/*
+	 * Free resources associated with any presently loaded fonts.
+	 */
+	if (tw->pfont)
+	    XFreeFont(dpy, tw->pfont);
+	if (tw->pfont_bold) {
+	    XFreeFont(dpy, tw->pfont_bold);
+	    tw->pfont_bold = NULL;
+	}
+	if (tw->pfont_ital) {
+	    XFreeFont(dpy, tw->pfont_ital);
+	    tw->pfont_ital = NULL;
+	}
+	if (tw->pfont_boldital) {
+	    XFreeFont(dpy, tw->pfont_boldital);
+	    tw->pfont_boldital = NULL;
+	}
+	tw->fsrch_flags = 0;
+
+	tw->pfont = pf;
+	tw->char_width = pf->max_bounds.width;
+	tw->char_height = pf->ascent + pf->descent;
+	tw->char_ascent = pf->ascent;
+	tw->char_descent = pf->descent;
+	tw->left_ink = (pf->min_bounds.lbearing < 0);
+	tw->right_ink = (pf->max_bounds.rbearing > tw->char_width);
+
+	TRACE(("...success left:%d, right:%d\n", tw->left_ink, tw->right_ink));
+
+	if ((fullname = x_get_font_atom_property(pf, atom_FONT)) != NULL
+	    && fullname[0] == '-') {
+	    /*
+	     * Good. Not much work to do; the name was available via the FONT
+	     * property.
+	     */
+	    x_set_fontname(tw, fullname);
+	    XFree(fullname);
+	    TRACE(("...resulting FONT property font %s\n", tw->fontname));
+	} else {
+	    /*
+	     * Woops, fully qualified name not available from the FONT property.
+	     * Attempt to get the full name piece by piece.  Ugh!
+	     */
+	    char str[1024], *s;
+	    if (fullname != NULL)
+		XFree(fullname);
+
+	    s = str;
+	    *s++ = '-';
+
+#define GET_ATOM_OR_STAR(atom)					\
+    do {							\
+	char *as;						\
+	if ((as = x_get_font_atom_property(pf, (atom))) != NULL) { \
+	    char *asp = as;					\
+	    while ((*s++ = *asp++))				\
+		;						\
+	    *(s-1) = '-';					\
+	    XFree(as);						\
+	}							\
+	else {							\
+	    *s++ = '*';						\
+	    *s++ = '-';						\
+	}							\
+    } one_time
+
+#define GET_ATOM_OR_GIVEUP(atom)				\
+    do {							\
+	char *as;						\
+	if ((as = x_get_font_atom_property(pf, (atom))) != NULL) { \
+	    char *asp = as;					\
+	    while ((*s++ = *asp++))				\
+		;						\
+	    *(s-1) = '-';					\
+	    XFree(as);						\
+	}							\
+	else							\
+	    goto piecemeal_done;				\
+    } one_time
+
+#define GET_LONG_OR_GIVEUP(atom)				\
+    do {							\
+	ULONG val;						\
+	if (XGetFontProperty(pf, (atom), &val)) {		\
+	    sprintf(s, "%ld", (long)val);			\
+	    while (*s++ != '\0')				\
+		;						\
+	    *(s-1) = '-';					\
+	}							\
+	else							\
+	    goto piecemeal_done;				\
+    } one_time
+
+	    GET_ATOM_OR_STAR(atom_FOUNDRY);
+	    GET_ATOM_OR_GIVEUP(XA_FAMILY_NAME);
+	    GET_ATOM_OR_GIVEUP(atom_WEIGHT_NAME);
+	    GET_ATOM_OR_GIVEUP(atom_SLANT);
+	    GET_ATOM_OR_GIVEUP(atom_SETWIDTH_NAME);
+	    *s++ = '*';		/* ADD_STYLE_NAME */
+	    *s++ = '-';
+	    GET_LONG_OR_GIVEUP(atom_PIXEL_SIZE);
+	    GET_LONG_OR_GIVEUP(XA_POINT_SIZE);
+	    GET_LONG_OR_GIVEUP(atom_RESOLUTION_X);
+	    GET_LONG_OR_GIVEUP(atom_RESOLUTION_Y);
+	    GET_ATOM_OR_GIVEUP(atom_SPACING);
+	    GET_LONG_OR_GIVEUP(atom_AVERAGE_WIDTH);
+	    GET_ATOM_OR_STAR(atom_CHARSET_REGISTRY);
+	    GET_ATOM_OR_STAR(atom_CHARSET_ENCODING);
+	    *(s - 1) = '\0';
+
+#undef GET_ATOM_OR_STAR
+#undef GET_ATOM_OR_GIVEUP
+#undef GET_LONG_OR_GIVEUP
+
+	    fname = str;
+	  piecemeal_done:
+	    /*
+	     * We will either use the name which was built up piecemeal or
+	     * the name which was originally passed to us to assign to
+	     * the fontname field.  We prefer the fully qualified name
+	     * so that we can later search for bold and italic fonts.
+	     */
+	    x_set_fontname(tw, fname);
+	    TRACE(("...resulting piecemeal font %s\n", tw->fontname));
+	}
+    }
+#if OPT_MULTIBYTE
+    if (pf != 0) {
+	ENC_CHOICES old_encoding = font_encoding;
+	ENC_CHOICES new_encoding;
+
+	/*
+	 * max_byte1 is the maximum for the high-byte of 16-bit chars.
+	 * If it is nonzero, this is not an 8-bit font.
+	 */
+	if (pf->max_byte1 != 0) {
+	    new_encoding = enc_UTF8;
+	} else {
+	    new_encoding = enc_8BIT;
+	}
+	if (old_encoding != new_encoding) {
+	    TRACE(("set $font-encoding to %s\n", encoding2s(new_encoding)));
+	    font_encoding = new_encoding;
+	    set_winflags(TRUE, WFHARD);
+	}
+    }
+#endif
+    return pf;
+}
+
+static XFontStruct *
+alternate_font(const char *weight, const char *slant)
+{
+    char *newname, *np, *op;
+    int cnt;
+    XFontStruct *fsp = NULL;
+
+    if (cur_win->fontname == NULL
+	|| cur_win->fontname[0] != '-'
+	|| (newname = castalloc(char, strlen(cur_win->fontname) + 32))
+	== NULL)
+	  return NULL;
+
+    /* copy initial two fields */
+    for (cnt = 3, np = newname, op = cur_win->fontname; *op && cnt > 0;) {
+	if (*op == '-')
+	    cnt--;
+	*np++ = *op++;
+    }
+    if (!*op)
+	goto done;
+
+    /* substitute new weight and slant as appropriate */
+#define SUBST_FIELD(field)				\
+    do {						\
+	if ((field) != NULL) {				\
+	    const char *fp = (field);			\
+	    if (nocase_eq(*fp, *op))			\
+		goto done;				\
+	    while ((*np++ = *fp++))			\
+		;					\
+	    *(np-1) = '-';				\
+	    while (*op && *op++ != '-')			\
+		;					\
+	}						\
+	else {						\
+	    while (*op && (*np++ = *op++) != '-')	\
+		;					\
+	}						\
+	if (!*op)					\
+	    goto done;					\
+    } one_time
+
+    SUBST_FIELD(weight);
+    SUBST_FIELD(slant);
+#undef SUBST_FIELD
+
+    /* copy rest of name */
+    while ((*np++ = *op++)) {
+	;			/*nothing */
+    }
+
+    TRACE(("x11:alternate_font(weight=%s, slant=%s)\n -> %s\n",
+	   NONNULL(weight),
+	   NONNULL(slant), newname));
+
+    if ((fsp = XLoadQueryFont(dpy, newname)) != NULL) {
+	cur_win->left_ink = cur_win->left_ink || (fsp->min_bounds.lbearing < 0);
+	cur_win->right_ink = cur_win->right_ink
+	    || (fsp->max_bounds.rbearing > cur_win->char_width);
+	TRACE(("...found left:%d, right:%d\n",
+	       cur_win->left_ink,
+	       cur_win->right_ink));
+    }
+
+  done:
+    free(newname);
+    return fsp;
+
 }
 
 #if OPT_MENUS
@@ -3275,49 +3861,39 @@ x_menu_height(void)
 int
 x_menu_foreground(void)
 {
-    return (int) cur_win->menubar_fg;
+    return cur_win->menubar_fg;
 }
-
 int
 x_menu_background(void)
 {
-    return (int) cur_win->menubar_bg;
+    return cur_win->menubar_bg;
 }
 #endif /* OPT_MENUS_COLORED */
 
 int
 x_setfont(const char *fname)
 {
-    XVileFont *pfont;
+    XFontStruct *pfont;
     Dimension oldw;
     Dimension oldh;
-    int code = 1;
 
-    TRACE((T_CALLED "x_setfont(%s)\n", fname));
     if (cur_win) {
-	XVileFonts oldf = cur_win->fonts;
 	oldw = (Dimension) x_width(cur_win);
 	oldh = (Dimension) x_height(cur_win);
-	code = 0;
-	if ((pfont = xvileQueryFont(dpy, cur_win, fname)) != NULL) {
-#ifndef XRENDERFONT
-	    XSetFont(dpy, GetColorGC(cur_win, tt_info), pfont->fid);
-	    XSetFont(dpy, GetColorGC(cur_win, rt_info), pfont->fid);
-	    XSetFont(dpy, GetColorGC(cur_win, ss_info), pfont->fid);
-	    XSetFont(dpy, GetColorGC(cur_win, rs_info), pfont->fid);
-	    XSetFont(dpy, GetColorGC(cur_win, cc_info), pfont->fid);
-	    XSetFont(dpy, GetColorGC(cur_win, rc_info), pfont->fid);
-	    XSetFont(dpy, GetColorGC(cur_win, mm_info), pfont->fid);
-	    XSetFont(dpy, GetColorGC(cur_win, rm_info), pfont->fid);
-	    XSetFont(dpy, GetColorGC(cur_win, oo_info), pfont->fid);
-	    XSetFont(dpy, GetColorGC(cur_win, ro_info), pfont->fid);
-	    if (GetColorGC(cur_win, tt_info) != GetColorGC(cur_win, rs_info)) {
-		XSetFont(dpy, GetColorGC(cur_win, ss_info), pfont->fid);
-		XSetFont(dpy, GetColorGC(cur_win, rs_info), pfont->fid);
+	if ((pfont = query_font(cur_win, fname)) != 0) {
+	    XSetFont(dpy, cur_win->textgc, pfont->fid);
+	    XSetFont(dpy, cur_win->reversegc, pfont->fid);
+	    XSetFont(dpy, cur_win->selgc, pfont->fid);
+	    XSetFont(dpy, cur_win->revselgc, pfont->fid);
+	    XSetFont(dpy, cur_win->cursgc, pfont->fid);
+	    XSetFont(dpy, cur_win->revcursgc, pfont->fid);
+	    XSetFont(dpy, cur_win->modeline_focus_gc, pfont->fid);
+	    XSetFont(dpy, cur_win->modeline_gc, pfont->fid);
+	    if (cur_win->textgc != cur_win->revselgc) {
+		XSetFont(dpy, cur_win->selgc, pfont->fid);
+		XSetFont(dpy, cur_win->revselgc, pfont->fid);
 	    }
-#endif
 	    reset_color_gcs();
-	    xvileCloseFonts(dpy, &oldf);
 
 	    /* if size changed, resize it, otherwise refresh */
 	    if (oldw != x_width(cur_win) || oldh != x_height(cur_win)) {
@@ -3342,10 +3918,11 @@ x_setfont(const char *fname)
 		x_flush();
 	    }
 
-	    code = 1;
+	    return 1;
 	}
+	return 0;
     }
-    returnCode(code);
+    return 1;
 }
 
 static void
@@ -3384,6 +3961,9 @@ x_open(void)
 	cur_win->scrollinfo = NULL;
 	cur_win->grips = NULL;
 #endif
+#if OL_WIDGETS
+	cur_win->sliders = NULL;
+#endif
 
 	/* main code assumes that it can access a cell at nrow x ncol */
 	term.maxcols = term.cols = (int) cur_win->cols;
@@ -3404,7 +3984,7 @@ CloseInputMethod(void)
 {
     if (cur_win->xim) {
 	XCloseIM(cur_win->xim);
-	cur_win->xim = NULL;
+	cur_win->xim = 0;
 	TRACE(("freed cur_win->xim\n"));
     }
 }
@@ -3421,7 +4001,7 @@ x_close(void)
 #if NO_LEAKS
 	XtDestroyWidget(cur_win->top_widget);
 #endif
-	cur_win->top_widget = NULL;
+	cur_win->top_widget = 0;
 	CloseInputMethod();
 	XtCloseDisplay(dpy);	/* need this if $xshell left subprocesses */
     }
@@ -3473,17 +4053,13 @@ wait_for_scroll(TextWindow tw)
     }
 }
 
-static int
-x_set_palette(const char *thePalette)
+static void
+x_setpal(const char *thePalette)
 {
-    int rc;
-
-    TRACE(("x_set_palette(%s)\n", thePalette));
-    rc = set_ctrans(thePalette);
+    TRACE(("x_setpal(%s)\n", thePalette));
+    set_ctrans(thePalette);
     x_touch(cur_win, 0, 0, cur_win->cols, cur_win->rows);
     x_flush();
-
-    return rc;
 }
 
 static void
@@ -3495,10 +4071,7 @@ x_scroll(int from, int to, int count)
     if (from == to)
 	return;			/* shouldn't happen */
 
-    XCopyArea(dpy,
-	      cur_win->win,
-	      cur_win->win,
-	      GetColorGC(cur_win, tt_info),
+    XCopyArea(dpy, cur_win->win, cur_win->win, cur_win->textgc,
 	      x_pos(cur_win, 0), y_pos(cur_win, from),
 	      x_width(cur_win), (UINT) (count * cur_win->char_height),
 	      x_pos(cur_win, 0), y_pos(cur_win, to));
@@ -3518,6 +4091,218 @@ x_scroll(int from, int to, int count)
     }
 }
 
+#define DRAW_WITH(func,buffer,offset) \
+	    func(dpy, cur_win->win, fore_gc, \
+		 (int) x_pos(cur_win, sc) + offset, fore_yy, \
+		 buffer, tlen)
+
+static void
+really_draw(GC fore_gc,
+	    VIDEO_TEXT * text,
+	    int tlen,
+	    VIDEO_ATTR attr,
+	    int sr,
+	    int sc)
+{
+    int fore_yy = text_y_pos(cur_win, sr);
+    char buffer[BUFSIZ];
+    XChar2b buffer2[sizeof(buffer)];
+
+    while (tlen > 0) {
+	Boolean wide = False;
+	Cardinal n;
+
+	for (n = 0; ((int) n < tlen) && (n < sizeof(buffer)); ++n) {
+#if OPT_MULTIBYTE
+	    if (text[n] >= 256) {
+		wide = True;
+		break;
+	    }
+#endif
+	    buffer[n] = (char) text[n];
+	}
+
+	if (wide) {
+
+	    for (n = 0; n < (Cardinal) tlen; ++n) {
+		buffer2[n].byte2 = CharOf(text[n]);
+		buffer2[n].byte1 = CharOf(text[n] >> 8);
+	    }
+
+	    DRAW_WITH(XDrawImageString16, buffer2, 0);
+	    if (attr & VABOLD)
+		DRAW_WITH(XDrawImageString16, buffer2, 1);
+	} else {
+	    DRAW_WITH(XDrawImageString, buffer, 0);
+	    if (attr & VABOLD)
+		DRAW_WITH(XDrawImageString, buffer, 1);
+	}
+	tlen -= (int) sizeof(buffer);
+	if (tlen > 0) {
+	    text += sizeof(buffer);
+	    sc += (int) sizeof(buffer);
+	}
+    }
+}
+
+/*
+ * The X protocol request for clearing a rectangle (PolyFillRectangle) takes
+ * 20 bytes.  It will therefore be more expensive to switch from drawing text
+ * to filling a rectangle unless the area to be cleared is bigger than 20
+ * spaces.  Actually it is worse than this if we are going to switch
+ * immediately to drawing text again since we incur a certain overhead
+ * (16 bytes) for each string to be displayed.  This is how the value of
+ * CLEAR_THRESH was computed (36 = 20+16).
+ *
+ * Kev's opinion:  If XDrawImageString is to be called, it is hardly ever
+ * worth it to call XFillRectangle.  The only time where it will be a big
+ * win is when the entire area to update is all spaces (in which case
+ * XDrawImageString will not be called).  The following code would be much
+ * cleaner, simpler, and easier to maintain if we were to just call
+ * XDrawImageString where there are non-spaces to be written and
+ * XFillRectangle when the entire region is to be cleared.
+ */
+#define	CLEAR_THRESH	36
+
+static void
+flush_line(VIDEO_TEXT * text, int len, UINT attr, int sr, int sc)
+{
+    GC fore_gc;
+    GC back_gc;
+    int fore_yy = text_y_pos(cur_win, sr);
+    int back_yy = y_pos(cur_win, sr);
+    VIDEO_TEXT *p;
+    int cc, tlen, i, startcol;
+    int fontchanged = FALSE;
+
+    if (attr == 0) {		/* This is the most common case, so we list it first */
+	fore_gc = cur_win->textgc;
+	back_gc = cur_win->reversegc;
+    } else if ((attr & VACURS) && cur_win->is_color_cursor) {
+	fore_gc = cur_win->cursgc;
+	back_gc = cur_win->revcursgc;
+	attr &= ~VACURS;
+    } else if (attr & VASEL) {
+	fore_gc = cur_win->selgc;
+	back_gc = cur_win->revselgc;
+    } else if (attr & VAMLFOC) {
+	fore_gc = back_gc = cur_win->modeline_focus_gc;
+    } else if (attr & VAML) {
+	fore_gc = back_gc = cur_win->modeline_gc;
+    } else if (attr & (VACOLOR)) {
+	int fg = ctrans[VCOLORNUM(attr)];
+	int bg = (gbcolor == ENUM_FCOLOR) ? fg : ctrans[gbcolor];
+
+	if (attr & (VAREV)) {
+	    fore_gc = get_color_gc(fg, False);
+	    back_gc = get_color_gc(bg, True);
+	    attr &= ~(VAREV);
+	} else {
+	    fore_gc = get_color_gc(fg, True);
+	    back_gc = get_color_gc(bg, False);
+	}
+    } else {
+	fore_gc = cur_win->textgc;
+	back_gc = cur_win->reversegc;
+    }
+
+    if (attr & (VAREV | VACURS)) {
+	GC tmp_gc = fore_gc;
+	fore_gc = back_gc;
+	back_gc = tmp_gc;
+    }
+
+    if (attr & (VABOLD | VAITAL)) {
+	XFontStruct *fsp = NULL;
+	if ((attr & (VABOLD | VAITAL)) == (VABOLD | VAITAL)) {
+	    if (!(cur_win->fsrch_flags & FSRCH_BOLDITAL)) {
+		if ((fsp = alternate_font("bold", "i")) != NULL
+		    || (fsp = alternate_font("bold", "o")) != NULL)
+		    cur_win->pfont_boldital = fsp;
+		cur_win->fsrch_flags |= FSRCH_BOLDITAL;
+	    }
+	    if (cur_win->pfont_boldital != NULL) {
+		XSetFont(dpy, fore_gc, cur_win->pfont_boldital->fid);
+		fontchanged = TRUE;
+		attr &= ~(VABOLD | VAITAL);	/* don't use fallback */
+	    } else
+		goto tryital;
+	} else if (attr & VAITAL) {
+	  tryital:
+	    if (!(cur_win->fsrch_flags & FSRCH_ITAL)) {
+		if ((fsp = alternate_font((char *) 0, "i")) != NULL
+		    || (fsp = alternate_font((char *) 0, "o")) != NULL)
+		    cur_win->pfont_ital = fsp;
+		cur_win->fsrch_flags |= FSRCH_ITAL;
+	    }
+	    if (cur_win->pfont_ital != NULL) {
+		XSetFont(dpy, fore_gc, cur_win->pfont_ital->fid);
+		fontchanged = TRUE;
+		attr &= ~VAITAL;	/* don't use fallback */
+	    } else if (attr & VABOLD)
+		goto trybold;
+	} else if (attr & VABOLD) {
+	  trybold:
+	    if (!(cur_win->fsrch_flags & FSRCH_BOLD)) {
+		cur_win->pfont_bold = alternate_font("bold", NULL);
+		cur_win->fsrch_flags |= FSRCH_BOLD;
+	    }
+	    if (cur_win->pfont_bold != NULL) {
+		XSetFont(dpy, fore_gc, cur_win->pfont_bold->fid);
+		fontchanged = TRUE;
+		attr &= ~VABOLD;	/* don't use fallback */
+	    }
+	}
+    }
+
+    /* break line into TextStrings and FillRects */
+    p = text;
+    cc = 0;
+    tlen = 0;
+    startcol = sc;
+    for (i = 0; i < len; i++) {
+	if (text[i] == ' ') {
+	    cc++;
+	    tlen++;
+	} else {
+	    if (cc >= CLEAR_THRESH) {
+		tlen -= cc;
+		really_draw(fore_gc, p, tlen, (VIDEO_ATTR) attr, sr, sc);
+		p += tlen + cc;
+		sc += tlen;
+		XFillRectangle(dpy, cur_win->win, back_gc,
+			       x_pos(cur_win, sc), back_yy,
+			       (UINT) (cc * cur_win->char_width),
+			       (UINT) (cur_win->char_height));
+		sc += cc;
+		tlen = 1;	/* starting new run */
+	    } else
+		tlen++;
+	    cc = 0;
+	}
+    }
+    if (cc >= CLEAR_THRESH) {
+	tlen -= cc;
+	really_draw(fore_gc, p, tlen, (VIDEO_ATTR) attr, sr, sc);
+	sc += tlen;
+	XFillRectangle(dpy, cur_win->win, back_gc,
+		       x_pos(cur_win, sc), back_yy,
+		       (UINT) (cc * cur_win->char_width),
+		       (UINT) (cur_win->char_height));
+    } else if (tlen > 0) {
+	really_draw(fore_gc, p, tlen, (VIDEO_ATTR) attr, sr, sc);
+    }
+    if (attr & (VAUL | VAITAL)) {
+	fore_yy += cur_win->char_descent - 1;
+	XDrawLine(dpy, cur_win->win, fore_gc,
+		  x_pos(cur_win, startcol), fore_yy,
+		  x_pos(cur_win, startcol + len) - 1, fore_yy);
+    }
+
+    if (fontchanged)
+	XSetFont(dpy, fore_gc, cur_win->pfont->fid);
+}
+
 /* See above comment regarding CLEAR_THRESH */
 #define NONDIRTY_THRESH 16
 
@@ -3533,7 +4318,7 @@ x_flush(void)
 
     /*
      * Write out cursor _before_ rest of the screen in order to avoid
-     * flickering / winking effect noticeable on some display servers.  This
+     * flickering / winking effect noticable on some display servers.  This
      * means that the old cursor position (if different from the current
      * one) will be cleared after the new cursor is displayed.
      */
@@ -3610,8 +4395,8 @@ x_flush(void)
 		c++;
 	    }
 	    /* write out the portion from sc thru ec */
-	    xvileDraw(dpy, cur_win, &CELL_TEXT(r, sc), ec - sc + 1,
-		      (UINT) VATTRIB(CELL_ATTR(r, sc)), r, sc);
+	    flush_line(&CELL_TEXT(r, sc), ec - sc + 1,
+		       (UINT) VATTRIB(CELL_ATTR(r, sc)), r, sc);
 	}
     }
     XFlush(dpy);
@@ -3720,7 +4505,7 @@ set_character_class_range(int low, int high, int value)
  */
 
 static int
-set_character_class(const char *s)
+set_character_class(char *s)
 {
     int i;			/* iterator, index into s */
     int len;			/* length of s */
@@ -3729,7 +4514,7 @@ set_character_class(const char *s)
     int base;			/* 8, 10, 16 (octal, decimal, hex) */
     int numbers;		/* count of numbers per range */
     int digits;			/* count of digits in a number */
-    static const char *errfmt = "xvile:  %s in range string \"%s\" (position %d)\n";
+    static char *errfmt = "xvile:  %s in range string \"%s\" (position %d)\n";
 
     if (!s || !s[0])
 	return -1;
@@ -3822,17 +4607,14 @@ pasting_utf8(TBUFF *p, int c)
     int result = FALSE;
     if (b_is_utfXX(curbp)) {
 	char temp[2];
-	int n, limit, len;
+	int n, limit;
 
 	temp[0] = (char) c;
-	if (vl_conv_to_utf32((UINT *) 0, temp, (B_COUNT) 6) > 0) {
+	if (vl_conv_to_utf32((UINT *) 0, temp, 6) > 0) {
 	    result = TRUE;
 	} else if ((limit = (int) tb_length(p)) > 0) {
 	    for (n = limit - 1; n > 0; --n) {
-		len = vl_conv_to_utf32((UINT *) 0,
-				       tb_values(p) + n,
-				       (B_COUNT) 6);
-		if (len > 0) {
+		if (vl_conv_to_utf32((UINT *) 0, tb_values(p) + n, 6) > 0) {
 		    result = TRUE;
 		    break;
 		}
@@ -3862,7 +4644,7 @@ add2paste(TBUFF **p, int c)
 	       !(isPrint(c) || PastingUTF8(*p, c))) {
 	(void) tb_append(p, quotec);
     }
-    result = (tb_append(p, c) != NULL);
+    result = (tb_append(p, c) != 0);
     TRACE2(("...added %d:%s\n", tb_length(*p), tb_visible(*p)));
     return result;
 }
@@ -3883,7 +4665,7 @@ static int
 copy_paste(TBUFF **p, char *value, size_t length)
 {
     WINDOW *wp = row2window(ttrow);
-    BUFFER *bp = valid_window(wp) ? wp->w_bufp : NULL;
+    BUFFER *bp = valid_window(wp) ? wp->w_bufp : 0;
     int status;
 
     if (valid_buffer(bp) && b_val(bp, MDVIEW))
@@ -3949,10 +4731,10 @@ GetSelectionTargets(void)
     if (result[0] == 0) {
 	Atom *tp = result;
 #if OPT_MULTIBYTE
-	*tp++ = GetAtom(UTF8_STRING);
-	*tp++ = GetAtom(COMPOUND_TEXT);
+	*tp++ = atom_UTF8_STRING;
+	*tp++ = atom_COMPOUND_TEXT;
 #endif
-	*tp++ = GetAtom(TEXT);
+	*tp++ = atom_TEXT;
 	*tp++ = XA_STRING;
 	*tp = None;
 #if OPT_TRACE
@@ -3966,7 +4748,7 @@ GetSelectionTargets(void)
 }
 
 static void
-insert_selection(Atom *selection, char *value, size_t length)
+insert_selection(Atom * selection, char *value, size_t length)
 {
     int do_ins;
     char *s = NULL;		/* stifle warning */
@@ -3974,7 +4756,7 @@ insert_selection(Atom *selection, char *value, size_t length)
     /* should be impossible to hit this with existing paste */
     /* XXX massive hack -- leave out 'i' if in prompt line */
     do_ins = !insertmode
-	&& (!onMsgRow(cur_win) || *selection == GetAtom(CLIPBOARD))
+	&& (!onMsgRow(cur_win) || *selection == atom_CLIPBOARD)
 	&& ((s = fnc2pstr(&f_insert_no_aindent)) != NULL);
 
     if (tb_init(&PasteBuf, esc_c)) {
@@ -3989,8 +4771,8 @@ insert_selection(Atom *selection, char *value, size_t length)
 static void
 x_get_selection(Widget w GCC_UNUSED,
 		XtPointer cldat,
-		Atom *selection,
-		Atom *target,
+		Atom * selection,
+		Atom * target,
 		XtPointer value,
 		ULONG * length,
 		int *format)
@@ -4001,18 +4783,18 @@ x_get_selection(Widget w GCC_UNUSED,
 	   visibleAtoms(*selection),
 	   visibleAtoms(*target),
 	   *format,
-	   length ? *length : 0));
+	   *length));
 
-    if (length != NULL && value != NULL) {
+    if (length != 0 && value != NULL) {
 	if (*format != 8) {
 	    kbd_alarm();	/* can't handle incoming data */
-	} else if (*target == XA_STRING || *target == GetAtom(TEXT)) {
+	} else if (*target == XA_STRING || *target == atom_TEXT) {
 	    insert_selection(selection, (char *) value, (size_t) *length);
 	    XtFree((char *) value);
 	} else
 #if OPT_MULTIBYTE
-	    if ((*target == GetAtom(COMPOUND_TEXT))
-		|| (*target == GetAtom(UTF8_STRING))) {
+	    if ((*target == atom_COMPOUND_TEXT)
+		|| (*target == atom_UTF8_STRING)) {
 	    XTextProperty text_prop;
 	    char **text_list = NULL;
 	    int text_list_count, n;
@@ -4055,7 +4837,7 @@ x_get_selection(Widget w GCC_UNUSED,
 	    kbd_alarm();	/* can't handle incoming data */
 	}
 	XtFree((char *) list);
-    } else if (cldat != NULL) {
+    } else if (cldat != 0) {
 	if (list->targets[0] != None) {
 	    Atom newTarget = list->targets[0];
 
@@ -4077,7 +4859,7 @@ x_paste_selection(Atom selection)
 {
     if (cur_win->have_selection && IsPrimary(selection)) {
 	/* local transfer */
-	UCHAR *data = NULL;
+	UCHAR *data = 0;
 	size_t len_st = 0;
 	ULONG len_ul;
 
@@ -4093,7 +4875,7 @@ x_paste_selection(Atom selection)
 			(XtPointer) data, &len_ul, &format);
     } else {
 	Atom *targets = GetSelectionTargets();
-	SelectionList *list = (void *) XtNew(SelectionList);
+	SelectionList *list = XtNew(SelectionList);
 	Time ev_time = XtLastTimestampProcessed(dpy);
 
 	list->targets = targets + 1;
@@ -4110,8 +4892,8 @@ x_paste_selection(Atom selection)
 static Boolean
 x_get_selected_text(UCHAR ** datp, size_t *lenp)
 {
-    UCHAR *data = NULL;
-    UCHAR *dp = NULL;
+    UCHAR *data = 0;
+    UCHAR *dp = 0;
     size_t length;
     KILL *kp;			/* pointer into kill register */
 
@@ -4125,8 +4907,8 @@ x_get_selected_text(UCHAR ** datp, size_t *lenp)
 	length += KbSize(SEL_KREG, kp);
     if (length == 0
 	|| (dp = data = (UCHAR *) XtMalloc((Cardinal) (length
-						       * sizeof(UCHAR)))) == NULL
-	|| (kp = kbs[SEL_KREG].kbufh) == NULL)
+						       * sizeof(UCHAR)))) == 0
+	|| (kp = kbs[SEL_KREG].kbufh) == 0)
 	return False;
 
     while (kp != NULL) {
@@ -4144,8 +4926,8 @@ x_get_selected_text(UCHAR ** datp, size_t *lenp)
 static Boolean
 x_get_clipboard_text(UCHAR ** datp, size_t *lenp)
 {
-    UCHAR *data = NULL;
-    UCHAR *dp = NULL;
+    UCHAR *data = 0;
+    UCHAR *dp = 0;
     size_t length;
     KILL *kp;			/* pointer into kill register */
 
@@ -4153,8 +4935,8 @@ x_get_clipboard_text(UCHAR ** datp, size_t *lenp)
 	length += KbSize(CLIP_KREG, kp);
     if (length == 0
 	|| (dp = data = (UCHAR *) XtMalloc((Cardinal) (length
-						       * sizeof(UCHAR)))) == NULL
-	|| (kp = kbs[CLIP_KREG].kbufh) == NULL)
+						       * sizeof(UCHAR)))) == 0
+	|| (kp = kbs[CLIP_KREG].kbufh) == 0)
 	return False;
 
     while (kp != NULL) {
@@ -4172,9 +4954,9 @@ x_get_clipboard_text(UCHAR ** datp, size_t *lenp)
 /* ARGSUSED */
 static Boolean
 x_convert_selection(Widget w GCC_UNUSED,
-		    Atom *selection,
-		    Atom *target,
-		    Atom *type,
+		    Atom * selection,
+		    Atom * target,
+		    Atom * type,
 		    XtPointer *value,
 		    ULONG * length,
 		    int *format)
@@ -4187,7 +4969,7 @@ x_convert_selection(Widget w GCC_UNUSED,
 	   visibleAtoms(*target)));
 
     if (!cur_win->have_selection && IsPrimary(*selection))
-	returnBoolean(False);
+	returnCode(False);
 
     /*
      * The ICCCM requires us to handle the following targets:  TARGETS,
@@ -4201,28 +4983,27 @@ x_convert_selection(Widget w GCC_UNUSED,
      * handled by the Xt intrinsics).
      */
 
-    if (*target == GetAtom(TARGETS)) {
+    if (*target == atom_TARGETS) {
 	Atom *tp;
 	Atom *sp;
 
 #define NTARGS 10
 
-	tp = (void *) XtMalloc((Cardinal) (NTARGS * sizeof(Atom)));
-	*(Atom **) value = tp;
+	*(Atom **) value = tp = (Atom *) XtMalloc(NTARGS * sizeof(Atom));
 
 	if (tp != NULL) {
-	    *tp++ = GetAtom(TARGETS);
-	    *tp++ = GetAtom(MULTIPLE);
-	    *tp++ = GetAtom(TIMESTAMP);
+	    *tp++ = atom_TARGETS;
+	    *tp++ = atom_MULTIPLE;
+	    *tp++ = atom_TIMESTAMP;
 	    for (sp = GetSelectionTargets(); *sp != None; ++sp)
 		*tp++ = *sp;
 
 	    *type = XA_ATOM;
 	    *length = (ULONG) (tp - *(Atom **) value);
-	    *format = 32;	/* width of the data being transferred */
+	    *format = 32;	/* width of the data being transfered */
 	    result = True;
 	}
-    } else if (*target == XA_STRING || *target == GetAtom(TEXT)) {
+    } else if (*target == XA_STRING || *target == atom_TEXT) {
 	*type = XA_STRING;
 	*format = 8;
 	if (IsPrimary(*selection))
@@ -4231,14 +5012,14 @@ x_convert_selection(Widget w GCC_UNUSED,
 	    result = x_get_clipboard_text((UCHAR **) value, (size_t *) length);
     }
 #if OPT_MULTIBYTE
-    else if (*target == GetAtom(UTF8_STRING)) {
+    else if (*target == atom_UTF8_STRING) {
 	*type = *target;
 	*format = 8;
 	if (IsPrimary(*selection))
 	    result = x_get_selected_text((UCHAR **) value, (size_t *) length);
 	else			/* CLIPBOARD */
 	    result = x_get_clipboard_text((UCHAR **) value, (size_t *) length);
-    } else if (*target == GetAtom(COMPOUND_TEXT)) {
+    } else if (*target == atom_COMPOUND_TEXT) {
 	*type = *target;
 	*format = 8;
 	if (IsPrimary(*selection))
@@ -4248,13 +5029,13 @@ x_convert_selection(Widget w GCC_UNUSED,
     }
 #endif /* OPT_MULTIBYTE */
 
-    returnBoolean(result);
+    returnCode(result);
 }
 
 /* ARGSUSED */
 static void
 x_lose_selection(Widget w GCC_UNUSED,
-		 Atom *selection)
+		 Atom * selection)
 {
     if (IsPrimary(*selection)) {
 	cur_win->have_selection = False;
@@ -4315,11 +5096,10 @@ scroll_selection(XtPointer rowcol,
 
     row = (((long) rowcol) >> 16) & 0xffff;
     col = ((long) rowcol) & 0xffff;
-#define sign_extend16(n) \
-    	if ((n) & 0x8000) \
-		n = n | (int)((unsigned)(~0) << 16)
-    sign_extend16(row);
-    sign_extend16(col);
+    if (row & 0x8000)
+	row |= -1 << 16;
+    if (col & 0x8000)
+	col |= -1 << 16;
     extend_selection(cur_win, row, col, TRUE);
 }
 
@@ -4418,7 +5198,7 @@ multi_click(TextWindow tw, int nr, int nc)
 
     tw->numclicks++;
 
-    if ((wp = row2window(nr)) != NULL && nr == mode_row(wp)) {
+    if ((wp = row2window(nr)) != 0 && nr == mode_row(wp)) {
 	set_curwp(wp);
 	sel_release();
 	(void) update(TRUE);
@@ -4519,7 +5299,7 @@ start_selection(TextWindow tw, XButtonPressedEvent * ev, int nr, int nc)
 	tw->numclicks = 1;
 	tw->was_on_msgline = onMsgRow(tw);
 
-	if ((wp = row2window(nr)) != NULL) {
+	if ((wp = row2window(nr)) != 0) {
 	    set_curwp(wp);
 	}
 	tw->prevDOT = DOT;
@@ -4536,7 +5316,7 @@ start_selection(TextWindow tw, XButtonPressedEvent * ev, int nr, int nc)
 	 */
 	if (reading_msg_line) {
 	    /* EMPTY */ ;
-	} else if (wp != NULL && nr == mode_row(wp)) {
+	} else if (wp != 0 && nr == mode_row(wp)) {
 	    (void) update(TRUE);
 	} else if (setcursor(nr, nc)) {
 	    if (!cur_win->persistent_selections) {
@@ -4573,7 +5353,7 @@ copy_to_clipboard(int f GCC_UNUSED, int n GCC_UNUSED)
     }
 
     sel_yank(CLIP_KREG);
-    x_own_selection(GetAtom(CLIPBOARD));
+    x_own_selection(atom_CLIPBOARD);
 
     return TRUE;
 }
@@ -4582,7 +5362,7 @@ copy_to_clipboard(int f GCC_UNUSED, int n GCC_UNUSED)
 int
 paste_from_clipboard(int f GCC_UNUSED, int n GCC_UNUSED)
 {
-    x_paste_selection(GetAtom(CLIPBOARD));
+    x_paste_selection(atom_CLIPBOARD);
     return TRUE;
 }
 
@@ -4618,8 +5398,8 @@ compress_motion(XMotionEvent * ev)
 static void
 x_process_event(Widget w GCC_UNUSED,
 		XtPointer unused GCC_UNUSED,
-		XEvent *ev,
-		Boolean *continue_to_dispatch GCC_UNUSED)
+		XEvent * ev,
+		Boolean * continue_to_dispatch GCC_UNUSED)
 {
     int sc, sr;
     UINT ec, er;
@@ -4648,8 +5428,7 @@ x_process_event(Widget w GCC_UNUSED,
 
     case VisibilityNotify:
 	cur_win->visibility = ev->xvisibility.state;
-	XSetGraphicsExposures(dpy,
-			      GetColorGC(cur_win, tt_info),
+	XSetGraphicsExposures(dpy, cur_win->textgc,
 			      cur_win->visibility != VisibilityUnobscured);
 	break;
 
@@ -4723,7 +5502,7 @@ x_process_event(Widget w GCC_UNUSED,
 	    x_paste_selection(XA_PRIMARY);
 	    break;
 	case Button3:		/* end/extend selection */
-	    if (((wp = row2window(nr)) != NULL) && sel_buffer() == wp->w_bufp)
+	    if (((wp = row2window(nr)) != 0) && sel_buffer() == wp->w_bufp)
 		(void) set_curwp(wp);
 	    if (ev->xbutton.state & ControlMask)
 		(void) sel_setshape(rgn_RECTANGLE);
@@ -4783,8 +5562,8 @@ x_process_event(Widget w GCC_UNUSED,
 static void
 x_configure_window(Widget w GCC_UNUSED,
 		   XtPointer unused GCC_UNUSED,
-		   XEvent *ev,
-		   Boolean *continue_to_dispatch GCC_UNUSED)
+		   XEvent * ev,
+		   Boolean * continue_to_dispatch GCC_UNUSED)
 {
     int nr, nc;
     Dimension new_width, new_height;
@@ -4857,6 +5636,9 @@ x_configure_window(Widget w GCC_UNUSED,
     XtVaSetValues(cur_win->pane,
 #if !OPT_KEV_SCROLLBARS && !OPT_XAW_SCROLLBARS
 		  Nval(XtNwidth, cur_win->pane_width),
+#if OL_WIDGETS
+		  Nval(XtNheight, new_height),
+#endif /* OL_WIDGETS */
 #else /* OPT_KEV_SCROLLBARS */
 		  Nval(XtNx, (cur_win->scrollbar_on_left
 			      ? 0
@@ -4936,6 +5718,9 @@ check_scrollbar_allocs(void)
     if (newmax > oldmax) {
 
 	GROW(cur_win->scrollbars, Widget, oldmax, newmax);
+#if OL_WIDGETS
+	GROW(cur_win->sliders, Widget, oldmax, newmax);
+#endif
 #if OPT_KEV_SCROLLBARS || OPT_XAW_SCROLLBARS
 	GROW(cur_win->scrollinfo, ScrollInfo, oldmax, newmax);
 	GROW(cur_win->grips, Widget, oldmax, newmax);
@@ -4948,8 +5733,8 @@ check_scrollbar_allocs(void)
 
 static void
 configure_bar(Widget w,
-	      XEvent *event,
-	      String *params,
+	      XEvent * event,
+	      String * params,
 	      Cardinal *num_params)
 {
     WINDOW *wp;
@@ -4995,8 +5780,8 @@ configure_bar(Widget w,
 static void
 pane_button(Widget w GCC_UNUSED,
 	    XtPointer unused GCC_UNUSED,
-	    XEvent *ev GCC_UNUSED,
-	    Boolean *continue_to_dispatch GCC_UNUSED)
+	    XEvent * ev GCC_UNUSED,
+	    Boolean * continue_to_dispatch GCC_UNUSED)
 {
     lookfor_sb_resize = TRUE;
 }
@@ -5006,8 +5791,8 @@ pane_button(Widget w GCC_UNUSED,
 static void
 x_change_focus(Widget w GCC_UNUSED,
 	       XtPointer unused GCC_UNUSED,
-	       XEvent *ev,
-	       Boolean *continue_to_dispatch GCC_UNUSED)
+	       XEvent * ev,
+	       Boolean * continue_to_dispatch GCC_UNUSED)
 {
     static int got_focus_event = FALSE;
 
@@ -5025,7 +5810,7 @@ x_change_focus(Widget w GCC_UNUSED,
 	cur_win->show_cursor = True;
 #if MOTIF_WIDGETS
 	XmProcessTraversal(cur_win->screen, XmTRAVERSE_CURRENT);
-#else /* NO_WIDGETS */
+#else /* OL_WIDGETS || NO_WIDGETS */
 	XtSetKeyboardFocus(w, cur_win->screen);
 #endif
 	x_flush();
@@ -5051,12 +5836,12 @@ x_change_focus(Widget w GCC_UNUSED,
 static void
 x_wm_delwin(Widget w GCC_UNUSED,
 	    XtPointer unused GCC_UNUSED,
-	    XEvent *ev,
-	    Boolean *continue_to_dispatch GCC_UNUSED)
+	    XEvent * ev,
+	    Boolean * continue_to_dispatch GCC_UNUSED)
 {
     if (ev->type == ClientMessage
-	&& ev->xclient.message_type == GetAtom(WM_PROTOCOLS)
-	&& (Atom) ev->xclient.data.l[0] == GetAtom(WM_DELETE_WINDOW)) {
+	&& ev->xclient.message_type == atom_WM_PROTOCOLS
+	&& (Atom) ev->xclient.data.l[0] == atom_WM_DELETE_WINDOW) {
 	quit(FALSE, 0);		/* quit might not return */
 	(void) update(TRUE);
     }
@@ -5165,7 +5950,7 @@ x_has_events(void)
 	x_set_watch_cursor(TRUE);
 	cur_win->want_to_work = FALSE;
     }
-    return (int) (XtAppPending(cur_win->app_context) & XtIMXEvent);
+    return (XtAppPending(cur_win->app_context) & XtIMXEvent);
 }
 
 static void
@@ -5212,7 +5997,7 @@ evqempty(void)
 }
 
 static void
-evqadd(const XEvent *evp)
+evqadd(const XEvent * evp)
 {
     struct eventqueue *newentry;
     newentry = typealloc(struct eventqueue);
@@ -5229,7 +6014,7 @@ evqadd(const XEvent *evp)
 }
 
 static void
-evqdel(XEvent *evp)
+evqdel(XEvent * evp)
 {
     struct eventqueue *delentry = evqhead;
     if (delentry == NULL)
@@ -5306,9 +6091,8 @@ display_cursor(XtPointer client_data GCC_UNUSED, XtIntervalId * idp)
 	return;
     }
 
-    if (IS_DIRTY(ttrow, the_col) && idp == (XtIntervalId *) 0) {
+    if (IS_DIRTY(ttrow, the_col) && idp == (XtIntervalId *) 0)
 	return;
-    }
 
     if (cur_win->show_cursor) {
 	if (cur_win->blink_interval > 0
@@ -5323,9 +6107,8 @@ display_cursor(XtPointer client_data GCC_UNUSED, XtIntervalId * idp)
 				    (XtPointer) 0);
 		cur_win->blink_status ^= BLINK_TOGGLE;
 		am_blinking = TRUE;
-	    } else {
+	    } else
 		cur_win->blink_status &= ~BLINK_TOGGLE;
-	    }
 	} else {
 	    am_blinking = FALSE;
 	    cur_win->blink_status &= ~BLINK_TOGGLE;
@@ -5337,11 +6120,11 @@ display_cursor(XtPointer client_data GCC_UNUSED, XtIntervalId * idp)
 
 	MARK_CELL_DIRTY(ttrow, the_col);
 	MARK_LINE_DIRTY(ttrow);
-	xvileDraw(dpy, cur_win, &CELL_TEXT(ttrow, the_col), 1,
-		  (UINT) (VATTRIB(CELL_ATTR(ttrow, the_col))
-			  ^ ((cur_win->blink_status & BLINK_TOGGLE)
-			     ? 0 : VACURS)),
-		  ttrow, the_col);
+	flush_line(&CELL_TEXT(ttrow, the_col), 1,
+		   (UINT) (VATTRIB(CELL_ATTR(ttrow, the_col))
+			   ^ ((cur_win->blink_status & BLINK_TOGGLE)
+			      ? 0 : VACURS)),
+		   ttrow, the_col);
     } else {
 	/* This code will get called when the window no longer has the focus. */
 	if (cur_win->blink_id != (XtIntervalId) 0) {
@@ -5351,12 +6134,12 @@ display_cursor(XtPointer client_data GCC_UNUSED, XtIntervalId * idp)
 	am_blinking = FALSE;
 	MARK_CELL_DIRTY(ttrow, the_col);
 	MARK_LINE_DIRTY(ttrow);
-	xvileDraw(dpy, cur_win, &CELL_TEXT(ttrow, the_col), 1,
-		  (UINT) VATTRIB(CELL_ATTR(ttrow, the_col)), ttrow, the_col);
+	flush_line(&CELL_TEXT(ttrow, the_col), 1,
+		   (UINT) VATTRIB(CELL_ATTR(ttrow, the_col)), ttrow, the_col);
 	XDrawRectangle(dpy, cur_win->win,
 		       (IS_REVERSED(ttrow, the_col)
-			? GetColorGC(cur_win, cc_info)
-			: GetColorGC(cur_win, rc_info)),
+			? cur_win->cursgc
+			: cur_win->revcursgc),
 		       x_pos(cur_win, ttcol), y_pos(cur_win, ttrow),
 		       (UINT) (cur_win->char_width - 1),
 		       (UINT) (cur_win->char_height - 1));
@@ -5534,8 +6317,8 @@ x_typahead_timeout(XtPointer flagp, XtIntervalId * id GCC_UNUSED)
 static void
 x_key_press(Widget w GCC_UNUSED,
 	    XtPointer unused GCC_UNUSED,
-	    XEvent *ev,
-	    Boolean *continue_to_dispatch GCC_UNUSED)
+	    XEvent * ev,
+	    Boolean * continue_to_dispatch GCC_UNUSED)
 {
     char buffer[128];
     KeySym keysym;
@@ -5644,19 +6427,19 @@ x_key_press(Widget w GCC_UNUSED,
 	    if (b_is_utfXX(curbp)) {
 		num = Xutf8LookupString(cur_win->imInputContext,
 					(XKeyPressedEvent *) ev, buffer,
-					(int) sizeof(buffer), &keysym,
+					sizeof(buffer), &keysym,
 					&status_return);
 	    } else
 #endif
 	    {
 		num = XmbLookupString(cur_win->imInputContext,
 				      (XKeyPressedEvent *) ev, buffer,
-				      (int) sizeof(buffer), &keysym,
+				      sizeof(buffer), &keysym,
 				      &status_return);
 	    }
 	} else {
 	    num = XLookupString((XKeyPressedEvent *) ev, buffer,
-				(int) sizeof(buffer), &keysym,
+				sizeof(buffer), &keysym,
 				(XComposeStatus *) 0);
 	}
     } else {
@@ -5751,26 +6534,26 @@ x_rev(UINT state)
 
 #if OPT_COLOR
 static void
-x_set_foreground(int color)
+x_fcol(int color)
 {
-    TRACE(("x_set_foreground(%d), cur_win->fg was %#lx\n", color, cur_win->fg));
+    TRACE(("x_fcol(%d), cur_win->fg was %#lx\n", color, cur_win->fg));
     cur_win->fg = (color >= 0 && color < NCOLORS)
 	? cur_win->colors_fg[color]
 	: cur_win->default_fg;
     TRACE(("...cur_win->fg = %#lx%s\n", cur_win->fg, cur_win->fg ==
 	   cur_win->default_fg ? " (default)" : ""));
 
-    XSetForeground(dpy, GetColorGC(cur_win, tt_info), cur_win->fg);
-    XSetBackground(dpy, GetColorGC(cur_win, rt_info), cur_win->fg);
+    XSetForeground(dpy, cur_win->textgc, cur_win->fg);
+    XSetBackground(dpy, cur_win->reversegc, cur_win->fg);
 
     x_touch(cur_win, 0, 0, cur_win->cols, cur_win->rows);
     x_flush();
 }
 
 static void
-x_set_background(int color)
+x_bcol(int color)
 {
-    TRACE(("x_set_background(%d), cur_win->bg was %#lx\n", color, cur_win->bg));
+    TRACE(("x_bcol(%d), cur_win->bg was %#lx\n", color, cur_win->bg));
     cur_win->bg = (color >= 0 && color < NCOLORS)
 	? (SamePixel(cur_win->colors_bg[color], cur_win->default_bg)
 	   ? cur_win->colors_fg[color]
@@ -5781,13 +6564,13 @@ x_set_background(int color)
 	   cur_win->bg == cur_win->default_bg ? " (default)" : ""));
 
     if (color == ENUM_FCOLOR) {
-	XSetBackground(dpy, GetColorGC(cur_win, tt_info), cur_win->default_bg);
-	XSetForeground(dpy, GetColorGC(cur_win, rt_info), cur_win->default_bg);
+	XSetBackground(dpy, cur_win->textgc, cur_win->default_bg);
+	XSetForeground(dpy, cur_win->reversegc, cur_win->default_bg);
     } else {
-	XSetBackground(dpy, GetColorGC(cur_win, tt_info), cur_win->bg);
-	XSetForeground(dpy, GetColorGC(cur_win, rt_info), cur_win->bg);
+	XSetBackground(dpy, cur_win->textgc, cur_win->bg);
+	XSetForeground(dpy, cur_win->reversegc, cur_win->bg);
     }
-    cur_win->bg_follows_fg = (Boolean) (color == ENUM_FCOLOR);
+    cur_win->bg_follows_fg = (color == ENUM_FCOLOR);
     TRACE(("...cur_win->bg_follows_fg = %#x\n", cur_win->bg_follows_fg));
 
     reset_color_gcs();
@@ -5801,14 +6584,15 @@ x_set_background(int color)
 }
 
 static void
-x_set_cursor_color(int color)
+x_ccol(int color)
 {
+    XGCValues gcvals;
+    ULONG gcmask;
     Pixel fg, bg;
-    ColorGC *data;
 
-    TRACE((T_CALLED "x_set_cursor_color(%d)\n", color));
-    if (cur_win->is_color_cursor == False) {
-	if (!color_cursor(cur_win)) {
+    TRACE(("x_ccol(%d)\n", color));
+    if (cur_win->is_color_cursor == FALSE) {
+	if (!color_cursor()) {
 	    gccolor = -1;
 	    return;
 	}
@@ -5826,21 +6610,14 @@ x_set_cursor_color(int color)
 	   : cur_win->colors_bg[color])
 	: cur_win->cursor_bg;
 
-    data = &cur_win->cc_info;
-    data->state = sgINIT;
-    data->gcmask = GCForeground | GCBackground;
-    data->gcvals.background = bg;
-    data->gcvals.foreground = fg;
-    makeColorGC(cur_win, data);
+    gcmask = GCForeground | GCBackground;
+    gcvals.background = bg;
+    gcvals.foreground = fg;
+    XChangeGC(dpy, cur_win->cursgc, gcmask, &gcvals);
 
-    data = &cur_win->rc_info;
-    data->state = sgINIT;
-    data->gcmask = GCForeground | GCBackground;
-    data->gcvals.foreground = bg;
-    data->gcvals.background = fg;
-    makeColorGC(cur_win, data);
-
-    returnVoid();
+    gcvals.foreground = bg;
+    gcvals.background = fg;
+    XChangeGC(dpy, cur_win->revcursgc, gcmask, &gcvals);
 }
 
 #endif
@@ -5853,29 +6630,19 @@ x_beep(void)
     if (global_g_val(GMDFLASH)) {
 	beginDisplay();
 	XGrabServer(dpy);
-	XSetFunction(dpy, GetColorGC(cur_win, tt_info), GXxor);
-	XSetBackground(dpy, GetColorGC(cur_win, tt_info), 0L);
-	XSetForeground(dpy,
-		       GetColorGC(cur_win, tt_info),
-		       cur_win->fg ^ cur_win->bg);
-	XFillRectangle(dpy,
-		       cur_win->win,
-		       GetColorGC(cur_win, tt_info),
-		       0, 0,
-		       x_width(cur_win),
-		       x_height(cur_win));
+	XSetFunction(dpy, cur_win->textgc, GXxor);
+	XSetBackground(dpy, cur_win->textgc, 0L);
+	XSetForeground(dpy, cur_win->textgc, cur_win->fg ^ cur_win->bg);
+	XFillRectangle(dpy, cur_win->win, cur_win->textgc,
+		       0, 0, x_width(cur_win), x_height(cur_win));
 	XFlush(dpy);
 	catnap(90, FALSE);
-	XFillRectangle(dpy,
-		       cur_win->win,
-		       GetColorGC(cur_win, tt_info),
-		       0, 0,
-		       x_width(cur_win),
-		       x_height(cur_win));
+	XFillRectangle(dpy, cur_win->win, cur_win->textgc,
+		       0, 0, x_width(cur_win), x_height(cur_win));
 	XFlush(dpy);
-	XSetFunction(dpy, GetColorGC(cur_win, tt_info), GXcopy);
-	XSetBackground(dpy, GetColorGC(cur_win, tt_info), cur_win->bg);
-	XSetForeground(dpy, GetColorGC(cur_win, tt_info), cur_win->fg);
+	XSetFunction(dpy, cur_win->textgc, GXcopy);
+	XSetBackground(dpy, cur_win->textgc, cur_win->bg);
+	XSetForeground(dpy, cur_win->textgc, cur_win->fg);
 	XUngrabServer(dpy);
 	endofDisplay();
     } else
@@ -5907,7 +6674,7 @@ x_set_icon_name(const char *name)
 {
     XTextProperty Prop;
 
-    (void) strncpy0(x_icon_name, name, (size_t) NFILEN);
+    (void) strncpy0(x_icon_name, name, NFILEN);
 
     Prop.value = (UCHAR *) x_icon_name;
     Prop.encoding = XA_STRING;
@@ -5915,7 +6682,6 @@ x_set_icon_name(const char *name)
     Prop.nitems = strlen(x_icon_name);
 
     XSetWMIconName(dpy, XtWindow(cur_win->top_widget), &Prop);
-    TRACE(("x_set_icon_name(%s)\n", name));
 }
 
 char *
@@ -5927,7 +6693,7 @@ x_get_icon_name(void)
 void
 x_set_window_name(const char *name)
 {
-    if (name != NULL && strcmp(name, x_get_window_name())) {
+    if (name != 0 && strcmp(name, x_get_window_name())) {
 #ifdef USE_SET_WM_NAME
 	XTextProperty Prop;
 
@@ -5939,7 +6705,6 @@ x_set_window_name(const char *name)
 	Prop.nitems = strlen(x_window_name);
 
 	XSetWMName(dpy, XtWindow(cur_win->top_widget), &Prop);
-	TRACE(("x_set_window_name(%s)\n", name));
 #else
 	XtVaSetValues(cur_win->top_widget,
 		      Nval(XtNtitle, name),
@@ -5948,19 +6713,18 @@ x_set_window_name(const char *name)
     }
 }
 
-const char *
+char *
 x_get_window_name(void)
 {
-    const char *result;
+    char *result;
 #ifdef USE_SET_WM_NAME
     result = x_window_name;
 #else
     result = "";
-    if (cur_win->top_widget != NULL) {
+    if (cur_win->top_widget != 0) {
 	XtVaGetValues(cur_win->top_widget, XtNtitle, &result, NULL);
     }
 #endif
-    TRACE(("x_get_window_name(%s)\n", result));
     return result;
 }
 
@@ -6005,12 +6769,12 @@ x_unwatchfd(int fd GCC_UNUSED, long id)
  * file if desired.
  */
 
-#if OPT_COLOR&&!SMALLER
 static XtIntervalId x_autocolor_timeout_id;
 
 static void
-x_start_autocolor_timer(void)
+x_start_autocolor_timer()
 {
+#if OPT_COLOR&&!SMALLER
     int millisecs = global_b_val(VAL_AUTOCOLOR);
     x_stop_autocolor_timer();
     if (millisecs > 0)
@@ -6018,10 +6782,11 @@ x_start_autocolor_timer(void)
 						 (ULONG) millisecs,
 						 x_autocolor_timeout,
 						 (XtPointer) 0);
+#endif
 }
 
 static void
-x_stop_autocolor_timer(void)
+x_stop_autocolor_timer()
 {
     if (x_autocolor_timeout_id != 0)
 	XtRemoveTimeOut(x_autocolor_timeout_id);
@@ -6046,50 +6811,44 @@ x_autocolor_timeout(XtPointer data GCC_UNUSED, XtIntervalId * id GCC_UNUSED)
 	ev.window = cur_win->win;
 	ev.message_type = None;
 	ev.format = 8;
-	XSendEvent(dpy, cur_win->win, False, (long) 0, (XEvent *) &ev);
+	XSendEvent(dpy, cur_win->win, False, (long) 0, (XEvent *) & ev);
     }
 }
-#endif /* OPT_COLOR&&!SMALLER */
 
 /*
  * Return true if the given character would be printable.  Not all characters
  * are printable.
+ *
+ * FIXME: this is only used in vl_ctype_init for handling 0-255 codes.
  */
 int
 gui_isprint(int ch)
 {
-    XVileFont *pf = cur_win->fonts.norm;
     int result = TRUE;
+    XFontStruct *pf = cur_win->pfont;
+    XCharStruct *pc = 0;
+    static XCharStruct dft, *tmp = &dft;
 
-    if (ch >= 0 && pf != NULL) {
-#ifdef XRENDERFONT
-	if (!XftGlyphExists(dpy, pf, (FcChar32) ch)) {
-	    result = FALSE;
-	}
-#else
-	static XCharStruct dft, *tmp = &dft;
-	XCharStruct *pc = NULL;
+    if (ch >= 0
+	&& pf != 0
+	&& pf->per_char != 0
+	&& !pf->all_chars_exist) {
 
-	if (pf->per_char != NULL
-	    && !pf->all_chars_exist) {
-
-	    if (pf->max_byte1 == 0) {
-		if (ch > 255) {
-		    result = FALSE;
-		} else {
-		    CI_GET_CHAR_INFO_1D(pf, (unsigned) ch, tmp, pc);
-		    if (pc == NULL || CI_NONEXISTCHAR(pc)) {
-			result = FALSE;
-		    }
-		}
+	if (pf->max_byte1 == 0) {
+	    if (ch > 255) {
+		result = FALSE;
 	    } else {
-		CI_GET_CHAR_INFO_2D(pf, CharOf((ch >> 8)), CharOf(ch), tmp, pc);
-		if (pc == NULL || CI_NONEXISTCHAR(pc)) {
+		CI_GET_CHAR_INFO_1D(pf, (unsigned) ch, tmp, pc);
+		if (pc == 0 || CI_NONEXISTCHAR(pc)) {
 		    result = FALSE;
 		}
 	    }
+	} else {
+	    CI_GET_CHAR_INFO_2D(pf, CharOf((ch >> 8)), CharOf(ch), tmp, pc);
+	    if (pc == 0 || CI_NONEXISTCHAR(pc)) {
+		result = FALSE;
+	    }
 	}
-#endif
     }
     return result;
 }
@@ -6104,7 +6863,7 @@ gui_isprint(int ch)
 #define MyStackAlloc(size, stack_cache_array)     \
     ((size) <= sizeof(stack_cache_array)	  \
     ?  (XtPointer)(stack_cache_array)		  \
-    :  (XtPointer)malloc((size_t)(size)))
+    :  (XtPointer)malloc((unsigned)(size)))
 
 #define MyStackFree(pointer, stack_cache_array) \
     if ((pointer) != ((char *)(stack_cache_array))) free(pointer)
@@ -6135,7 +6894,7 @@ PreeditPosition(void)
 #define USE_XIM_INSTANTIATE_CB
 
 static void
-xim_instantiate_cb(Display *display,
+xim_instantiate_cb(Display * display,
 		   XPointer client_data GCC_UNUSED,
 		   XPointer call_data GCC_UNUSED)
 {
@@ -6164,7 +6923,7 @@ xim_real_init(void)
 {
     unsigned i, j;
     char *p, *s, *t, *ns, *end, buf[32];
-    char *save_ctype = NULL;
+    char *save_ctype = 0;
     XIMStyle input_style = 0;
     XIMStyles *xim_styles = NULL;
     Bool found;
@@ -6212,20 +6971,20 @@ xim_real_init(void)
 		    s++;
 		if (!*s)
 		    break;
-		if ((ns = end = strchr(s, ',')) == NULL)
+		if ((ns = end = strchr(s, ',')) == 0)
 		    end = s + strlen(s);
 		while ((end != s) && isSpace(CharOf(end[-1])))
 		    end--;
 
 		if (end != s) {
 		    strcpy(t, "@im=");
-		    strncat(t, s, (size_t) (end - s));
+		    strncat(t, s, (unsigned) (end - s));
 
-		    if ((p = XSetLocaleModifiers(t)) != NULL && *p
+		    if ((p = XSetLocaleModifiers(t)) != 0 && *p
 			&& (cur_win->xim = XOpenIM(XtDisplay(cur_win->screen),
 						   NULL,
 						   NULL,
-						   NULL)) != NULL)
+						   NULL)) != 0)
 			break;
 
 		}
@@ -6262,7 +7021,7 @@ xim_real_init(void)
 	    s++;
 	if (!*s)
 	    break;
-	if ((ns = end = strchr(s, ',')) != NULL)
+	if ((ns = end = strchr(s, ',')) != 0)
 	    ns++;
 	else
 	    end = s + strlen(s);
@@ -6270,10 +7029,10 @@ xim_real_init(void)
 	    end--;
 
 	if (end != s) {		/* just in case we have a spurious comma */
-	    TRACE(("looking for style '%.*s'\n", (int) (end - s), s));
+	    TRACE(("looking for style '%.*s'\n", end - s, s));
 	    for (i = 0; i < XtNumber(known_style); i++) {
 		if ((int) strlen(known_style[i].name) == (end - s)
-		    && !strncmp(s, known_style[i].name, (size_t) (end - s))) {
+		    && !strncmp(s, known_style[i].name, (unsigned) (end - s))) {
 		    input_style = known_style[i].code;
 		    for (j = 0; j < xim_styles->count_styles; j++) {
 			if (input_style == xim_styles->supported_styles[j]) {
@@ -6388,7 +7147,7 @@ xim_real_init(void)
     }
 #endif
 
-    if (save_ctype != NULL)
+    if (save_ctype != 0)
 	setlocale(LC_CTYPE, save_ctype);
 
     returnVoid();
@@ -6421,57 +7180,6 @@ x_move(int row, int col)
     PreeditPosition();
 }
 
-static const char *
-ae_names(XVileAtom n)
-{
-    const char *result = NULL;
-
-#define DATA(name) case ae ## name: result = #name; break
-    switch (n) {
-    case aeMAX:
-	break;
-	DATA(AVERAGE_WIDTH);
-	DATA(CHARSET_ENCODING);
-	DATA(CHARSET_REGISTRY);
-	DATA(CLIPBOARD);
-	DATA(COMPOUND_TEXT);
-	DATA(FONT);
-	DATA(FOUNDRY);
-	DATA(MULTIPLE);
-	DATA(NONE);
-	DATA(PIXEL_SIZE);
-	DATA(RESOLUTION_X);
-	DATA(RESOLUTION_Y);
-	DATA(SETWIDTH_NAME);
-	DATA(SLANT);
-	DATA(SPACING);
-	DATA(TARGETS);
-	DATA(TEXT);
-	DATA(TIMESTAMP);
-	DATA(UTF8_STRING);
-	DATA(WEIGHT_NAME);
-	DATA(WM_DELETE_WINDOW);
-	DATA(WM_PROTOCOLS);
-    }
-#undef DATA
-    return result;
-}
-
-Atom
-xvileAtom(XVileAtom n)
-{
-    static Atom xvile_atoms[aeMAX];
-    Atom result = None;
-
-    if (n < aeMAX) {
-	if (xvile_atoms[n] == None) {
-	    xvile_atoms[n] = XInternAtom(dpy, ae_names(n), False);
-	}
-	result = xvile_atoms[n];
-    }
-    return result;
-}
-
 TERM term =
 {
     0,				/* these four values are set dynamically at
@@ -6498,10 +7206,10 @@ TERM term =
     x_beep,
     x_rev,
     nullterm_setdescrip,
-    x_set_foreground,
-    x_set_background,
-    x_set_palette,
-    x_set_cursor_color,
+    x_fcol,
+    x_bcol,
+    x_setpal,
+    x_ccol,
     x_scroll,
     x_flush,
     nullterm_icursor,

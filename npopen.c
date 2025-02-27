@@ -1,7 +1,7 @@
 /*	npopen:  like popen, but grabs stderr, too
  *		written by John Hutchinson, heavily modified by Paul Fox
  *
- * $Id: npopen.c,v 1.103 2025/01/26 14:38:58 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/npopen.c,v 1.98 2009/10/31 17:03:26 tom Exp $
  *
  */
 
@@ -50,7 +50,7 @@ static void exec_sh_c(char *cmd);
 FILE *
 npopen(char *cmd, const char *type)
 {
-    FILE *ff = NULL;
+    FILE *ff;
 
     if (*type != 'r' && *type != 'w')
 	return NULL;
@@ -117,7 +117,7 @@ inout_popen(FILE **fr, FILE **fw, char *cmd)
 	if (fw) {
 	    (void) close(0);
 	    if (dup(wp[0]) != 0) {
-		IGNORE_RC(write(2, "dup 0 failed\r\n", (size_t) 15));
+		IGNORE_RC( write(2, "dup 0 failed\r\n", 15));
 		exit(-1);
 	    }
 	}
@@ -125,12 +125,12 @@ inout_popen(FILE **fr, FILE **fw, char *cmd)
 	if (fr) {
 	    (void) close(1);
 	    if (dup(rp[1]) != 1) {
-		IGNORE_RC(write(2, "dup 1 failed\r\n", (size_t) 15));
+		IGNORE_RC( write(2, "dup 1 failed\r\n", 15));
 		exit(-1);
 	    }
 	    (void) close(2);
 	    if (dup(rp[1]) != 2) {
-		IGNORE_RC(write(1, "dup 2 failed\r\n", (size_t) 15));
+		IGNORE_RC( write(1, "dup 2 failed\r\n", 15));
 		exit(-1);
 	    }
 	} else {
@@ -149,7 +149,7 @@ npclose(FILE *fp)
 {
     int child;
 
-    if (fp != NULL) {
+    if (fp != 0) {
 	(void) fclose(fp);
 
 	if (pipe_pid == pipe_pid2)
@@ -218,7 +218,7 @@ exec_sh_c(char *cmd)
     } else {
 	(void) execlp(sh, shname, (void *) 0);
     }
-    IGNORE_RC(write(2, "exec failed\r\n", (size_t) 14));
+    IGNORE_RC( write(2, "exec failed\r\n", 14));
     exit(-1);
 }
 
@@ -248,7 +248,7 @@ system_SHELL(char *cmd)
 
     cpid = softfork();
     if (cpid < 0) {
-	IGNORE_RC(write(2, "cannot fork\n", (size_t) 13));
+	IGNORE_RC( write(2, "cannot fork\n", 13));
 	return cpid;
     }
 
@@ -270,7 +270,7 @@ system_SHELL(char *cmd)
     } else {
 	beginDisplay();
 	exec_sh_c(cmd);
-	IGNORE_RC(write(2, "cannot exec\n", (size_t) 13));
+	IGNORE_RC( write(2, "cannot exec\n", 13));
 	endofDisplay();
 	return -1;
     }

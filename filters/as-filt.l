@@ -2,26 +2,25 @@
 %x NORMAL COMMENT QUOTED
 
 %{
-
 /*
- * $Id: as-filt.l,v 1.16 2025/01/26 11:05:40 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/as-filt.l,v 1.11 2009/04/25 16:20:48 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of assembler files.
  */
 
 #include <filters.h>
 
-DefineFilter(as);
+DefineFilter("as");
 
 static char *Action_attr;
 static char *Comment_attr;
 static char *Error_attr;
 static char *Ident_attr;
 static char *Number_attr;
-static char *Preproc_attr;
+static char *Prepro_attr;
 static char *String_attr;
 
-static const char *expect_attr(char *name);
+static const char * expect_attr(char *name);
 
 %}
 
@@ -40,13 +39,13 @@ FORMAT		"%"[.*[:digit:]l#+-]*[cdeEfFgGisuxX]
 
 %%
 
-<NORMAL>"$"		{ WriteToken(Preproc_attr); }
-<NORMAL>{IDENT}		{ WriteToken(get_keyword_attr(yytext)); }
+<NORMAL>"$"		{ WriteToken(Prepro_attr); }
+<NORMAL>{IDENT}		{ WriteToken(ci_keyword_attr(yytext)); }
 <NORMAL>"%"{IDENT}	{ WriteToken(expect_attr(yytext)); }
 <NORMAL>";"[^\r\n]*	{ WriteToken(Comment_attr); }
 <NORMAL>{INTEGER}	{ WriteToken(Number_attr); }
 
-<NORMAL>"^#.*"		{ WriteToken(Preproc_attr); }
+<NORMAL>"^#.*"		{ WriteToken(Prepro_attr); }
 
 <NORMAL>\\[^\r\n]	|
 <NORMAL>{SSTRING}	{ WriteToken(String_attr); }
@@ -70,8 +69,8 @@ FORMAT		"%"[.*[:digit:]l#+-]*[cdeEfFgGisuxX]
 static const char *
 expect_attr(char *name)
 {
-    const char *attr = get_keyword_attr(name);
-    if (attr == NULL) {
+    const char *attr = ci_keyword_attr(name);
+    if (attr == 0) {
 	attr = Error_attr;
 	flt_error("unexpected token");
     }
@@ -89,13 +88,13 @@ do_filter(FILE *inputs)
 {
     InitLEX(inputs);
 
-    Action_attr = class_attr(NAME_ACTION);
+    Action_attr  = class_attr(NAME_ACTION);
     Comment_attr = class_attr(NAME_COMMENT);
-    Error_attr = class_attr(NAME_ERROR);
-    Ident_attr = class_attr(NAME_IDENT2);
-    Number_attr = class_attr(NAME_NUMBER);
-    Preproc_attr = class_attr(NAME_PREPROC);
-    String_attr = class_attr(NAME_LITERAL);
+    Error_attr   = class_attr(NAME_ERROR);
+    Ident_attr   = class_attr(NAME_IDENT2);
+    Number_attr  = class_attr(NAME_NUMBER);
+    Prepro_attr  = class_attr(NAME_PREPROC);
+    String_attr  = class_attr(NAME_LITERAL);
 
     BEGIN(NORMAL);
 

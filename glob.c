@@ -13,7 +13,7 @@
  *
  *	modify (ifdef-style) 'expand_leaf()' to allow ellipsis.
  *
- * $Id: glob.c,v 1.106 2025/01/26 14:13:25 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/glob.c,v 1.93 2008/05/31 00:28:38 tom Exp $
  *
  */
 
@@ -91,7 +91,7 @@ huh ? ?
  */
 static size_t myMax = 0;	/* length and index of the expanded list */
 static size_t myLen = 0;	/* length and index of the expanded list */
-static char **myVec = NULL;	/* the expanded list */
+static char **myVec = 0;	/* the expanded list */
 
 /*--------------------------------------------------------------------------*/
 #if UNIX_GLOBBING
@@ -182,32 +182,24 @@ static int
 record_a_match(char *item)
 {
     int result = TRUE;
-    char **myTmp;
 
     beginDisplay();
-    if (item != NULL && *item != EOS) {
-	if ((item = strmalloc(item)) == NULL) {
+    if (item != 0 && *item != EOS) {
+	if ((item = strmalloc(item)) == 0) {
 	    result = no_memory("glob-match");
 	} else {
 	    if (myLen + 2 >= myMax) {
 		myMax = myLen + 2;
-		if (myVec == NULL) {
+		if (myVec == 0)
 		    myVec = typeallocn(char *, myMax);
-		} else {
-		    myTmp = typereallocn(char *, myVec, myMax);
-		    if (myTmp == NULL) {
-			myVec = glob_free(myVec);
-		    } else {
-			myVec = myTmp;
-		    }
-		}
+		else
+		    myVec = typereallocn(char *, myVec, myMax);
 	    }
-	    if (myVec == NULL) {
-		free(item);
+	    if (myVec == 0) {
 		result = no_memory("glob-pointers");
 	    } else {
 		myVec[myLen++] = item;
-		myVec[myLen] = NULL;
+		myVec[myLen] = 0;
 	    }
 	}
     }
@@ -217,15 +209,15 @@ record_a_match(char *item)
 
 #if !SMALLER || UNIX_GLOBBING
 
+#if OPT_CASELESS
 static int
 cs_char(int ch)
 {
-    return (global_g_val(GMDFILENAME_IC)
-	    ? (isUpper(ch)
-	       ? toLower(ch)
-	       : ch)
-	    : CharOf(ch));
+    return isUpper(ch) ? toLower(ch) : ch;
 }
+#else
+#define cs_char(ch) CharOf(ch)
+#endif
 
 static int
 only_multi(char *pattern)
@@ -312,14 +304,14 @@ glob_match_leaf(char *leaf, char *pattern)
 static char *
 next_leaf(char *path)
 {
-    if (path != NULL) {
+    if (path != 0) {
 	while (*path != EOS) {
 	    if (is_slashc(*path))
 		return path + 1;
 	    path++;
 	}
     }
-    return NULL;
+    return 0;
 }
 
 /*
@@ -329,8 +321,8 @@ next_leaf(char *path)
 static char *
 wild_leaf(char *pattern)
 {
-    int j, k, ok;
-    char c;
+    register int j, k, ok;
+    register char c;
 
     /* skip leading slashes */
     for (j = 0; pattern[j] != EOS && is_slashc(pattern[j]); j++) ;
@@ -349,13 +341,14 @@ wild_leaf(char *pattern)
 		break;
 	    }
 	}
-	if (skip) {
+	if (skip)
 	    j = k + 1;		/* point past slash */
-	} else {
+	else if (c == EOS)
 	    break;
-	}
+	else
+	    j++;		/* leaf is empty */
     }
-    return string_has_globs(pattern + j) ? pattern + j : NULL;
+    return string_has_globs(pattern + j) ? pattern + j : 0;
 }
 
 #if !SYS_OS2
@@ -379,7 +372,7 @@ expand_leaf(char *path,		/* built-up pathname, top-level */
     char *leaf;
     char *wild = wild_leaf(pattern);
     char *next = next_leaf(wild);
-    char *s;
+    register char *s;
 
     /* Fill-in 'path[]' with the non-wild leaves that we skipped to get
      * to 'wild'.
@@ -389,7 +382,7 @@ expand_leaf(char *path,		/* built-up pathname, top-level */
 	    (void) strcpy(path, ".");
 	leaf = skip_string(path) + 1;
     } else {
-	len = (size_t) (wild - pattern) - 1;
+	len = (int) (wild - pattern) - 1;
 	if (*(s = path) != EOS) {
 	    s += strlen(s);
 	    *s++ = SLASHC;
@@ -418,20 +411,21 @@ expand_leaf(char *path,		/* built-up pathname, top-level */
 	}
     }
 
-    if (next != NULL) {
+    if (next != 0) {
 	save = next[-1];
 	next[-1] = EOS;		/* restrict 'wild[]' to one leaf */
     }
 
     /* Scan the directory, looking for leaves that match the pattern.
      */
-    if ((dp = opendir(SL_TO_BSL(path))) != NULL) {
+    if ((dp = opendir(SL_TO_BSL(path))) != 0) {
 	leaf[-1] = SLASHC;	/* connect the path to the leaf */
-	while ((de = readdir(dp)) != NULL) {
+	while ((de = readdir(dp)) != 0) {
 #if OPT_MSDOS_PATH
 	    (void) strcpy(leaf, de->d_name);
-	    if (!global_g_val(GMDFILENAME_IC))
-		(void) mklower(leaf);
+#if !OPT_CASELESS
+	    (void) mklower(leaf);
+#endif
 	    if (strchr(pattern, '.') && !strchr(leaf, '.'))
 		(void) strcat(leaf, ".");
 #else
@@ -448,7 +442,7 @@ expand_leaf(char *path,		/* built-up pathname, top-level */
 		continue;
 	    if (!glob_match_leaf(leaf, wild))
 		continue;
-	    if (next != NULL) {	/* there are more leaves */
+	    if (next != 0) {	/* there are more leaves */
 		if (!string_has_globs(next)) {
 		    s = skip_string(leaf);
 		    *s++ = SLASHC;
@@ -479,7 +473,7 @@ expand_leaf(char *path,		/* built-up pathname, top-level */
 	result = SORTOFTRUE;	/* at least we didn't run out of memory */
     }
 
-    if (next != NULL)
+    if (next != 0)
 	next[-1] = save;
 
     return result;
@@ -510,7 +504,7 @@ expand_leaf(char *path,		/* built-up pathname, top-level */
     char *leaf;
     char *wild = wild_leaf(pattern);
     char *next = next_leaf(wild);
-    char *s;
+    register char *s;
 
     /* Fill-in 'path[]' with the non-wild leaves that we skipped to get
      * to 'wild'.
@@ -600,9 +594,11 @@ expand_leaf(char *path,		/* built-up pathname, top-level */
 static int
 compar(const void *a, const void *b)
 {
-    return cs_strcmp(global_g_val(GMDFILENAME_IC),
-		     *(const char *const *) a,
-		     *(const char *const *) b);
+#if OPT_CASELESS
+    return stricmp(*(const char *const *) a, *(const char *const *) b);
+#else
+    return strcmp(*(const char *const *) a, *(const char *const *) b);
+#endif
 }
 #endif /* UNIX_GLOBBING */
 
@@ -621,8 +617,8 @@ glob_from_pipe(const char *pattern)
     FILE *cf;
     char tmp[NFILEN];
     int result = FALSE;
-    size_t len;
-    char *s, *d;
+    register size_t len;
+    register char *s, *d;
 
 #ifdef GVAL_GLOB
 
@@ -654,7 +650,7 @@ glob_from_pipe(const char *pattern)
 #endif
 
     (void) lsprintf(tmp, d, pattern);
-    if ((cf = npopen(tmp, "r")) != NULL) {
+    if ((cf = npopen(tmp, "r")) != 0) {
 	char old[NFILEN + 1];
 
 	*(d = old) = EOS;
@@ -704,7 +700,7 @@ glob_from_pipe(const char *pattern)
 static void
 expand_environ(char *pattern)
 {
-    int j, k;
+    register int j, k;
     int delim, left, right;
     const char *s;
     char save[NFILEN];
@@ -744,26 +740,20 @@ expand_environ(char *pattern)
 		if (delim == EOS)
 		    right = k;
 
-		(void) vl_strncpy(save, pattern + k, sizeof(save));
+		(void) strcpy(save, pattern + k);
 		if (right != left) {
 		    pattern[right] = EOS;
 #if SYS_MSDOS || SYS_OS2
 		    mkupper(pattern + left);
 #endif
-		    if ((s = getenv(pattern + left)) == NULL)
+		    if ((s = getenv(pattern + left)) == 0)
 			s = "";
-		} else {
+		} else
 		    s = "";
-		}
 
-		if ((int) (strlen(pattern) + strlen(s) + 2) < NFILEN) {
-		    (void) strcpy(pattern + j, s);
-		    (void) strcat(pattern, save);
-		    j += (int) strlen(s) - 1;
-		} else {
-		    /* give up - substitution does not fit */
-		    break;
-		}
+		(void) strcpy(pattern + j, s);
+		(void) strcat(pattern, save);
+		j += (int) strlen(s) - 1;
 	    }
 	}
     }
@@ -830,8 +820,6 @@ expand_pattern(char *item)
     }
 #else /* UNIX or MSDOS, etc. */
 
-    (void) item;
-
 #if OPT_GLOB_PIPE
 # ifdef GVAL_GLOB
     /*
@@ -848,7 +836,7 @@ expand_pattern(char *item)
 	result = glob_from_pipe(item);
     } else
 # else
-    result = glob_from_pipe(item);
+	result = glob_from_pipe(item);
 #  if UNIX_GLOBBING
     huh ? ?			/* thought I turned that off ... */
 #  endif
@@ -860,11 +848,12 @@ expand_pattern(char *item)
 	char pattern[NFILEN];
 	size_t first = myLen;
 
-	(void) vl_strncpy(pattern, item, sizeof(pattern));
+	(void) strcpy(pattern, item);
 	*builtup = EOS;
 #if OPT_MSDOS_PATH
-	if (!global_g_val(GMDFILENAME_IC))
-	    (void) mklower(pattern);
+#if !OPT_CASELESS
+	(void) mklower(pattern);
+#endif
 #endif
 	expand_environ(pattern);
 	if (string_has_globs(pattern)) {
@@ -915,7 +904,7 @@ expand_pattern(char *item)
 int
 glob_needed(char **list_of_items)
 {
-    int n;
+    register int n;
 
     for (n = 0; list_of_items[n] != 0; n++)
 	if (string_has_wildcards(list_of_items[n]))
@@ -937,7 +926,7 @@ glob_expand(char **list_of_items)
 
     myMax = 0;
     myLen = 0;
-    myVec = NULL;
+    myVec = 0;
 
     for (i = 0; i < len; ++i) {
 	char *item = list_of_items[i];
@@ -947,15 +936,15 @@ glob_expand(char **list_of_items)
 	 */
 #if !SMALLER
 	char temp[NFILEN];
-	item = home_path(vl_strncpy(temp, item, sizeof(temp)));
+	item = home_path(strcpy(temp, item));
 #endif
 	if (!isInternalName(item)
 	    && globbing_active()
 	    && string_has_wildcards(item)) {
 	    if (!expand_pattern(item))
-		return NULL;
+		return 0;
 	} else if (!record_a_match(item)) {
-	    return NULL;
+	    return 0;
 	}
     }
     return myVec;
@@ -970,7 +959,7 @@ glob_string(char *item)
     char *vec[2];
 
     vec[0] = item;
-    vec[1] = NULL;
+    vec[1] = 0;
 
     return glob_expand(vec);
 }
@@ -985,9 +974,9 @@ glob_string(char *item)
 int
 glob_length(char **list_of_items)
 {
-    int len;
-    if (list_of_items != NULL) {
-	for (len = 0; list_of_items[len] != NULL; len++) ;
+    register int len;
+    if (list_of_items != 0) {
+	for (len = 0; list_of_items[len] != 0; len++) ;
     } else
 	len = 0;
     return len;
@@ -1001,15 +990,15 @@ glob_length(char **list_of_items)
 char **
 glob_free(char **list_of_items)
 {
-    int len;
+    register int len;
     beginDisplay();
-    if (list_of_items != NULL) {
-	for (len = 0; list_of_items[len] != NULL; len++)
+    if (list_of_items != 0) {
+	for (len = 0; list_of_items[len] != 0; len++)
 	    free(list_of_items[len]);
-	free(list_of_items);
+	free((char *) list_of_items);
     }
     endofDisplay();
-    return NULL;
+    return 0;
 }
 
 #if !SYS_UNIX

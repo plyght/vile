@@ -35,7 +35,7 @@
  *
  *	_^HB^HB_^Ho^Ho_^Ht^Ht_^Hh^Hh		^A4IB:Both
  *
- * On many systems, bold sequences are actually quite a bit longer.  On
+ * On many system, bold sequences are actually quite a bit longer.  On
  * some systems, the repeated character is repeated as many as four times.
  * Thus the letter "B" would be represented as B^HB^HB^HB.
  *
@@ -46,7 +46,7 @@
  * vile will choose some appropriate fallback (such as underlining) if
  * italics are not available.
  *
- * $Id: manfilt.c,v 1.79 2025/01/26 17:00:27 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/manfilt.c,v 1.52 2010/05/04 00:47:41 tom Exp $
  *
  */
 
@@ -63,8 +63,8 @@
 
 #ifdef HAVE_WCTYPE
 #include	<wctype.h>
-#define sys_isdigit(n)  (iswdigit((wint_t)(n)) || (((wint_t)(n) < 256 && isdigit((wint_t)(n)))))
-#define sys_isprint(n)  (iswprint((wint_t)(n)) || (((wint_t)(n) < 256 && isprint((wint_t)(n)))))
+#define sys_isdigit(n)  (iswdigit(n) || (((n) < 256 && isdigit(n))))
+#define sys_isprint(n)  (iswprint(n) || (((n) < 256 && isprint(n))))
 #else
 #define sys_isdigit(n)  isdigit(n)
 #define sys_isprint(n)  isprint(n)
@@ -86,7 +86,7 @@ extern char *realloc(char *ptr, size_t size);
 #endif
 
 #define backspace() \
-		if (cur_line != NULL \
+		if (cur_line != 0 \
 		 && cur_line->l_this > 0) \
 		    cur_line->l_this -= 1;
 
@@ -137,7 +137,6 @@ typedef struct LineData {
 
 static void flush_line(void);
 
-static const char *program = "vile-manfilt";
 static LINEDATA *all_lines;
 static LINEDATA *cur_line;
 static long total_lines;
@@ -148,11 +147,6 @@ static int (*my_putc) (int);
 static void
 failed(const char *s)
 {
-    int save_err = errno;
-    fflush(stdout);
-    fclose(stdout);
-    fprintf(stderr, "%s: ", program);
-    errno = save_err;
     perror(s);
     exit(BADEXIT);
 }
@@ -339,7 +333,7 @@ static CHARCELL *
 allocate_cell(void)
 {
     CHARCELL *p = typecallocn(CHARCELL, 1);
-    if (p == NULL)
+    if (p == 0)
 	failed("allocate_cell");
     return p;
 }
@@ -351,11 +345,10 @@ static LINEDATA *
 allocate_line(void)
 {
     LINEDATA *p = typecallocn(LINEDATA, 1);
-
-    if (p == NULL)
+    if (p == 0)
 	failed("allocate_line");
 
-    if (all_lines == NULL)
+    if (all_lines == 0)
 	all_lines = p;
 
     if (total_lines++ > MAX_LINES)
@@ -368,24 +361,23 @@ allocate_line(void)
  * (Re)allocate the l_cell[] array for the current line
  */
 static void
-extend_line(size_t want)
+extend_line(void)
 {
     size_t have = cur_line->l_last;
-    if (want < cur_line->l_this)
-	want = cur_line->l_this;
+    size_t want = cur_line->l_this;
     if (want >= have) {
 	CHARCELL *c = cur_line->l_cell;
 	want += 80;
-	if (c == NULL) {
+	if (c == 0) {
 	    c = typecallocn(CHARCELL, want);
 	} else {
 	    c = typereallocn(CHARCELL, c, want);
 	}
-	if (c == NULL) {
+	if (c == 0) {
 	    failed("extend_line");
 	} else {
 	    while (have < want) {
-		c[have].link = NULL;
+		c[have].link = 0;
 		c[have].c_attrs = ATR_NORMAL;
 		c[have].c_value = SPACE;
 		c[have].c_level = 0;
@@ -411,19 +403,19 @@ put_cell(int c, int level, int ident, int attrs)
     size_t len;
     CHARCELL *p, *q;
 
-    if (cur_line == NULL)
+    if (cur_line == 0)
 	cur_line = allocate_line();
 
     len = cur_line->l_used;
     col = cur_line->l_this++;
-    extend_line(col);
+    extend_line();
 
     p = &(cur_line->l_cell[col]);
     p->c_attrs = attrs;
 
     if (len > col) {		/* some type of overstrike */
 	if (c == UNDERLINE) {
-	    while ((q = p->link) != NULL)
+	    while ((q = p->link) != 0)
 		p = q;
 	    q = allocate_cell();
 	    p->link = q;
@@ -446,327 +438,91 @@ put_cell(int c, int level, int ident, int attrs)
 	cur_line->l_used = cur_line->l_this;
 }
 
-#define MAXPARAMS 10
-
-static void
-erase_cell(int col)
-{
-    CHARCELL *p = &(cur_line->l_cell[col]);
-    if (p != NULL) {
-	/* *INDENT-EQLS* */
-	p->link     = NULL;
-	p->c_value  = SPACE;
-	p->c_level  = 0;
-	p->c_ident  = CS_NORMAL;
-    }
-}
-
-#define DefaultOne(nparams, params) \
-	((nparams == 0) ? 1 : (nparams == 1) ? params[0] : -1)
-
-#define DefaultZero(nparams, params) \
-	((nparams == 0) ? 0 : (nparams == 1) ? params[0] : -1)
-
-static void
-ansi_CUB(int code)
-{
-    if (code > 0 && ((int) cur_line->l_this - code) >= 0) {
-	cur_line->l_this = cur_line->l_this - (size_t) code;
-    }
-}
-
-static void
-ansi_CUF(int code)
-{
-    if (code > 0) {
-	size_t col;
-
-	if (cur_line == NULL)
-	    cur_line = allocate_line();
-
-	col = cur_line->l_this + (size_t) code;
-	while (col > cur_line->l_last) {
-	    extend_line(col);
-	}
-	if (cur_line->l_used < col)
-	    cur_line->l_used = col;
-	cur_line->l_this = col;
-    }
-}
-
-static void
-ansi_DCH(int code)
-{
-    size_t dst;
-    size_t src;
-
-    if (code > 0) {
-	if (cur_line == NULL)
-	    cur_line = allocate_line();
-	for (dst = cur_line->l_this; dst < cur_line->l_used; ++dst) {
-	    src = dst + (size_t) code;
-	    if (src < cur_line->l_used) {
-		cur_line->l_cell[dst] = cur_line->l_cell[src];
-	    } else {
-		erase_cell((int) dst);
-	    }
-	}
-	cur_line->l_used -= (size_t) code;
-    }
-}
-
-static void
-ansi_EL(int code)
-{
-    size_t col;
-
-    if (cur_line == NULL)
-	cur_line = allocate_line();
-
-    switch (code) {
-    case 0:			/* Erase to Right (default) */
-	for (col = cur_line->l_this; col <= cur_line->l_used; ++col)
-	    erase_cell((int) col);
-	break;
-    case 1:			/* Erase to Left */
-    case 2:			/* Erase All */
-	for (col = 0; col <= cur_line->l_this; ++col)
-	    erase_cell((int) col);
-	break;
-    }
-}
-
-static void
-ansi_ICH(int code)
-{
-    size_t dst;
-    size_t src;
-
-    if (code > 0) {
-	size_t last;
-
-	if (cur_line == NULL)
-	    cur_line = allocate_line();
-
-	last = cur_line->l_last - 1;
-	for (dst = last; dst >= cur_line->l_this; --dst) {
-	    src = dst - (size_t) code;
-	    if (src >= cur_line->l_this) {
-		cur_line->l_cell[dst] = cur_line->l_cell[src];
-	    } else {
-		erase_cell((int) dst);
-	    }
-	}
-	if (cur_line->l_used < last)
-	    cur_line->l_used++;
-    }
-}
-
-static void
-ansi_HPA(int code)
-{
-    if (code > 0) {
-	size_t col;
-
-	if (cur_line == NULL)
-	    cur_line = allocate_line();
-
-	col = (size_t) code - 1;
-	while (col > cur_line->l_last) {
-	    extend_line(col);
-	}
-	if (cur_line->l_used < col)
-	    cur_line->l_used = col;
-	cur_line->l_this = col;
-    }
-}
-
 /*
  * Interpret equivalent overstrike/underline for an ANSI escape sequence.
  */
 static int
 ansi_escape(FILE *ifp, int last_code)
 {
-    int code = last_code;
-    int final = 0;
+    int ansi = 1;
+    int code = ATR_NORMAL;
     int value = 0;
     int digits = 0;
-    int private = 0;
-    int params[MAXPARAMS + 1];
-    int nparams = 0;
     int c;
 
     while ((c = my_getc(ifp)) != EOF) {
-	if (c >= 0x30 && c <= 0x39) {
+	if (sys_isdigit(c)) {
 	    value = (value * 10) + (c - '0');
 	    digits++;
-	} else if (c == ';' || (c >= 0x40 && c <= 0x7e)) {
-	    if (nparams < MAXPARAMS) {
-		if (digits) {
-		    params[nparams++] = value;
+	} else {
+	    if (digits) {
+		switch (value) {
+		case 1:
+		    code |= ATR_BOLD;
+		    break;
+		case 3:
+		    code |= ATR_ITAL;
+		    break;
+		case 4:
+		    code |= ATR_UNDER;
+		    break;
+		case 7:
+		    code |= ATR_REVERS;
+		    break;
+		case 22:
+		    code &= ~ATR_BOLD;
+		    break;
+		case 23:
+		    code &= ~ATR_BOLD;
+		    break;
+		case 24:
+		    code &= ~ATR_UNDER;
+		    break;
+		case 27:
+		    code &= ~ATR_REVERS;
+		    break;
+		default:
+		    /* we handle only foreground (text) colors */
+		    if (value >= 30 && value <= 37) {
+			value -= 30;
+			value <<= SHL_COLOR;
+			code &= ~ATR_COLOR;
+			code |= value;
+		    }
+		    break;
 		}
 	    }
-	    if (c != ';') {
-		final = c;
+	    if (isalpha(c))
 		break;
-	    }
+	    else if (c != ';')
+		ansi = 0;
 	    value = 0;
 	    digits = 0;
-	} else if (c >= 0x3a && c <= 0x3f) {
-	    private = 1;
-	} else if (c < 0x30 || c > 0x7e) {
-	    break;		/* ...at least, nothing we can handle */
 	}
     }
 
-    if (!private) {
-	/*
-	 * Multiline controls are implemented (but are noted below) because
-	 * doing this correctly depends on the filter knowing the width of
-	 * the terminal when the log/typescript was produced.  That width was
-	 * taken into account by the program which wrote the log, and is not
-	 * necessarily the same as that used in the current session.
-	 */
-	switch (final) {
-	case '@':
-	    ansi_ICH(DefaultOne(nparams, params));
-	    break;
-	case 'A':
-	    /* CUU - not implemented (multiline) */
-	    break;
-	case 'B':
-	    /* CUD - not implemented (multiline) */
-	    break;
-	case 'C':
-	    ansi_CUF(DefaultOne(nparams, params));
-	    break;
-	case 'D':
-	    ansi_CUB(DefaultOne(nparams, params));
-	    break;
-	case '`':
-	case 'G':
-	    ansi_HPA(DefaultOne(nparams, params));
-	    break;
-	case 'H':
-	    /* CUP - not implemented (multiline) */
-	    break;
-	case 'J':
-	    /* ED - not implemented (multiline) */
-	    break;
-	case 'K':
-	    ansi_EL(DefaultZero(nparams, params));
-	    break;
-	case 'L':
-	    /* IL - not implemented (multiline) */
-	    break;
-	case 'M':
-	    /* DL - not implemented (multiline) */
-	    break;
-	case 'P':
-	    ansi_DCH(DefaultOne(nparams, params));
-	    break;
-	case 'd':
-	    /* VPA - not implemented (multiline) */
-	    break;
-	case 'h':
-	case 'l':
-	    /* 4 is IRM - not implemented (ICH is preferred) */
-	    break;
-	case 'm':
-	    /* SGR */
-	    if (nparams != 0) {
-		for (c = 0; c < nparams; ++c) {
-		    value = params[c];
-		    switch (value) {
-		    case 0:
-			code = ATR_NORMAL;
-			break;
-		    case 1:
-			code |= ATR_BOLD;
-			break;
-		    case 3:
-			code |= ATR_ITAL;
-			break;
-		    case 4:
-			code |= ATR_UNDER;
-			break;
-		    case 7:
-			code |= ATR_REVERS;
-			break;
-		    case 22:
-			code &= ~ATR_BOLD;
-			break;
-		    case 23:
-			code &= ~ATR_BOLD;
-			break;
-		    case 24:
-			code &= ~ATR_UNDER;
-			break;
-		    case 27:
-			code &= ~ATR_REVERS;
-			break;
-		    default:
-			/* we handle only foreground (text) colors */
-			if (value >= 30 && value <= 37) {
-			    value -= 30;
-			    value <<= SHL_COLOR;
-			    code &= ~ATR_COLOR;
-			    code |= value;
-			} else if (value >= 90 && value <= 97) {
-			    value -= 90;
-			    value += 8;
-			    value <<= SHL_COLOR;
-			    code &= ~ATR_COLOR;
-			    code |= value;
-			}
-			break;
-		    }
-		}
-	    } else {
-		code = ATR_NORMAL;
-	    }
-	    break;
-	}
+    if ((c != 'm') || !ansi) {
+	code = last_code;
     }
     return code;
 }
 
 /*
- * Simply ignore OSC strings, e.g., as used to set window title.
- * This does not actually wait for a string terminator, since we may be stuck
- * with some Linux console junk.
- */
-static void
-osc_ignored(FILE *ifp)
-{
-    int c;
-
-    while ((c = my_getc(ifp)) != EOF) {
-	if (c == ESCAPE) {
-	    c = my_getc(ifp);
-	    break;
-	} else if (c < 0x20 || ((c >= 0x80) && (c < 0xa0))) {
-	    break;
-	}
-    }
-
-}
-
-/*
- * Set the current pointer to the previous line, if possible.
+ * Set the current pointer to the previous line, allocating it if necessary
  */
 static void
 prev_line(void)
 {
     LINEDATA *old_line;
 
-    /*
-     * We can't go back to lines that were already flushed and discarded.
-     */
-    assert(cur_line != NULL);
-    if (cur_line->l_prev == NULL)
-	return;
+    if (cur_line == 0)
+	cur_line = allocate_line();
 
+    if (cur_line->l_prev == 0) {
+	cur_line->l_prev = allocate_line();
+	if (cur_line == all_lines)
+	    all_lines = cur_line->l_prev;
+    }
     old_line = cur_line;
     cur_line = cur_line->l_prev;
     cur_line->l_next = old_line;
@@ -781,10 +537,10 @@ next_line(void)
 {
     LINEDATA *old_line;
 
-    if (cur_line == NULL)
+    if (cur_line == 0)
 	cur_line = allocate_line();
 
-    if (cur_line->l_next == NULL)
+    if (cur_line->l_next == 0)
 	cur_line->l_next = allocate_line();
 
     old_line = cur_line;
@@ -821,44 +577,19 @@ half_down(int level)
 static int
 cell_code(LINEDATA * line, size_t col)
 {
-    int code = ATR_NORMAL;
     CHARCELL *p = &(line->l_cell[col]);
+    CHARCELL *q;
+    int code = p->c_attrs;
 
-    if (p != NULL) {
-	CHARCELL *q;
-	code = p->c_attrs;
-
-	while ((q = p->link) != NULL) {
-	    if (q->c_value == UNDERLINE
-		&& q->c_value != p->c_value) {
-		code |= ATR_UNDER;
-	    } else
-		code |= ATR_BOLD;
-	    p = q;
-	}
+    while ((q = p->link) != 0) {
+	if (q->c_value == UNDERLINE
+	    && q->c_value != p->c_value) {
+	    code |= ATR_UNDER;
+	} else
+	    code |= ATR_BOLD;
+	p = q;
     }
     return code;
-}
-
-static void
-free_line(LINEDATA * l)
-{
-    if (l != NULL) {
-	if (l->l_cell != NULL)
-	    free(l->l_cell);
-	if (l->l_prev != NULL) {
-	    if (l->l_prev->l_next == l)
-		l->l_prev->l_next = NULL;
-	    l->l_prev = NULL;
-	}
-	if (l->l_next != NULL) {
-	    if (l->l_next->l_prev == l)
-		l->l_next->l_prev = NULL;
-	    l->l_next = NULL;
-	}
-	free(l);
-	total_lines--;
-    }
 }
 
 /*
@@ -876,7 +607,7 @@ flush_line(void)
     LINEDATA *l = all_lines;
     CHARCELL *p;
 
-    if (l != NULL && l->l_next != NULL) {
+    if (l != 0) {
 	all_lines = l->l_next;
 	if (cur_line == l)
 	    cur_line = all_lines;
@@ -911,14 +642,18 @@ flush_line(void)
 	    }
 	    my_putc((int) l->l_cell[col].c_value);
 
-	    while ((p = l->l_cell[col].link) != NULL) {
+	    while ((p = l->l_cell[col].link) != 0) {
 		l->l_cell[col].link = p->link;
-		free(p);
+		free((char *) p);
 	    }
 	}
 	my_putc('\n');
 
-	free_line(l);
+	if (l != 0) {
+	    if (l->l_cell != 0)
+		free((char *) l->l_cell);
+	    free((char *) l);
+	}
     }
 }
 
@@ -940,7 +675,7 @@ ManFilter(FILE *ifp)
 	    break;
 
 	case '\r':
-	    if (cur_line != NULL)
+	    if (cur_line != 0)
 		cur_line->l_this = 0;
 	    break;
 
@@ -972,9 +707,6 @@ ManFilter(FILE *ifp)
 	    case '[':
 		esc_mode = ansi_escape(ifp, esc_mode);
 		break;
-	    case ']':
-		osc_ignored(ifp);
-		break;
 	    case '\007':
 	    case '7':
 		prev_line();
@@ -992,17 +724,10 @@ ManFilter(FILE *ifp)
 	    }
 	    break;
 
-	case 0xb7:		/* bullet character */
-	    if (!sys_isprint(c)) {
-		c = 'o';
-	    }
-	    goto printable;
-
 	case 0xad:		/* mis-used softhyphen */
 	    c = '-';
 	    /* FALLTHRU */
 
-	  printable:
 	default:		/* ignore other nonprinting characters */
 	    if (sys_isprint(c)) {
 		put_cell(c, level, ident, esc_mode);
@@ -1021,12 +746,8 @@ ManFilter(FILE *ifp)
 	}
     }
 
-    while (all_lines != NULL) {
-	long save = total_lines;
+    while (all_lines != 0)
 	flush_line();
-	if (save == total_lines)
-	    break;
-    }
 
     total_lines = 0;
 }
@@ -1037,21 +758,20 @@ main(int argc, char **argv)
     int n;
     FILE *fp;
 
-    program = argv[0];
     my_getc = ansi_getc;
     my_putc = ansi_putc;
 #if OPT_LOCALE
     {
 	char *env;
 
-	if (((env = getenv("LC_ALL")) != NULL && *env != 0) ||
-	    ((env = getenv("LC_CTYPE")) != NULL && *env != 0) ||
-	    ((env = getenv("LANG")) != NULL && *env != 0)) {
+	if (((env = getenv("LC_ALL")) != 0 && *env != 0) ||
+	    ((env = getenv("LC_CTYPE")) != 0 && *env != 0) ||
+	    ((env = getenv("LANG")) != 0 && *env != 0)) {
 
-	    if (strstr(env, ".UTF-8") != NULL
-		|| strstr(env, ".utf-8") != NULL
-		|| strstr(env, ".UTF8") != NULL
-		|| strstr(env, ".utf8") != NULL) {
+	    if (strstr(env, ".UTF-8") != 0
+		|| strstr(env, ".utf-8") != 0
+		|| strstr(env, ".UTF8") != 0
+		|| strstr(env, ".utf8") != 0) {
 		my_getc = utf8_getc;
 		my_putc = utf8_putc;
 	    }
@@ -1068,7 +788,7 @@ main(int argc, char **argv)
 		    opt_8bit = 1;
 	    } else {
 		fp = fopen(argv[n], "r");
-		if (fp == NULL)
+		if (fp == 0)
 		    failed(argv[n]);
 		ManFilter(fp);
 		(void) fclose(fp);
@@ -1079,9 +799,6 @@ main(int argc, char **argv)
     }
     fflush(stdout);
     fclose(stdout);
-#if NO_LEAKS
-    free_line(cur_line);
-#endif
     exit(GOODEXIT);		/* successful exit */
     /*NOTREACHED */
 }

@@ -2,9 +2,8 @@
 %s NORMAL CODE ARGS
 
 %{
-
 /*
- * $Id: awk-filt.l,v 1.34 2013/12/02 01:32:54 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/awk-filt.l,v 1.26 2010/07/12 22:09:26 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of awk
  * input text.
@@ -15,7 +14,7 @@
 #include <filters.h>
 #include <fltstack.h>
 
-DefineFilter(awk);
+DefineFilter("awk");
 
 static void PushState(int);
 static void PopState(void);
@@ -34,7 +33,7 @@ static int braces;
 
 BLANK		[ \t]*
 
-DSTRING		\"(\\.|[^"\\\r\n]|\\\n)*\"
+DSTRING		\"((\\.)|[^"\\\r\n])*\"
 
 KEYWORD		[[:alpha:]_][[:alnum:]_]*
 IDENT		\$[[:alnum:]_]+
@@ -43,11 +42,11 @@ SIGN		[-+]
 INTEGER		{SIGN}?([[:digit:]]+)
 REAL		{SIGN}?([[:digit:]]*\.[[:digit:]]+)([eE]{SIGN}?[[:digit:]]+)?
 
-PATTERN		"/"(\\.|("["("^")?([][])*([^][])*"]")|[^\r\n/])*"/"
+PATTERN		"/"(\\.|\[(\\.|.)*\]|[^\t\r\n])*"/"
 
 %%
 
-<NORMAL,ARGS>{PATTERN}	{ WriteToken(String_attr); }
+<NORMAL>{PATTERN}	{ WriteToken(String_attr); }
 
 <CODE>"/"		{ ECHO; }
 
@@ -58,6 +57,7 @@ PATTERN		"/"(\\.|("["("^")?([][])*([^][])*"]")|[^\r\n/])*"/"
 <ARGS>"("		{ ECHO;
 			  ++FLTSTACK_THIS.parens;
 			}
+<ARGS>{PATTERN}		{ WriteToken(String_attr); }
 <ARGS>")"		{ ECHO;
 			  if (--FLTSTACK_THIS.parens == 0) {
 			      PopState();
@@ -75,7 +75,7 @@ PATTERN		"/"(\\.|("["("^")?([][])*([^][])*"]")|[^\r\n/])*"/"
 
 ^{BLANK}*#!.*$		{ WriteToken(Preproc_attr); }
 
-{KEYWORD}		{ WriteToken(get_keyword_attr(yytext)); }
+{KEYWORD}		{ WriteToken(keyword_attr(yytext)); }
 
 "#".*$			{ WriteToken(Comment_attr); }
 
@@ -90,14 +90,12 @@ PATTERN		"/"(\\.|("["("^")?([][])*([^][])*"]")|[^\r\n/])*"/"
 
 #include <fltstack.h>
 
-static void
-PushState(int value)
+static void PushState(int value)
 {
     push_state(value);
 }
 
-static void
-PopState(void)
+static void PopState(void)
 {
     pop_state();
 }
@@ -114,12 +112,12 @@ do_filter(FILE *inputs)
     InitLEX(inputs);
 
     Comment_attr = class_attr(NAME_COMMENT);
-    Error_attr = class_attr(NAME_ERROR);
-    Ident_attr = class_attr(NAME_IDENT2);
+    Error_attr   = class_attr(NAME_ERROR);
+    Ident_attr   = class_attr(NAME_IDENT2);
     Keyword_attr = class_attr(NAME_KEYWORD);
-    Number_attr = class_attr(NAME_NUMBER);
+    Number_attr  = class_attr(NAME_NUMBER);
     Preproc_attr = class_attr(NAME_PREPROC);
-    String_attr = class_attr(NAME_LITERAL);
+    String_attr  = class_attr(NAME_LITERAL);
 
     begin_state(NORMAL);
     braces = 0;

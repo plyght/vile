@@ -12,12 +12,11 @@
 */
 
 /*
- * $Id: estruct.h,v 1.765 2025/01/26 14:31:19 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/estruct.h,v 1.709 2010/04/11 18:52:01 tom Exp $
  */
 
 #ifndef _estruct_h
 #define _estruct_h 1
-/* *INDENT-OFF* */
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
@@ -181,7 +180,7 @@
  * probably correct for MSC (Microsoft C) and ZTC (Zortech), but I'm not
  * sure of those.  (It implies a lot of ANSI and POSIX behavior.)
  */
-#if CC_TURBO || CC_WATCOM || CC_MSC || CC_DJGPP || SYS_WINNT || CC_CSETPP || CC_MSVC || CC_LCC_WIN32 || SYS_OS2_EMX
+#if CC_TURBO || CC_WATCOM || CC_MSC || CC_DJGPP || SYS_WINNT || CC_CSETPP || CC_MSVC || CC_LCC_WIN32
 # define CC_NEWDOSCC 1
 #endif
 
@@ -217,8 +216,6 @@
 #if SYS_WINNT
 # define HAVE_ENVIRON		1
 # define HAVE_PUTENV		1
-# define HAVE_STRICMP		1
-# define HAVE_STRINCMP		1
 #endif
 
 /*
@@ -278,7 +275,7 @@
 # endif
 #endif
 
-#if SYS_MSDOS || SYS_OS2 || SYS_WINNT
+#if SYS_MSDOS || SYS_OS2 || SYS_VMS || SYS_WINNT
 #ifdef OPT_PERL
 typedef unsigned short	mode_t;
 /* perl's win32.h typedef's mode_t */
@@ -287,26 +284,13 @@ typedef unsigned short	mode_t;
 #endif
 #endif
 
-#if SYS_OS2 && !SYS_OS2_EMX
-#define inline /* nothing */
-#endif
-
-#if SYS_OS2 || SYS_OS2_EMX || SYS_WINNT || SYS_MSDOS
-#define MISSING_EXTERN_CRYPT 1
-#endif
-
 #endif /* HAVE_CONFIG_H */
 
-#if !(SYS_CYGWIN) && (defined(WIN32) || CC_TURBO || defined(WIN32_LEAN_AND_MEAN))
+#if defined(WIN32) || CC_TURBO
 #include "w32vile.h"
 #endif
 
 #include <vl_stdio.h>
-
-#ifdef HAVE_STDNORETURN_H
-#undef GCC_NORETURN
-#define GCC_NORETURN _Noreturn
-#endif
 
 #if SYS_VMS && (! defined(__DECC_VER))
 # include <types.h>
@@ -513,6 +497,10 @@ typedef unsigned short	mode_t;
 #define NO_WIDGETS 0
 #endif
 
+#ifndef OL_WIDGETS
+#define OL_WIDGETS 0
+#endif
+
 /*
  * Constants for ifdef'ing out chunks of code
  */
@@ -529,7 +517,7 @@ typedef unsigned short	mode_t;
 #define	OPT_COLOR (DISP_ANSI || IBM_VIDEO || DISP_TERMCAP || DISP_CURSES || DISP_X11)
 #define	OPT_16_COLOR (IBM_VIDEO || DISP_TERMCAP || DISP_CURSES || DISP_X11)
 
-#define OPT_DUMBTERM (DISP_TERMCAP || DISP_CURSES || DISP_VMSVT || DISP_X11)
+#define OPT_DUMBTERM (DISP_TERMCAP || DISP_CURSES || DISP_VMSVT)
 
 /* Feature turnon/turnoff */
 #define OPT_CACHE_VCOL  !SMALLER /* cache mk_to_vcol() starting point          */
@@ -628,6 +616,7 @@ typedef unsigned short	mode_t;
 
 /* systems with MSDOS-like filename syntax */
 #define OPT_MSDOS_PATH  (SYS_MSDOS || SYS_OS2 || SYS_WINNT || SYS_OS2_EMX)
+#define OPT_CASELESS	(SYS_MSDOS || SYS_OS2 || SYS_WINNT || SYS_OS2_EMX || SYS_CYGWIN || SYS_VMS)
 #define OPT_UNC_PATH	(SYS_WINNT || SYS_CYGWIN)
 
 /* individual features that are (normally) controlled by SMALLER */
@@ -647,7 +636,6 @@ typedef unsigned short	mode_t;
 #define OPT_HOOKS	!SMALLER		/* read/write hooks, etc. */
 #define OPT_ISO_8859    !SMALLER		/* ISO 8859 characters */
 #define OPT_ISRCH       !SMALLER		/* Incremental searches */
-#define OPT_KEEP_POS    !SMALLER		/* keep-position mode */
 #define OPT_LINEWRAP    !SMALLER		/* line-wrap mode */
 #define OPT_MAJORMODE   !SMALLER		/* majormode support */
 #define OPT_MACRO_ARGS	(!SMALLER && OPT_EVAL)	/* macro argument parsing */
@@ -657,11 +645,9 @@ typedef unsigned short	mode_t;
 #define OPT_NAMEBST     !SMALLER		/* name's stored in a bst */
 #define OPT_ONLINEHELP  !SMALLER		/* short per-command help */
 #define OPT_POPUPCHOICE !SMALLER		/* popup-choices mode */
-#define OPT_POPUPPOSITIONS !SMALLER		/* popup-positions mode */
 #define OPT_POPUP_MSGS  !SMALLER		/* popup-msgs mode */
 #define OPT_POSFORMAT   !SMALLER		/* position-format */
 #define OPT_REBIND      !SMALLER		/* permit rebinding of keys at run-time	*/
-#define OPT_REGS_CMPL   !SMALLER		/* name-completion for registers */
 #define OPT_SHOW_WHICH	!SMALLER		/* which-source, etc. */
 #define OPT_TAGS_CMPL   (!SMALLER && OPT_TAGS)	/* name-completion for tags */
 #define OPT_TERMCHRS    !SMALLER		/* set/show-terminal */
@@ -712,9 +698,7 @@ typedef unsigned short	mode_t;
 
 	/* menus */
 #define	OPT_MENUS	(!SMALLER && DISP_X11 && (MOTIF_WIDGETS||ATHENA_WIDGETS))
-#ifndef OPT_MENUS_COLORED
-#define OPT_MENUS_COLORED 0
-#endif
+#define OPT_MENUS_COLORED 0	/* (MOTIF_WIDGETS && OPT_MENUS) */
 
 	/* icons */
 #define OPT_X11_ICON	DISP_X11 /* use compiled-in X icon */
@@ -731,31 +715,36 @@ typedef unsigned short	mode_t;
 #endif
 
 /*
+ * Unix vi-style file encryption is available only on some platforms
+ */
+#ifdef HAVE_CRYPT
+#define OPT_ENCRYPT     !SMALLER
+#else
+#define OPT_ENCRYPT     0
+#endif
+
+/*
  * Symbols that turn on tables related to OPT_ENUM_MODES in nefsms.h
  */
 #define OPT_COLOR_SCHEMES          (OPT_ENUM_MODES && !SMALLER && OPT_COLOR)
 
 #define OPT_ACCESS_CHOICES         !SMALLER
-#define OPT_BACKUP_CHOICES         (OPT_ENUM_MODES && OPT_FILEBACK)
-#define OPT_BOOL_CHOICES           !SMALLER
+#define OPT_BACKUP_CHOICES	   (OPT_ENUM_MODES && OPT_FILEBACK)
+#define OPT_BOOL_CHOICES	   !SMALLER
 #define OPT_BYTEORDER_MARK_CHOICES OPT_MULTIBYTE
-#define OPT_CHARCLASS_CHOICES      OPT_SHOW_CTYPE
+#define OPT_CHARCLASS_CHOICES	   OPT_SHOW_CTYPE
 #define OPT_CMD_ENCODING_CHOICES   OPT_MULTIBYTE
-#define OPT_COLOR_CHOICES          (OPT_ENUM_MODES && OPT_COLOR)
+#define OPT_COLOR_CHOICES	   (OPT_ENUM_MODES && OPT_COLOR)
 #define OPT_CURTOKENS_CHOICES      OPT_CURTOKENS
 #define OPT_DIRECTIVE_CHOICES      !SMALLER
-#define OPT_ENCRYPT                !SMALLER
 #define OPT_FILE_ENCODING_CHOICES  OPT_MULTIBYTE
 #define OPT_FORBUFFERS_CHOICES     !SMALLER
-#define OPT_HILITE_CHOICES         (OPT_ENUM_MODES && OPT_HILITEMATCH)
-#define OPT_KBD_ENCODING_CHOICES   OPT_MULTIBYTE
-#define OPT_KEEP_POS_CHOICES       !SMALLER
+#define OPT_HILITE_CHOICES	   (OPT_ENUM_MODES && OPT_HILITEMATCH)
 #define OPT_LOOKUP_CHOICES         !SMALLER
 #define OPT_MMQUALIFIERS_CHOICES   OPT_MAJORMODE
 #define OPT_PARAMTYPES_CHOICES     OPT_MACRO_ARGS
 #define OPT_PATH_CHOICES           !SMALLER
-#define OPT_POPUP_CHOICES          (OPT_ENUM_MODES && OPT_POPUPCHOICE)
-#define OPT_POPUPPOSITIONS_CHOICES (OPT_ENUM_MODES && OPT_POPUPPOSITIONS)
+#define OPT_POPUP_CHOICES	   (OPT_ENUM_MODES && OPT_POPUPCHOICE)
 #define OPT_READERPOLICY_CHOICES   !SMALLER
 #define OPT_RECORDATTRS_CHOICES    (OPT_ENUM_MODES && SYS_VMS)
 #define OPT_RECORDFORMAT_CHOICES   (OPT_ENUM_MODES && SYS_VMS)
@@ -773,7 +762,7 @@ typedef unsigned short	mode_t;
 #define	GLOB_SINGLE	'?'
 #define	GLOB_ELLIPSIS	"..."	/* implemented on VMS-only */
 #define	GLOB_RANGE	"[]"
-#define	GLOB_ENVIRON	"$"	/* unimplemented */
+#define GLOB_ENVIRON	"$"	/* unimplemented */
 #define	GLOB_NEGATE	"^!"
 
 /*
@@ -842,11 +831,8 @@ extern	char *	sys_errlist[];
 #define	set_errno(code)	errno = code
 
 	/* bit-mask definitions */
-#define	lBIT(n)	((ULONG)(1UL<<(n)))
-#define	iBIT(n) ((UINT)(1U <<(n)))
-
-#define clr_typed_flags(dst,type,flags)  (dst) = (type) ((dst) & ~(flags))
-#define clr_flags(dst,flags)             (dst) = ((dst) & ~(flags))
+#define	lBIT(n)	((ULONG)(1L<<(n)))
+#define	iBIT(n) ((UINT)(1 <<(n)))
 
 #if !(defined(HAVE_STRCHR) && defined(HAVE_STRRCHR))
 #define USE_INDEX 1
@@ -860,8 +846,6 @@ extern char *index (const char *s, int c);
 extern char *rindex (const char *s, int c);
 #endif
 #endif /* USE_INDEX */
-
-#define vl_index (strchr)
 
 #if defined(STDC_HEADERS) || defined(HAVE_STRING_H)
 # include <string.h>
@@ -988,14 +972,10 @@ extern int MainProgram(int argc, char *argv[]);
 #endif
 
 	/* semaphore may be needed to prevent interrupt of display-code */
-#if OPT_WORKING && OPT_TRACE
+#if defined(SIGWINCH) || OPT_WORKING
+# if OPT_TRACE > 2
 extern void beginDisplay(void);
 extern void endofDisplay(void);
-#endif
-
-#if defined(SIGWINCH) || OPT_WORKING
-# if OPT_WORKING && (OPT_TRACE > 2)
-	/* no macros */
 # else
 # define beginDisplay() ++im_displaying
 # define endofDisplay() if (im_displaying > 0) --im_displaying; else assert(im_displaying > 0)
@@ -1034,12 +1014,14 @@ extern void endofDisplay(void);
  * we use those definitions to avoid trouble when using OS/2 include
  * files.
  */
-#  include <os2def.h>
-#elif SYS_CYGWIN || !(defined(WIN32) || defined(WIN32_LEAN_AND_MEAN))
+# include <os2def.h>
+#else
+# if !defined(WIN32)
 #  define UCHAR  unsigned char
 #  define UINT   unsigned int
 #  define USHORT unsigned short
 #  define ULONG  unsigned long
+# endif
 #endif
 
 /*	internal constants	*/
@@ -1100,7 +1082,6 @@ extern void endofDisplay(void);
 #define CLIP_KCHR  ';'
 #define SEL_KCHR   '.'
 #define KEYST_KCHR '<'
-#define UNAME_KCHR '@'
 
 #define	NBLOCK	16			/* line block chunk size	*/
 #define MINWLNS	3			/* min # lines, window/screen	*/
@@ -1111,12 +1092,6 @@ extern void endofDisplay(void);
 #define C_WHITE (ncolors-1)
 
 #define MinCBits   8			/* bits in N_chars		*/
-
-#if OPT_MULTIBYTE && (DISP_TERMCAP || DISP_CURSES || DISP_BORLAND)
-#define OPT_VL_OPEN_MBTERM 1		/* uses vl_open_mbterm		*/
-#else
-#define OPT_VL_OPEN_MBTERM 0
-#endif
 
 #if OPT_MULTIBYTE
 #define MaxCBits   16			/* allow UTF-16 internal	*/
@@ -1133,8 +1108,6 @@ extern void endofDisplay(void);
 #define COLS_8BIT  4			/* columns for "\xXX"		*/
 #define COLS_UTF8  6			/* columns for "\uXXXX"		*/
 
-#define MAX_UTF8 8			/* enough for any UTF-8 conversion */
-
 #define CTLA       iBIT(MaxCBits+0)	/* ^A flag, or'ed in		*/
 #define CTLX       iBIT(MaxCBits+1)	/* ^X flag, or'ed in		*/
 #define SPEC       iBIT(MaxCBits+2)	/* special key (function keys)	*/
@@ -1150,15 +1123,14 @@ extern void endofDisplay(void);
 #define mod_NOMOD  (~(mod_KEY|mod_SHIFT|mod_CTRL|mod_ALT))
 #endif
 
-#define kcod2key(c)	(int)((UINT)(c) & (UINT)(iBIT(MaxCBits)-1)) /* strip off the above prefixes */
-#define	is8Bits(c)	(((UINT)(c) & (UINT)~0xff) == 0)
+#define kcod2key(c)	(int)((c) & (UINT)(iBIT(MaxCBits)-1)) /* strip off the above prefixes */
 #define	isSpecial(c)	(((UINT)(c) & (UINT)~(iBIT(MaxCBits)-1)) != 0)
 
 #define	char2int(c)	((int)kcod2key(c))	/* mask off sign-extension, etc. */
 
 #define	PLURAL(n)	((n) != 1 ? "s" : "")
-#define NONNULL(s)	((s) != NULL ? (s) : "")
-#define isEmpty(s)	((s) == NULL || *(s) == EOS)
+#define NONNULL(s)	((s) != 0 ? (s) : "")
+#define isEmpty(s)	((s) == 0 || *(s) == EOS)
 
 #define EOS        '\0'
 #define BQUOTE     '`'
@@ -1171,20 +1143,18 @@ extern void endofDisplay(void);
 #define isTab(c)	((c) == '\t')
 
 #define isErrorVal(s)	((s) == error_val)
-#define isLegalVal(s)	((s) != NULL && !isErrorVal(s))
-#define isLegalExp(s,x) ((s = (x)) != NULL && !isErrorVal(s))
+#define isLegalVal(s)	((s) != 0 && !isErrorVal(s))
+#define isLegalExp(s,x) ((s = (x)) != 0 && !isErrorVal(s))
 
 /* protect against losing namespaces */
-#undef	VL_ERROR
 #undef	FALSE
 #undef	TRUE
 #undef	ABORT
 #undef	SORTOFTRUE
 
-#define VL_ERROR	-1		/* Error			*/
-#define FALSE		0		/* False, no, bad, etc.		*/
-#define TRUE		1		/* True, yes, good, etc.	*/
-#define ABORT		2		/* Death, ESC, abort, etc.	*/
+#define FALSE	0			/* False, no, bad, etc.		*/
+#define TRUE	1			/* True, yes, good, etc.	*/
+#define ABORT	2			/* Death, ESC, abort, etc.	*/
 #define	SORTOFTRUE	3		/* really!	*/
 
 /* keystroke replay states */
@@ -1251,8 +1221,6 @@ typedef enum {
 	, XCOLOR_ENUM
 	, XCOLOR_HYPERTEXT
 	, XCOLOR_ISEARCH
-	, XCOLOR_LINEBREAK
-	, XCOLOR_LINENUMBER
 	, XCOLOR_MODELINE
 	, XCOLOR_NUMBER
 	, XCOLOR_REGEX
@@ -1323,14 +1291,10 @@ typedef enum {
  * True if the buffer contents are in UTF-8 (or -16, -32).
  */
 #if OPT_MULTIBYTE
-#define global_is_utfXX()    ((global_b_val(VAL_FILE_ENCODING) >= enc_UTF8) \
-			   || (global_b_val(VAL_FILE_ENCODING) == enc_LOCALE \
-			    && vl_encoding >= enc_UTF8))
 #define b_is_utfXX(bp)       ((b_val(bp, VAL_FILE_ENCODING) >= enc_UTF8) \
 			   || (b_val(bp, VAL_FILE_ENCODING) == enc_LOCALE \
 			    && vl_encoding >= enc_UTF8))
 #else
-#define global_is_utfXX()    0
 #define b_is_utfXX(bp)       0
 #endif
 
@@ -1343,12 +1307,6 @@ typedef enum {
 			      : ((b_val(bp, VAL_FILE_ENCODING) == enc_AUTO) \
 			          ? enc_8BIT \
 			          : b_val(bp, VAL_FILE_ENCODING)))
-
-typedef enum {
-    	KPOS_VILE = 0
-	, KPOS_NVI
-	, KPOS_VI
-} KEEP_POS_CHOICES;
 
 typedef enum {
 	MMQ_ANY = 0
@@ -1385,7 +1343,6 @@ typedef enum {
 	, PT_FILE
 	, PT_INT
 	, PT_MODE
-	, PT_REG
 	, PT_STR
 	, PT_VAR
 #if OPT_MAJORMODE
@@ -1440,7 +1397,6 @@ typedef enum {
 #define FL_PATH      iBIT(7)	/* look in environment $PATH */
 #define FL_LIBDIR    iBIT(8)	/* look in environment $VILE_LIBDIR_PATH */
 #define FL_ALWAYS    iBIT(9)	/* file is not a script, but data */
-#define FL_INSECURE  iBIT(10)	/* do not care if insecure */
 
 #define FL_ANYWHERE  (FL_CDIR|FL_HOME|FL_EXECDIR|FL_STARTPATH|FL_PATH|FL_LIBDIR)
 
@@ -1542,11 +1498,6 @@ typedef enum {
 #define POPUP_CHOICES_IMMED    1
 #define POPUP_CHOICES_DELAYED  2
 
-/* popup-positions values */
-#define POPUP_POSITIONS_NOTDOT  0
-#define POPUP_POSITIONS_BOTTOM  1
-#define POPUP_POSITIONS_TOP     2
-
 /* define these so C-fence matching doesn't get confused when we're editing
 	the cfence code itself */
 #define L_CURLY '{'
@@ -1630,7 +1581,7 @@ typedef enum {
 #define isBackTab(c)	((c) == KEY_BackTab)
 #endif
 
-#define	NonNull(s)	((s == NULL) ? "" : s)
+#define	NonNull(s)	((s == 0) ? "" : s)
 
 #define ESC		tocntrl('[')
 #define BEL		tocntrl('G')	/* ascii bell character		*/
@@ -1665,7 +1616,7 @@ typedef	struct	vl_tbuff	{
 	int	tb_errs;	/* true if we copied error_val here */
 	} TBUFF;
 
-#define isTB_ERRS(p) ((p) != NULL && (p)->tb_errs)
+#define isTB_ERRS(p) ((p) != 0 && (p)->tb_errs)
 
 /*
  * Definitions for 'itbuff.c' (temporary/dynamic int-buffers)
@@ -1785,16 +1736,8 @@ typedef struct	LINE {
 #define LTRIMMED lBIT(2)	/* line doesn't have newline to display */
 
 /* macros to ease the use of lines */
-#define dot_next_bol()  do { \
-				DOT.l = lforw(DOT.l); \
-				DOT.o = b_left_margin(curbp); \
-			} while (0)
-#define dot_prev_bol()  do { \
-				DOT.l = lback(DOT.l); \
-				DOT.o = b_left_margin(curbp); \
-			} while (0)
 #define	for_each_line(lp,bp) for (lp = lforw(buf_head(bp)); \
-					(lp != NULL) && (lp != buf_head(bp)); \
+					lp != buf_head(bp); \
 					lp = lforw(lp))
 
 #define l_nxtundo		l.l_stklnk
@@ -1828,12 +1771,12 @@ typedef struct	LINE {
 
 #define lismarked(lp)		((lp)->l.l_flag & LGMARK)
 #define lsetmarked(lp)		((lp)->l.l_flag |= LGMARK)
-#define lsetnotmarked(lp)	(clr_typed_flags((lp)->l.l_flag, USHORT, LGMARK))
+#define lsetnotmarked(lp)	((lp)->l.l_flag &= ~LGMARK)
 #define lflipmark(lp)		((lp)->l.l_flag ^= LGMARK)
 
 #define listrimmed(lp)		((lp)->l.l_flag & LTRIMMED)
 #define lsettrimmed(lp)		((lp)->l.l_flag |= LTRIMMED)
-#define lsetnottrimmed(lp)	((lp)->l.l_flag &= (USHORT) ~LTRIMMED)
+#define lsetnottrimmed(lp)	((lp)->l.l_flag &= ~LTRIMMED)
 #define lsetclear(lp)		((lp)->l.l_flag = (lp)->l.l_undo_cookie = 0)
 
 #define lisreal(lp)		(llength(lp) >= 0)
@@ -1945,21 +1888,20 @@ typedef UCHAR VIDEO_ATTR;
  */
 #define GROW(ptr, type, oldsize, newsize) \
 { \
-	size_t tmpold = (size_t) oldsize; \
+	UINT tmpold = (UINT) oldsize; \
 	type *tmpp; \
-	tmpp = typeallocn(type, (size_t) newsize); \
+	tmpp = typeallocn(type, (UINT) newsize); \
 	if (tmpp == NULL) \
 		return FALSE; \
  \
 	if (ptr) { \
-		(void) memcpy((void *)tmpp, (void *)ptr, tmpold * sizeof(type)); \
-		free((void *)ptr); \
+		(void) memcpy((char *)tmpp, (char *)ptr, tmpold * sizeof(type)); \
+		free((char *)ptr); \
 	} else { \
 		tmpold = 0; \
 	} \
 	ptr = tmpp; \
-	(void) memset ((void *)(ptr + tmpold), 0, \
-		       ((size_t) newsize - tmpold) * sizeof(type)); \
+	(void) memset ((char *)(ptr+tmpold), 0, ((UINT) newsize - tmpold) * sizeof(type)); \
 }
 
 /*
@@ -2149,13 +2091,14 @@ typedef struct {
 	MINORMODE *sm;
 } MAJORMODE;
 
-#define is_c_mode(bp) (bp->majr != NULL && !strcmp(bp->majr->shortname, "c"))
+#define is_c_mode(bp) (bp->majr != 0 && !strcmp(bp->majr->shortname, "c"))
 #define fix_cmode(bp,value)	/* nothing */
 #define for_each_modegroup(bp,n,m,vals) \
-	for (vals = get_submode_vals(bp, n = m); vals != NULL; vals = get_submode_valx(bp, m, &n))
+	for (vals = get_submode_vals(bp, n = m); vals != 0; vals = get_submode_valx(bp, m, &n))
 #else
 #define is_c_mode(bp) (b_val(bp,MDCMOD))
-#define fix_cmode(bp,value)	set_local_b_val(bp, MDCMOD, value)
+#define fix_cmode(bp,value)	make_local_b_val(bp, MDCMOD), \
+				set_b_val(bp, MDCMOD, value)
 #define for_each_modegroup(bp,n,m,vals) vals = bp->b_values.bv;
 #endif
 
@@ -2272,9 +2215,9 @@ typedef struct	BUFFER {
 #if OPT_MULTIBYTE
 	BOM_CODES implied_BOM;		/* fix decode/encode if BOM missing */
 	UINT	*decode_utf_buf;	/* workspace for decode_charset() */
-	size_t	decode_utf_len;
+	UINT	decode_utf_len;
 	char	*encode_utf_buf;	/* workspace for encode_charset() */
-	size_t	encode_utf_len;
+	UINT	encode_utf_len;
 #endif
 #if OPT_PERL || OPT_TCL || OPT_PLUGIN
 	void *	b_api_private;		/* pointer to private perl, tcl, etc.
@@ -2329,7 +2272,7 @@ typedef struct	BUFFER {
 #define set_b_val_rexp(bp,which,val)     b_val_rexp(bp,which) = val
 
 #define window_b_val(wp,val) \
-	((wp != NULL && wp->w_bufp != NULL) \
+	((wp != 0 && wp->w_bufp != 0) \
 		? b_val(wp->w_bufp,val) \
 		: global_b_val(val))
 
@@ -2341,10 +2284,6 @@ typedef struct	BUFFER {
 #define is_local_b_val(bp,which)  \
 	is_local_val(bp->b_values.bv,which)
 
-#define set_local_b_val(bp,mode,value) \
-		make_local_b_val(bp, mode), \
-		set_b_val(bp, mode, value)
-
 #define is_empty_buf(bp) (lforw(buf_head(bp)) == buf_head(bp))
 
 #define b_dot     b_wtraits.w_dt
@@ -2355,25 +2294,16 @@ typedef struct	BUFFER {
 #define b_tentative_lastdot b_wtraits.w_tld
 #define b_wline   b_wtraits.w_ln
 
-#ifndef HAVE_STRICMP
-#undef stricmp
-#define stricmp vl_stricmp
-#endif
-
-#ifndef HAVE_STRNICMP
-#undef strnicmp
-#define strnicmp vl_strnicmp
-#endif
-
-#if (SYS_MSDOS || SYS_OS2 || SYS_WINNT || SYS_OS2_EMX || SYS_CYGWIN || SYS_VMS)
-#define DFT_FILE_IC TRUE
+#if OPT_CASELESS
+#define eql_bname(bp,name) !stricmp(bp->b_bname, name)
 #else
-#define DFT_FILE_IC FALSE
+#define eql_bname(bp,name) !strcmp(bp->b_bname, name)
 #endif
 
 #define COPY_B_VAL(dst,src,val) \
 	if (is_local_b_val(src, val)) { \
-	    set_local_b_val(dst, val, b_val(src, val)); \
+	    make_local_b_val(dst, val); \
+	    set_b_val(dst, val, b_val(src, val)); \
 	}
 
 /* values for b_flag */
@@ -2512,8 +2442,6 @@ extern MARK *api_mark_iterator(BUFFER *bp, int *iter);
     } one_time
 #endif /* OPT_VIDEO_ATTRS */
 
-typedef int WIN_ID;
-
 /*
  * There is a window structure allocated for every active display window. The
  * windows are kept in a big list, in top to bottom screen order, with the
@@ -2542,7 +2470,7 @@ typedef struct	WINDOW {
 	int	w_ruler_col;
 #endif
 #if OPT_PERL || OPT_TCL
-	WIN_ID	w_id;			/* Unique window id */
+	ULONG	w_id;			/* Unique window id */
 #endif
 }	WINDOW;
 
@@ -2646,7 +2574,7 @@ typedef struct	{
 	int	(*setdescrip) (const char *f); /* reset display description */
 	void	(*setfore) (int f);	/* set foreground color		*/
 	void	(*setback) (int b);	/* set background color		*/
-	int	(*setpal) (const char *p); /* set color palette	*/
+	void	(*setpal) (const char *p); /* set color palette	*/
 	void	(*setccol) (int c);	/* set cursor color		*/
 	void	(*scroll) (int from, int to, int n); /* scroll region	*/
 	void	(*pflush) (void);	/* really flush			*/
@@ -2673,29 +2601,30 @@ typedef struct	{
 #define WIDE_CURSES 0
 #endif
 
-#if OPT_MULTIBYTE && ((DISP_NTCONS || DISP_NTWIN) && defined(UNICODE))
+#if OPT_MULTIBYTE && (DISP_TERMCAP || WIDE_CURSES || DISP_X11 || (DISP_NTWIN && defined(UNICODE)))
 typedef USHORT VIDEO_TEXT;
 typedef USHORT VIDEO_CHAR;
-#elif OPT_MULTIBYTE && (DISP_TERMCAP || WIDE_CURSES || DISP_X11)
-typedef unsigned VIDEO_TEXT;
-typedef unsigned VIDEO_CHAR;
 #else
 typedef UCHAR VIDEO_TEXT;
 typedef char  VIDEO_CHAR;
 #endif
 
+#define VIDEO_MIN 4
+
 typedef struct  VIDEO {
 	UINT	v_flag;			/* Flags */
 #if	OPT_COLOR
-	int	v_fcolor;		/* current foreground color */
+	int	v_fcolor;		/* current forground color */
 	int	v_bcolor;		/* current background color */
-	int	v_rfcolor;		/* requested foreground color */
+	int	v_rfcolor;		/* requested forground color */
 	int	v_rbcolor;		/* requested background color */
 #endif
 #if	OPT_VIDEO_ATTRS
 	VIDEO_ATTR *v_attrs;		/* screen data attributes */
 #endif
-	VIDEO_TEXT v_text[1];		/* Screen data. */
+	/* allocate 4 bytes here, and malloc 4 bytes less than we need,
+		to keep malloc from rounding up. */
+	VIDEO_TEXT v_text[VIDEO_MIN];	/* Screen data. */
 }	VIDEO;
 
 #define VideoText(vp) (vp)->v_text
@@ -2891,7 +2820,6 @@ typedef struct {
 #define ZERO    argBIT(12)	/* allow 0 to be given as a line number */
 #define OPTREG  argBIT(13)	/* allow optional register-name */
 #define USEREG  argBIT(14)	/* expect register-name */
-#define FROM_TO argBIT(15)	/* % is all lines */
 #define FILES   (XFILE | EXTRA)	/* multiple extra files allowed */
 #define WORD1   (EXTRA | NOSPC)	/* one extra word allowed */
 #define FILE1   (FILES | NOSPC)	/* 1 file allowed, defaults to current file */
@@ -2900,8 +2828,8 @@ typedef struct {
 #define RANGE   (FROM  | TO)	/* range of linespecs allowed */
 
 /* these flags determine the type of cu.* */
-#define typBIT(n) cmdBIT(n+29)	/* ...to simplify adding bits */
-/* bits 29-31 */
+#define typBIT(n) cmdBIT(n+28)	/* ...to simplify adding bits */
+/* bits 27-29 */
 #define CMD_FUNC 0L		/* this is the default (CmdFunc) */
 #define CMD_PROC typBIT(0)	/* named procedure (BUFFER *) */
 #define CMD_OPER typBIT(1)	/* user-defined operator */
@@ -2971,7 +2899,7 @@ typedef struct KILLREG {
 	USHORT kbflag;		/* flags describing kill register	*/
 } KILLREG;
 
-#define	KbSize(i,p)	((p->d_next != NULL) ? KBLOCK : kbs[i].kused)
+#define	KbSize(i,p)	((p->d_next != 0) ? KBLOCK : kbs[i].kused)
 
 #ifndef NULL
 # define NULL 0
@@ -3009,14 +2937,12 @@ extern void exit (int code);
 extern void _exit (int code);
 #endif	/* HAVE_STDLIB_H */
 
-#if !(defined(intptr_t))
 /* get intptr_t */
-#if defined(HAVE_INTTYPES_H)
+#ifdef HAVE_INTTYPES_H
 #include <inttypes.h>
-#elif defined(HAVE_STDINT_H)
+#else
+#ifdef HAVE_STDINT_H
 #include <stdint.h>
-#elif !(defined(WIN32) || defined(WIN32_LEAN_AND_MEAN))
-typedef long intptr_t;
 #endif
 #endif
 
@@ -3026,12 +2952,27 @@ typedef long intptr_t;
 #define PERCENT(num,den) ((den) ? (int)((100.0 * (num))/(den)) : 100)
 
 /* Quiet compiler warnings on places where we're being blamed incorrectly,
- * e.g., for casting away const, or for alignment problems.
+ * e.g., for casting away const, or for alignment problems.  It's generally
+ * legal in c89 to cast a pointer to long w/o loss of precision.
+ *
+ * FIXME: c99 may require a wider type.
  */
 #ifdef __GNUC__
 #define TYPECAST(type,ptr) (type*)((intptr_t)(ptr))
 #else
 #define TYPECAST(type,ptr) (type*)(ptr)
+#endif
+
+#if defined(VILE_ERROR_ABORT)
+extern void ExitProgram(int code);
+#endif
+
+#if SYS_WINNT && defined(VILE_OLE) && DISP_NTWIN
+#define ExitProgram(code)   oleauto_exit(code)
+#else
+#if !defined(VILE_ERROR_ABORT)
+#define	ExitProgram(code)	exit_program(code)
+#endif
 #endif
 
 /*
@@ -3058,18 +2999,6 @@ typedef long intptr_t;
 
 #ifndef	GCC_UNUSED
 #define	GCC_UNUSED /* nothing */
-#endif
-
-#if defined(VILE_ERROR_ABORT)
-extern void ExitProgram(int code) GCC_NORETURN;
-#endif
-
-#if SYS_WINNT && defined(VILE_OLE) && DISP_NTWIN
-#define ExitProgram(code)   oleauto_exit(code)
-#else
-#if !defined(VILE_ERROR_ABORT)
-#define	ExitProgram(code)	exit_program(code)
-#endif
 #endif
 
 #if 1				/* requires a patch to gcc */
@@ -3185,13 +3114,13 @@ extern void ExitProgram(int code) GCC_NORETURN;
 #    define show_alloc() void __mp_summary()
 #  endif
 #  if CAN_TRACE && OPT_TRACE
-#    include <trace.h>
+#    include "trace.h"
 #  endif
-#elif CAN_TRACE
-#  if (NO_LEAKS || DOALLOC || OPT_TRACE)
-#    include <trace.h>
+#else
+#  if CAN_TRACE && (NO_LEAKS || DOALLOC || OPT_TRACE)
+#    include "trace.h"
 #  elif !defined(show_alloc) && NO_LEAKS
-#    include <trace.h>
+#    include "trace.h"
 #  endif
 #endif	/* USE_DBMALLOC */
 
@@ -3244,12 +3173,6 @@ extern void show_elapsed(void);
 #define return2Void()     return
 #endif
 
-#if OPT_TRACE > 2
-#define TRACE3(params)    TRACE(params)
-#else
-#define TRACE3(params) /*nothing*/
-#endif
-
 #if OPT_EVAL || OPT_DEBUGMACROS
 #define TPRINTF(p) { TRACE(p); if (tracemacros) tprintf p; }
 #else
@@ -3272,7 +3195,7 @@ extern void show_elapsed(void);
 #endif /* gcc workarounds */
 
 #if defined(__GNUC__) && defined(_FORTIFY_SOURCE)
-#define IGNORE_RC(func) ignore_unused = (int) func
+#define IGNORE_RC(func) ignore_unused = func
 #else
 #define IGNORE_RC(func) (void) func
 #endif /* gcc workarounds */
@@ -3297,7 +3220,5 @@ extern void show_elapsed(void);
 #if CAN_VMS_PATH && (SYS_UNIX && OPT_VMS_PATH)
 #include "fakevms.h"
 #endif
-
-/* *INDENT-ON* */
 
 #endif /* _estruct_h */

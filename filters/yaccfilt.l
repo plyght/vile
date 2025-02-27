@@ -2,16 +2,15 @@
 %s RULES ACTIONS CODE COMMENT
 
 %{
-
 /*
- * $Id: yaccfilt.l,v 1.45 2016/12/11 16:04:15 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/yaccfilt.l,v 1.40 2009/10/07 09:33:33 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of YACC program.
  */
 
 #include <filters.h>
 
-DefineFilter(yacc);
+DefineFilter("yacc");
 
 typedef enum {
     RuleSection = 0
@@ -57,8 +56,8 @@ QIDENT		\$([[:digit:]$]|\<{IDENT}\>)
 
 INTEGER		[-+]?([[:digit:]]+|("0"[xX][[:xdigit:]]+))
 
-SSTRING		\'(\\.|[^'\\]|\\[\r\n])*\'
-DSTRING		\"(\\.|[^"\\]|\\[\r\n])*\"
+SSTRING		\'(\\.|[^'\\])*\'
+DSTRING		\"(\\.|[^"\\])*\"
 STRINGS		({SSTRING}|{DSTRING})
 
 PATTERN		(\\.|\[(\\.|.)*\]|[^[:space:]])+
@@ -139,10 +138,10 @@ DefineTerminal(char *text)
 static const char *
 merged_attr(char *text)
 {
-    const char *attr = get_keyword_attr(text);
+    const char *attr = keyword_attr(text);
     if ((cur_state == CODE) && isEmpty(attr)) {
 	set_symbol_table(default_table);
-	attr = get_keyword_attr(text);
+	attr = keyword_attr(text);
 	set_symbol_table("c");
     }
     return attr;
@@ -165,8 +164,7 @@ PopCode(void)
 static int
 DeclareTerminal(const char *text)
 {
-    static const char *table[] =
-    {
+    static const char *table[] = {
 	"left",
 	"nonassoc",
 	"right",
@@ -224,15 +222,15 @@ static void
 do_filter(FILE *inputs)
 {
     InitLEX(inputs);
-    Action_attr = class_attr(NAME_ACTION);
+    Action_attr  = class_attr(NAME_ACTION);
     Comment_attr = class_attr(NAME_COMMENT);
-    Error_attr = class_attr(NAME_ERROR);
-    Ident_attr = class_attr(NAME_IDENT);
-    Ident2_attr = class_attr(NAME_IDENT2);
+    Error_attr   = class_attr(NAME_ERROR);
+    Ident_attr   = class_attr(NAME_IDENT);
+    Ident2_attr  = class_attr(NAME_IDENT2);
     Keyword_attr = class_attr(NAME_KEYWORD);
-    Number_attr = class_attr(NAME_NUMBER);
+    Number_attr  = class_attr(NAME_NUMBER);
     Preproc_attr = class_attr(NAME_PREPROC);
-    String_attr = class_attr(NAME_LITERAL);
+    String_attr  = class_attr(NAME_LITERAL);
 
     /* this is defined in yacc.key */
     Terminal_attr = class_attr("Terminal");
@@ -246,7 +244,6 @@ do_filter(FILE *inputs)
 
     begin_state(RULES);
     RunLEX();
-    flt_bfr_error();
     end_state();
 }
 

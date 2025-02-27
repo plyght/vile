@@ -7,7 +7,7 @@
 %{
 
 /*
- * $Id: txt-filt.l,v 1.43 2025/01/26 11:38:02 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/txt-filt.l,v 1.37 2009/04/04 13:25:34 tom Exp $
  *
  * Filter to add vile "attribution" sequences to an ordinary text file
  */
@@ -15,7 +15,7 @@
 #include <filters.h>
 #include <fltstack.h>
 
-DefineFilter(txt);
+DefineFilter("txt");
 
 static char *Comment_attr;
 static char *Ident2_attr;
@@ -53,8 +53,8 @@ URL		[[:alpha:]]+"://"[[:alnum:]#%&+\,.\/?;@_=~-]+
 <sTEXT>^[[:blank:]]*"--"[[:blank:]]	{ PushQuote(NOTE, Comment_attr); }
 <sTEXT>^[-]+$		|
 <sTEXT>{DASHES}		{ WriteToken(Comment_attr); }
-<sTEXT>{KEYWORD}	{ const char *attr = get_keyword_attr(yytext);
-			  if (attr == NULL) attr = (mixedcase(yytext) ? "" : Keyword_attr);
+<sTEXT>{KEYWORD}	{ const char *attr = keyword_attr(yytext);
+			  if (attr == 0) attr = (mixedcase(yytext) ? "" : Keyword_attr);
 			  WriteToken(attr);
 			}
 <sTEXT>{NUMBER}		{ WriteToken(Number_attr); }
@@ -92,7 +92,7 @@ URL		[[:alpha:]]+"://"[[:alnum:]#%&+\,.\/?;@_=~-]+
 <NOTE>{IDENT}		{ flt_bfr_embed(yytext, yyleng, Ident2_attr); }
 <NOTE>\(\"\)		|
 <NOTE>\'.\'		|
-<NOTE>.			{ flt_bfr_embed(yytext, yyleng, Comment_attr); }
+<NOTE>.			{ flt_puts(yytext, yyleng, Comment_attr); }
 
 %%
 
@@ -123,10 +123,10 @@ do_filter(FILE *inputs)
     InitLEX(inputs);
 
     Comment_attr = class_attr(NAME_COMMENT);
-    Ident2_attr = class_attr(NAME_IDENT2);
+    Ident2_attr  = class_attr(NAME_IDENT2);
     Keyword_attr = class_attr(NAME_KEYWORD);
-    Number_attr = class_attr(NAME_NUMBER);
-    String_attr = class_attr(NAME_LITERAL);
+    Number_attr  = class_attr(NAME_NUMBER);
+    String_attr  = class_attr(NAME_LITERAL);
 
     begin_state(sTEXT);
     RunLEX();

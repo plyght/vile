@@ -1,17 +1,17 @@
 %pointer
-%s NORMAL QUOTE1 QUOTE2 QUOTE3 QUOTE4
+%s NORMAL QUOTE1 QUOTE2 QUOTE3
 
 %{
 
 /*
- * $Id: py-filt.l,v 1.20 2020/02/05 21:34:07 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/py-filt.l,v 1.16 2008/11/19 23:11:46 tom Exp $
  *
  * Filter to add vile "attribution" sequences to a Python script
  */
 
 #include <filters.h>
 
-DefineFilter(py);
+DefineFilter("py");
 
 static char *Comment_attr;
 static char *Ident2_attr;
@@ -34,7 +34,7 @@ NUMBER		{SIGN}?({DECIMAL}|{OCTAL}|{HEXADECIMAL})[L]?|{REAL}
 
 %%
 
-<NORMAL>{KEYWORD}	{ WriteToken(get_keyword_attr(yytext)); }
+<NORMAL>{KEYWORD}	{ WriteToken(keyword_attr(yytext)); }
 
 <NORMAL>{COMMENT}	{ WriteToken(Comment_attr); }
 
@@ -52,12 +52,8 @@ NUMBER		{SIGN}?({DECIMAL}|{OCTAL}|{HEXADECIMAL})[L]?|{REAL}
 
 <NORMAL>\"\"\"		{ BeginQuote(QUOTE3, String_attr); }
 <QUOTE3>\"\"\"		{ FinishQuote(NORMAL); }
-
-<NORMAL>\'\'\'		{ BeginQuote(QUOTE4, String_attr); }
-<QUOTE4>\'\'\'		{ FinishQuote(NORMAL); }
-
-<QUOTE3,QUOTE4>(\\.|.)	{ flt_bfr_append(yytext, yyleng); }
-<QUOTE3,QUOTE4>[\n]	{ flt_bfr_append(yytext, yyleng); }
+<QUOTE3>(\\.|.)		{ flt_bfr_append(yytext, yyleng); }
+<QUOTE3>[\n]		{ flt_bfr_append(yytext, yyleng); }
 
 <NORMAL>.		{ ECHO; }
 
@@ -75,10 +71,10 @@ do_filter(FILE *inputs)
     InitLEX(inputs);
 
     Comment_attr = class_attr(NAME_COMMENT);
-    Ident2_attr = class_attr(NAME_IDENT2);
+    Ident2_attr  = class_attr(NAME_IDENT2);
     Keyword_attr = class_attr(NAME_KEYWORD);
-    Number_attr = class_attr(NAME_NUMBER);
-    String_attr = class_attr(NAME_LITERAL);
+    Number_attr  = class_attr(NAME_NUMBER);
+    String_attr  = class_attr(NAME_LITERAL);
 
     BEGIN(NORMAL);
     RunLEX();

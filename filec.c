@@ -5,7 +5,8 @@
  * Written by T.E.Dickey for vile (march 1993).
  *
  *
- * $Id: filec.c,v 1.138 2025/01/26 14:11:02 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/filec.c,v 1.128 2010/05/01 00:01:13 tom Exp $
+ *
  */
 
 #include "estruct.h"
@@ -126,8 +127,7 @@ pathcmp(const LINE *lp, const char *text)
     const char *l, *t;
     int lc, tc;
 
-    if (lp == NULL
-	|| llength(lp) <= 0)	/* (This happens on the first insertion) */
+    if (llength(lp) <= 0)	/* (This happens on the first insertion) */
 	return -1;
 
     l = lvalue(lp);
@@ -135,12 +135,12 @@ pathcmp(const LINE *lp, const char *text)
     for_ever {
 	lc = *l++;
 	tc = *t++;
-	if (global_g_val(GMDFILENAME_IC)) {
-	    if (isUpper(lc))
-		lc = toLower(lc);
-	    if (isUpper(tc))
-		tc = toLower(tc);
-	}
+#if OPT_CASELESS
+	if (isUpper(lc))
+	    lc = toLower(lc);
+	if (isUpper(tc))
+	    tc = toLower(tc);
+#endif
 	if (lc == tc) {
 	    if (tc == EOS)
 		return 0;
@@ -170,7 +170,7 @@ makeString(BUFFER *bp, LINE *lp, char *text, size_t len)
 
     beginDisplay();
     if ((np = lalloc((int) len + extra, bp)) == NULL) {
-	lp = NULL;
+	lp = 0;
     } else {
 #if !OPT_MSDOS_PATH
 	/*
@@ -180,7 +180,7 @@ makeString(BUFFER *bp, LINE *lp, char *text, size_t len)
 	text = add_backslashes(text);
 #endif
 	(void) strcpy(lvalue(np), text);
-	lvalue(np)[len + (size_t) extra - 1] = 0;	/* clear scan indicator */
+	lvalue(np)[len + extra - 1] = 0;	/* clear scan indicator */
 	llength(np) -= extra;	/* hide the null and scan indicator */
 
 	set_lforw(lback(lp), np);
@@ -209,7 +209,7 @@ bs_init(const char *name)
 {
     BUFFER *bp;
 
-    if ((bp = bfind(name, BFINVS)) != NULL) {
+    if ((bp = bfind(name, BFINVS)) != 0) {
 	b_clr_scratch(bp);	/* make it nonvolatile */
 	(void) bclear(bp);
 	bp->b_active = TRUE;
@@ -225,7 +225,7 @@ bs_init(const char *name)
  * fname - pathname to find
  * len   - ...its length
  * bp    - buffer to search
- * lpp	 - in/out line pointer, for iteration
+ * lpp	 - in/out line pointer, for iteration 
  */
 static int
 bs_find(char *fname, size_t len, BUFFER *bp, LINE **lpp)
@@ -235,7 +235,7 @@ bs_find(char *fname, size_t len, BUFFER *bp, LINE **lpp)
 #if OPT_VMS_PATH
     char temp[NFILEN];
     if (!is_slashc(*fname))
-	vms2hybrid(fname = vl_strncpy(temp, fname, sizeof(temp)));
+	vms2hybrid(fname = strcpy(temp, fname));
 #endif
 
     if (lpp == NULL || (lp = *lpp) == NULL)
@@ -315,10 +315,15 @@ already_scanned(BUFFER *bp, char *path)
     char fname[NFILEN];
     LINE *slp;
 
-    len = force_slash(vl_strncpy(fname, path, sizeof(fname)));
+    len = force_slash(strcpy(fname, path));
 
     for_each_line(lp, bp) {
-	if (cs_strcmp(global_g_val(GMDFILENAME_IC), fname, lvalue(lp)) == 0) {
+#if OPT_CASELESS
+	if (stricmp(fname, lvalue(lp)) == 0)
+#else
+	if (strcmp(fname, lvalue(lp)) == 0)
+#endif
+	{
 	    if (lvalue(lp)[llength(lp) + 1])
 		return TRUE;
 	    else
@@ -397,16 +402,16 @@ vms2hybrid(char *path)
 {
     char leaf[NFILEN];
     char head[NFILEN];
-    char *s = vl_strncpy(head, path, sizeof(head));
+    char *s = strcpy(head, path);
     char *t;
 
     TRACE(("vms2hybrid '%s'\n", path));
-    (void) vl_strncpy(leaf, s = pathleaf(head), sizeof(leaf));
+    (void) strcpy(leaf, s = pathleaf(head));
     if ((t = is_vms_dirtype(leaf)) != 0)
 	(void) strcpy(t, "/");
     *s = EOS;
     if (s == path)		/* a non-canonical name got here somehow */
-	(void) vl_strncpy(head, current_directory(FALSE), sizeof(head));
+	(void) strcpy(head, current_directory(FALSE));
     pathcat(path, mkupper(vms2unix_path(head, head)), leaf);
     TRACE((" -> '%s' (vms2hybrid)\n", path));
 }
@@ -416,10 +421,10 @@ hybrid2vms(char *path)
 {
     char leaf[NFILEN];
     char head[NFILEN];
-    char *s = vl_strncpy(head, path, sizeof(head));
+    char *s = strcpy(head, path);
 
     TRACE(("hybrid2vms '%s'\n", path));
-    (void) vl_strncpy(leaf, s = pathleaf(head), sizeof(leaf));
+    (void) strcpy(leaf, s = pathleaf(head));
     *s = EOS;
     if (s == head)		/* a non-canonical name got here somehow */
 	(void) vms2unix_path(head, current_directory(FALSE));
@@ -438,10 +443,10 @@ hybrid2unix(char *path)
 {
     char leaf[NFILEN];
     char head[NFILEN];
-    char *s = vl_strncpy(head, path, sizeof(head));
+    char *s = strcpy(head, path);
 
     TRACE(("hybrid2unix '%s'\n", path));
-    (void) vl_strncpy(leaf, s = pathleaf(head), sizeof(leaf));
+    (void) strcpy(leaf, s = pathleaf(head));
     *s = EOS;
     if (s == path)		/* a non-canonical name got here somehow */
 	(void) vms2unix_path(head, current_directory(FALSE));
@@ -497,7 +502,8 @@ remove_duplicates(BUFFER *bp)
     while (plp != buf_head(bp)) {
 	if ((lp = lforw(plp)) != buf_head(bp)) {
 	    if (pathcmp(plp, lvalue(lp)) == 0) {
-		lremove2(bp, lp);
+		lremove(bp, lp);
+		lfree(lp, bp);
 		continue;
 	    }
 	}
@@ -562,7 +568,7 @@ fill_directory_buffer(BUFFER *bp, char *path, size_t dots GCC_UNUSED)
 #endif
     char temp[NFILEN];
 
-    path = vl_strncpy(temp, path, sizeof(temp));
+    path = strcpy(temp, path);
 
     TRACE(("fill_directory_buffer '%s'\n", path));
 
@@ -610,14 +616,14 @@ fill_directory_buffer(BUFFER *bp, char *path, size_t dots GCC_UNUSED)
      * open-directory operation to allow for runtime libraries that
      * don't allow using UNIX-style '/' pathnames.
      */
-    if ((dp = opendir(SL_TO_BSL(path))) != NULL) {
+    if ((dp = opendir(SL_TO_BSL(path))) != 0) {
 	s = path;
 #if !OPT_VMS_PATH
 	s += force_slash(path);
 #endif
 
 	leaf = s;
-	while ((de = readdir(dp)) != NULL) {
+	while ((de = readdir(dp)) != 0) {
 #if SYS_UNIX || SYS_VMS || SYS_WINNT
 # if USE_D_NAMLEN
 	    (void) strncpy(leaf, de->d_name, (size_t) (de->d_namlen));
@@ -656,7 +662,7 @@ fill_directory_buffer(BUFFER *bp, char *path, size_t dots GCC_UNUSED)
 #if USE_QSORT
 #if OPT_VMS_PATH
 	    if (temp != path)
-		vl_strncpy(temp, path, sizeof(temp));
+		strcpy(temp, path);
 	    vms2hybrid(s = temp);
 #else
 	    s = path;
@@ -707,7 +713,7 @@ fillMyBuff(BUFFER *bp, char *name)
 	 * directory name, this chunk of logic returns a '1' to tell
 	 * our caller that it's time to add a slash.
 	 */
-	for (n = 0; (s = environ[n]) != NULL; n++) {
+	for (n = 0; (s = environ[n]) != 0; n++) {
 	    if (!strncmp(s, name + 1, len)
 		&& s[len] == '=') {
 		return already_scanned(bp, name) ? 1 : 0;
@@ -727,7 +733,7 @@ fillMyBuff(BUFFER *bp, char *name)
 	 * Copy all of the environment-variable names, prefixed with
 	 * the '$' that indicates what they are.
 	 */
-	for (n = 0; environ[n] != NULL; n++) {
+	for (n = 0; environ[n] != 0; n++) {
 	    char *d = path;
 
 	    s = environ[n];
@@ -751,7 +757,7 @@ fillMyBuff(BUFFER *bp, char *name)
 	sortMyBuff(bp);
 #endif
     } else {
-	(void) vl_strncpy(path, name, sizeof(path));
+	(void) strcpy(path, name);
 #if OPT_MSDOS_PATH
 	bsl_to_sl_inplace(path);
 #endif
@@ -769,12 +775,11 @@ fillMyBuff(BUFFER *bp, char *name)
 		return 1;
 	}
 #if OPT_VMS_PATH
-	(void) vl_strncpy(temp, name, sizeof(temp));
-	/* will match the hybrid name */
+	(void) strcpy(temp, name);	/* will match the hybrid name */
 	if (trim_leaf)
 	    *pathleaf(temp) = EOS;
 #else
-	(void) vl_strncpy(temp, path, sizeof(temp));
+	(void) strcpy(temp, path);
 #endif
 
 	if (already_scanned(bp, temp)) {
@@ -794,11 +799,11 @@ fillMyBuff(BUFFER *bp, char *name)
 
 		while (dots--)
 		    strcat(path, ".");
-		(void) lengthen_path(vl_strncpy(temp, path, sizeof(temp)));
+		(void) lengthen_path(strcpy(temp, path));
 		need = strlen(temp);
 		want = strlen(path);
 		for_each_line(lp, bp) {
-		    size_t have = (size_t) llength(lp);
+		    size_t have = llength(lp);
 		    if (have == need
 			&& !memcmp(lvalue(lp), temp, need))
 			count = -1;
@@ -837,17 +842,16 @@ makeMyList(BUFFER *bp, char *name)
 	len++;
 
     (void) bsizes(bp);
-    need = (size_t) bp->b_linecount + 2;
+    need = bp->b_linecount + 2;
     if (bp->b_index_size < need) {
 	bp->b_index_size = need * 2;
-	if (bp->b_index_list == NULL) {
+	if (bp->b_index_list == 0)
 	    bp->b_index_list = typeallocn(char *, bp->b_index_size);
-	} else {
-	    safe_typereallocn(char *, bp->b_index_list, bp->b_index_size);
-	}
+	else
+	    bp->b_index_list = typereallocn(char *, bp->b_index_list, bp->b_index_size);
     }
 
-    if (bp->b_index_list != NULL) {
+    if (bp->b_index_list != 0) {
 	n = 0;
 	for_each_line(lp, bp) {
 	    /* exclude listings of subdirectories below
@@ -857,7 +861,7 @@ makeMyList(BUFFER *bp, char *name)
 		    || slashocc[1] == EOS))
 		bp->b_index_list[n++] = lvalue(lp);
 	}
-	bp->b_index_list[n] = NULL;
+	bp->b_index_list[n] = 0;
     } else {
 	bp->b_index_size = 0;
     }
@@ -898,7 +902,7 @@ force_output(int c, char *buf, size_t *pos)
 void
 init_filec(const char *buffer_name)
 {
-    MyBuff = NULL;
+    MyBuff = 0;
     MyName = buffer_name;
 }
 
@@ -926,7 +930,7 @@ path_completion(DONE_ARGS)
 	   flags, c, (int) *pos, visible_buff(buf, (int) *pos, TRUE)));
     (void) flags;
 
-    if (buf == NULL)
+    if (buf == 0)
 	return FALSE;
 
     ignore = (*buf != EOS && isInternalName(buf));
@@ -947,9 +951,9 @@ path_completion(DONE_ARGS)
 	size_t newlen;
 
 	/* initialize only on demand */
-	if (MyBuff == NULL) {
-	    if (MyName == NULL
-		|| (MyBuff = bs_init(MyName)) == NULL)
+	if (MyBuff == 0) {
+	    if (MyName == 0
+		|| (MyBuff = bs_init(MyName)) == 0)
 		return FALSE;
 	}
 
@@ -957,8 +961,8 @@ path_completion(DONE_ARGS)
 	 * Copy 'buf' into 'path', making it canonical-form.
 	 */
 #if OPT_VMS_PATH
-	if (*vl_strncpy(path, buf, sizeof(path)) == EOS) {
-	    (void) vl_strncpy(path, current_directory(FALSE), sizeof(path));
+	if (*strcpy(path, buf) == EOS) {
+	    (void) strcpy(path, current_directory(FALSE));
 	} else if (!is_environ(path)) {
 	    char frac[NFILEN];
 
@@ -977,15 +981,12 @@ path_completion(DONE_ARGS)
 		}
 	    }
 	    if (*path == EOS)
-		(void) vl_strncpy(path, current_directory(FALSE), sizeof(path));
+		(void) strcpy(path, current_directory(FALSE));
 	    else {
 		if (!is_vms_pathname(path, -TRUE)) {
 		    unix2vms_path(path, path);
-		    if (*path == EOS) {
-			(void) vl_strncpy(path,
-					  current_directory(FALSE),
-					  sizeof(path));
-		    }
+		    if (*path == EOS)
+			(void) strcpy(path, current_directory(FALSE));
 		}
 		(void) lengthen_path(path);
 	    }
@@ -1007,7 +1008,7 @@ path_completion(DONE_ARGS)
 	}
 #else
 	if (is_environ(buf)) {
-	    (void) vl_strncpy(path, buf, sizeof(path));
+	    (void) strcpy(path, buf);
 	} else {
 # if SYS_UNIX || OPT_MSDOS_PATH
 	    char **expand;
@@ -1016,14 +1017,14 @@ path_completion(DONE_ARGS)
 	     * Expand _unique_ wildcards and environment variables.
 	     * Like 'doglob()', but without the prompt.
 	     */
-	    expand = glob_string(vl_strncpy(path, buf, sizeof(path)));
+	    expand = glob_string(strcpy(path, buf));
 	    switch (glob_length(expand)) {
 	    default:
 		(void) glob_free(expand);
 		kbd_alarm();
 		return FALSE;
 	    case 1:
-		(void) vl_strncpy(path, expand[0], sizeof(path));
+		(void) strcpy(path, expand[0]);
 		/*FALLTHRU */
 	    case 0:
 		(void) glob_free(expand);
@@ -1048,11 +1049,11 @@ path_completion(DONE_ARGS)
 	}
 #endif
 
-	if ((s = is_appendname(buf)) == NULL)
+	if ((s = is_appendname(buf)) == 0)
 	    s = buf;
 	if ((*s == EOS) || trailing_slash(s)) {
 	    if (*path == EOS)
-		(void) vl_strncpy(path, ".", sizeof(path));
+		(void) strcpy(path, ".");
 	    (void) force_slash(path);
 	}
 
@@ -1110,11 +1111,21 @@ path_completion(DONE_ARGS)
 	/* FIXME: should also force-dot to the matched line, as in history.c */
 	/* FIXME: how can I force buffer-update to show? */
 
-	code = kbd_complete(global_g_val(GMDFILENAME_IC) ? KBD_CASELESS : 0,
-			    c, path, &newlen,
+#if OPT_CASELESS
+	code = kbd_complete(KBD_CASELESS, c, path, &newlen,
+			    (const char *) &MyBuff->b_index_list[0],
+			    sizeof(MyBuff->b_index_list[0]));
+#if 0				/* case insensitive reply correction doesn't work reliably yet */
+	(void) strcpy(buf, path);
+#else
+	(void) strcat(buf, path + oldlen);
+#endif
+#else
+	code = kbd_complete(0, c, path, &newlen,
 			    (const char *) &MyBuff->b_index_list[0],
 			    sizeof(MyBuff->b_index_list[0]));
 	(void) strcat(buf, path + oldlen);
+#endif
 #if OPT_VMS_PATH
 	if (*buf != EOS
 	    && !is_vms_pathname(buf, -TRUE))
@@ -1175,7 +1186,7 @@ strip_non_graphics(char *path)
 
 /*
  * Prompt for a file name, allowing completion via tab and '?'
- *
+ * 
  * flag - +1 to read, -1 to write, 0 don't care
  */
 int
@@ -1186,12 +1197,12 @@ mlreply_file(const char *prompt, TBUFF **buffer, UINT flag, char *result)
     char Reply[NFILEN];
     int (*complete) (DONE_ARGS) = no_completion;
     int had_fname = (valid_buffer(curbp)
-		     && curbp->b_fname != NULL
+		     && curbp->b_fname != 0
 		     && curbp->b_fname[0] != EOS);
     int do_prompt = (clexec || isnamedcmd || (flag & FILEC_PROMPT));
-    int ok_expand = ((flag & FILEC_EXPAND) != 0);
+    int ok_expand = (flag & FILEC_EXPAND);
 
-    flag &= (UINT) (~(FILEC_PROMPT | FILEC_EXPAND));
+    flag &= ~(FILEC_PROMPT | FILEC_EXPAND);
 
 #if COMPLETE_FILES
     if (do_prompt && !clexec) {
@@ -1201,12 +1212,10 @@ mlreply_file(const char *prompt, TBUFF **buffer, UINT flag, char *result)
 #endif
 
     /* use the current filename if none given */
-    if (buffer == NULL) {
+    if (buffer == 0) {
 	(void) tb_scopy(buffer = &last,
 			had_fname && is_pathname(curbp->b_fname)
-			? shorten_path(vl_strncpy(Reply,
-						  curbp->b_fname,
-						  sizeof(Reply)),
+			? shorten_path(strcpy(Reply, curbp->b_fname),
 				       FALSE)
 			: "");
     }
@@ -1215,8 +1224,8 @@ mlreply_file(const char *prompt, TBUFF **buffer, UINT flag, char *result)
 	char *t1 = tb_values(*buffer);
 	char *t2 = is_appendname(t1);
 
-	if (t1 != NULL)
-	    (void) vl_strncpy(Reply, (t2 != NULL) ? t2 : t1, sizeof(Reply));
+	if (t1 != 0)
+	    (void) strcpy(Reply, (t2 != 0) ? t2 : t1);
 	else
 	    *Reply = EOS;
 
@@ -1231,7 +1240,7 @@ mlreply_file(const char *prompt, TBUFF **buffer, UINT flag, char *result)
 		&& had_fname
 		&& (!global_g_val(GMDWARNREREAD)
 		    || ((status = mlyesno("Reread current buffer")) == TRUE)))
-		(void) vl_strncpy(Reply, curbp->b_fname, sizeof(Reply));
+		(void) strcpy(Reply, curbp->b_fname);
 	    else
 		return status;
 	} else if (kbd_is_pushed_back() && isShellOrPipe(Reply)) {
@@ -1261,14 +1270,14 @@ mlreply_file(const char *prompt, TBUFF **buffer, UINT flag, char *result)
     } else if (!screen_to_bname(Reply, sizeof(Reply))) {
 	return FALSE;
     }
-    if (flag >= FILEC_UNKNOWN && is_appendname(Reply) != NULL) {
+    if (flag >= FILEC_UNKNOWN && is_appendname(Reply) != 0) {
 	mlforce("[file is not a legal input]");
 	return FALSE;
     }
 
     free_expansion();
     if (ok_expand) {
-	if ((MyGlob = glob_string(Reply)) == NULL
+	if ((MyGlob = glob_string(Reply)) == 0
 	    || (status = glob_length(MyGlob)) == 0) {
 	    mlforce("[No files found] %s", Reply);
 	    return FALSE;
@@ -1321,14 +1330,14 @@ mlreply_dir(const char *prompt, TBUFF **buffer, char *result)
     }
 #endif
     /* use the current directory if none given */
-    if (buffer == NULL) {
+    if (buffer == 0) {
 	(void) tb_scopy(buffer = &last,
-			vl_strncpy(Reply, current_directory(TRUE), sizeof(Reply)));
+			strcpy(Reply, current_directory(TRUE)));
     }
 
     if (clexec || isnamedcmd) {
-	if (tb_values(*buffer) != NULL)
-	    (void) vl_strncpy(Reply, tb_values(*buffer), sizeof(Reply));
+	if (tb_values(*buffer) != 0)
+	    (void) strcpy(Reply, tb_values(*buffer));
 	else
 	    *Reply = EOS;
 
@@ -1357,10 +1366,10 @@ mlreply_dir(const char *prompt, TBUFF **buffer, char *result)
 char *
 filec_expand(void)
 {
-    if (MyGlob != NULL) {
-	if (MyGlob[++in_glob] != NULL)
+    if (MyGlob != 0) {
+	if (MyGlob[++in_glob] != 0)
 	    return MyGlob[in_glob];
 	free_expansion();
     }
-    return NULL;
+    return 0;
 }

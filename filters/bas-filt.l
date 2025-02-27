@@ -2,9 +2,8 @@
 %state NORMAL COMMENT NOTE2 PREPRO
 
 %{
-
 /*
- * $Id: bas-filt.l,v 1.29 2025/01/26 11:05:40 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/bas-filt.l,v 1.23 2009/05/12 22:47:25 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of Basic
  * input text.
@@ -22,14 +21,14 @@
 
 #include <filters.h>
 
-DefineFilter(basic);
+DefineFilter("basic");
 
-#define more_comment() (yyleng > 2 && !strncmp(yytext + yyleng - 2, "_", (size_t) 2))
+#define more_comment() (yyleng > 2 && !strncmp(yytext + yyleng - 2, "_", 2))
 
 static char *Action_attr;
 static char *Comment_attr;
 static char *Number_attr;
-static char *Preproc_attr;
+static char *Prepro_attr;
 static char *String_attr;
 static char *LineNo_attr;
 
@@ -55,11 +54,11 @@ NUMBER		{INTEGER}|{REAL}|{UUID}|({INTEGER}{HEX}|("&"[Hh]|\$){HEX}){TYPES}
 
 %%
 
-<NORMAL>^"#"			{ WriteToken(Preproc_attr);
+<NORMAL>^"#"			{ WriteToken(Prepro_attr);
 				  BEGIN(PREPRO);
 				  set_symbol_table("basic_prepro");
 				}
-<PREPRO>{IDENT}			{ WriteToken(get_keyword_attr(yytext)); }
+<PREPRO>{IDENT}			{ WriteToken(ci_keyword_attr(yytext)); }
 <PREPRO>[\r\n]			{ ECHO;
 				  BEGIN(NORMAL);
 				  set_symbol_table(default_table);
@@ -68,8 +67,8 @@ NUMBER		{INTEGER}|{REAL}|{UUID}|({INTEGER}{HEX}|("&"[Hh]|\$){HEX}){TYPES}
 <NORMAL>^{INTEGER}		{ WriteToken(LineNo_attr); }
 <NORMAL>{IDENT}			{ const char *attr = is_hex(yytext)
 						     ? Number_attr
-						     : get_keyword_attr(yytext);
-				  if (attr == NULL) attr = "";
+						     : ci_keyword_attr(yytext);
+				  if (attr == 0) attr = "";
 				  if (!strcmp(attr, Comment_attr)) {
 				    BEGIN(COMMENT);
 				  } else if (first_token
@@ -117,9 +116,9 @@ is_hex(char *s)
     while (*s != 0) {
 	if (isxdigit(CharOf(*s))) {
 	    if (isalpha(CharOf(*s)))
-		++alpha;
+	    	++alpha;
 	    else
-		++number;
+	    	++number;
 	} else {
 	    number = 0;
 	    break;
@@ -140,12 +139,12 @@ do_filter(FILE *inputs)
 {
     InitLEX(inputs);
 
-    Action_attr = class_attr(NAME_ACTION);
+    Action_attr  = class_attr(NAME_ACTION);
     Comment_attr = class_attr(NAME_COMMENT);
-    Number_attr = class_attr(NAME_NUMBER);
-    Preproc_attr = class_attr(NAME_PREPROC);
-    String_attr = class_attr(NAME_LITERAL);
-    LineNo_attr = class_attr("LineNumber");
+    Number_attr  = class_attr(NAME_NUMBER);
+    Prepro_attr  = class_attr(NAME_PREPROC);
+    String_attr  = class_attr(NAME_LITERAL);
+    LineNo_attr  = class_attr("LineNumber");
 
     first_token = 1;
     handle_attrs = 0;

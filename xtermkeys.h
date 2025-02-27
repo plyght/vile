@@ -1,11 +1,11 @@
 /*
- * $Id: xtermkeys.h,v 1.20 2025/01/26 11:54:25 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/xtermkeys.h,v 1.17 2009/12/29 02:13:40 tom Exp $
  *
  * Function-key definitions and modifiers used for xterm.  This is a header
  * file to simplify sharing between the termcap/curses drivers.
  */
 
-#define DATA(tc,ti,code) { CAPNAME(tc,ti), code, NULL }
+#define DATA(tc,ti,code) { CAPNAME(tc,ti), code, 0 }
 /* *INDENT-OFF* */
 static struct {
     const char *capname;
@@ -137,9 +137,9 @@ skip_csi(const char *string)
 {
     const char *result = string;
 
-    if (!strncmp(string, "\033[", (size_t) 2))
+    if (!strncmp(string, "\033[", 2))
 	result = string + 2;
-    else if (!strncmp(string, "\233", (size_t) 1))
+    else if (!strncmp(string, "\233", 1))
 	result = string + 1;
 
     return result;
@@ -154,7 +154,7 @@ is_csi(const char *string)
 static int
 has_param(const char *string)
 {
-    return (strchr(string, ';') != NULL);
+    return (strchr(string, ';') != 0);
 }
 
 static int
@@ -183,7 +183,7 @@ format_modified(char *target, const char *source, int length, int which)
 static void
 add_modified_key(const char *source, int len, int code, int modify)
 {
-    if (source != NULL && len > 0) {
+    if (source != 0 && len > 0) {
 	if (modify < 0) {
 	    delfromsysmap(source, len);
 	} else {
@@ -229,7 +229,7 @@ replace_nulls(char *target, const char *source)
 
     (void) strcpy(target, source);
 #define TCAP_NULL 0200
-    if (strchr(source, TCAP_NULL) != NULL) {
+    if (strchr(source, TCAP_NULL) != 0) {
 	for (j = 0; j < len; j++)
 	    if (CharOf(target[j]) == TCAP_NULL)
 		target[j] = '\0';
@@ -251,7 +251,7 @@ add_shifted_key(unsigned i, int modify)
 	if (!strcmp(keyseqs[i].capname, shifted_keys[j].normal)) {
 	    for (k = 0; k < TABLESIZE(keyseqs); k++) {
 		if (!strcmp(keyseqs[k].capname, shifted_keys[j].shifted)) {
-		    if (keyseqs[k].result != NULL) {
+		    if (keyseqs[k].result != 0) {
 			len = replace_nulls(temp, keyseqs[k].result);
 			add_modified_key(temp, len,
 					 keyseqs[i].code |

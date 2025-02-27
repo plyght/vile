@@ -3,7 +3,8 @@
  *	Original interface by Otto Lind, 6/3/93
  *	Additional map and map! support by Kevin Buettner, 9/17/94
  *
- * $Id: map.c,v 1.136 2025/01/26 17:07:24 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/map.c,v 1.119 2010/07/25 09:13:33 tom Exp $
+ *
  */
 
 #include "estruct.h"
@@ -106,7 +107,7 @@ int do_keylog = 1;
 static void
 makemaplist(int dummy GCC_UNUSED, void *mapp)
 {
-    TBUFF *lhsstr = NULL;
+    TBUFF *lhsstr = 0;
     struct maprec **lhsstack;
     struct maprec *mp = (struct maprec *) mapp;
     int footnote = 0;
@@ -118,7 +119,7 @@ makemaplist(int dummy GCC_UNUSED, void *mapp)
     lhsstr = tb_init(&lhsstr, 0);
 
     lhsstack = typeallocn(struct maprec *, maxdepth = NSTRING);
-    if (lhsstack == NULL) {
+    if (lhsstack == 0) {
 	no_memory("makemaplist");
 	return;
     }
@@ -132,8 +133,8 @@ makemaplist(int dummy GCC_UNUSED, void *mapp)
 	    tb_put(&lhsstr, depth, mp->ch);
 	    if (depth + 1 >= maxdepth) {
 		maxdepth *= 2;
-		safe_typereallocn(struct maprec *, lhsstack, maxdepth);
-		if (lhsstack == NULL) {
+		lhsstack = typereallocn(struct maprec *, lhsstack, maxdepth);
+		if (lhsstack == 0) {
 		    no_memory("makemaplist");
 		    return;
 		}
@@ -147,10 +148,10 @@ makemaplist(int dummy GCC_UNUSED, void *mapp)
 		(void) kcod2escape_seq(mp->irv, esc_seq, sizeof(esc_seq));
 		mapstr = esc_seq;
 	    }
-	    if (mapstr && (the_lhs_string = tb_values(lhsstr)) != NULL) {
+	    if (mapstr && (the_lhs_string = tb_values(lhsstr)) != 0) {
 		if (mapp && (struct maprec *) mapp == abbr_map) {
 		    /* the abbr map is stored inverted */
-		    if (the_lhs_string != NULL)
+		    if (the_lhs_string != 0)
 			for (i = depth; i != 0;)
 			    bputc(the_lhs_string[--i]);
 		} else {
@@ -227,7 +228,7 @@ addtomap(struct maprec **mpp,
     int status = TRUE;
     struct maprec *mp = NULL;
 
-    if (ks != NULL && kslen != 0) {
+    if (ks != 0 && kslen != 0) {
 
 	TRACE2(("addtomap %s\n", visible_buff(ks, kslen, FALSE)));
 	while (*mpp && kslen) {
@@ -243,13 +244,13 @@ addtomap(struct maprec **mpp,
 
 	while (kslen) {
 	    mp = typealloc(struct maprec);
-	    if (mp == NULL) {
+	    if (mp == 0) {
 		status = no_memory("addtomap");
 		break;
 	    }
 	    *mpp = mp;
 	    mp->dlink = mp->flink = NULL;
-	    TRACE2(("...adding 0x%X\n", CharOf(*ks)));
+	    TRACE2(("...adding %#x\n", CharOf(*ks)));
 	    mp->ch = CharOf(*ks++);
 	    mp->srv = NULL;
 	    mp->flags = flags;
@@ -258,7 +259,7 @@ addtomap(struct maprec **mpp,
 	    kslen--;
 	}
 
-	if (mp != NULL) {
+	if (mp != 0) {
 	    if (irv != -1)
 		mp->irv = irv;
 	    if (srv) {
@@ -277,12 +278,12 @@ static int
 delfrommap(struct maprec **mpp, const char *ks, int length)
 {
     struct maprec **save_m = mpp;
-    struct maprec ***mstk = NULL;
+    struct maprec ***mstk = 0;
     int depth = 0;
     int pass;
     int n;
 
-    if (mpp == NULL || ks == NULL || length == 0)
+    if (ks == 0 || length == 0)
 	return FALSE;
 
     for (pass = 0; pass < 2; pass++) {
@@ -300,13 +301,11 @@ delfrommap(struct maprec **mpp, const char *ks, int length)
 		mpp = &(*mpp)->flink;
 	}
 
-	if (n < length) {
-	    free(mstk);
+	if (n < length)
 	    return FALSE;	/* not in map */
-	}
 	if (!pass) {
 	    mstk = typecallocn(struct maprec **, (size_t) depth + 1);
-	    if (mstk == NULL)
+	    if (mstk == 0)
 		return no_memory("delfrommap");
 	}
     }
@@ -346,7 +345,7 @@ delfrommap(struct maprec **mpp, const char *ks, int length)
  */
 static int
 maplookup(int c,
-	  ITBUFF ** out_ptr,
+	  ITBUFF ** outp,
 	  struct maprec *mp,
 	  GetFunc get,
 	  AvailFunc avail,
@@ -354,7 +353,7 @@ maplookup(int c,
 	  int suffix)
 {
     struct maprec *rmp = NULL;
-    ITBUFF *unmatched = NULL;
+    ITBUFF *unmatched = 0;
     int matchedcnt;
     int use_sys_timing;
     int had_start = FALSE;
@@ -377,8 +376,8 @@ maplookup(int c,
 
     TRACE2(("maplookup unmatched:%s\n", itb_visible(unmatched)));
     matchedcnt = 0;
-    while (mp != NULL) {
-	TRACE2(("... c=0x%X, mp->ch=0x%X\n", c, mp->ch));
+    while (mp != 0) {
+	TRACE2(("... c=%#x, mp->ch=%#x\n", c, mp->ch));
 	if (c == mp->ch) {
 	    if (mp->irv != -1 || mp->srv != NULL) {
 		rmp = mp;
@@ -455,14 +454,14 @@ maplookup(int c,
 	    mp = mp->flink;
     }
 
-    if (itb_values(unmatched) == NULL) {
+    if (itb_values(unmatched) == 0) {
 	matchedcnt = 0;
 	no_memory("maplookup");
-    } else if (had_start && (rmp != NULL)) {
+    } else if (had_start && (rmp != 0)) {
 	/* unget the unmatched suffix */
 	while (suffix && (count > 0)) {
-	    (void) itb_append(out_ptr, itb_values(unmatched)[--count]);
-	    TRACE2(("...1 ungetting 0x%X\n", itb_values(unmatched)[count]));
+	    (void) itb_append(outp, itb_values(unmatched)[--count]);
+	    TRACE2(("...1 ungetting %#x\n", itb_values(unmatched)[count]));
 	}
 	/* unget the mapping and elide correct number of recorded chars */
 	if (rmp->srv) {
@@ -475,30 +474,29 @@ maplookup(int c,
 	    else
 		remapflag = 0;
 	    while (cp > rmp->srv) {
-		(void) itb_append(out_ptr, CharOf(*--cp) | (int) remapflag);
-		TRACE2(("...2 ungetting 0x%X|0x%X\n", CharOf(*cp), remapflag));
+		(void) itb_append(outp, CharOf(*--cp) | (int) remapflag);
+		TRACE2(("...2 ungetting %#x|%#x\n", CharOf(*cp), remapflag));
 	    }
 	} else {
-	    (void) itb_append(out_ptr, rmp->irv);
-	    TRACE2(("...3 ungetting 0x%X\n", rmp->irv));
+	    (void) itb_append(outp, rmp->irv);
+	    TRACE2(("...3 ungetting %#x\n", rmp->irv));
 	}
     } else {			/* didn't find a match */
 	while (count > 0) {
-	    (void) itb_append(out_ptr, itb_values(unmatched)[--count]);
-	    TRACE2(("...4 ungetting 0x%X\n", itb_values(unmatched)[count]));
+	    (void) itb_append(outp, itb_values(unmatched)[--count]);
+	    TRACE2(("...4 ungetting %#x\n", itb_values(unmatched)[count]));
 	}
 	matchedcnt = 0;
     }
     itb_free(&unmatched);
-    TRACE2(("...maplookup %d:%s\n", matchedcnt, itb_visible(*out_ptr)));
+    TRACE2(("...maplookup %d:%s\n", matchedcnt, itb_visible(*outp)));
     return matchedcnt;
 }
 
 static void
 reverse_abbr(struct maprec **mpp, const char *bufname, TBUFF *kbuf)
 {
-    if ((mpp && *mpp && *mpp == abbr_map) ||
-	(strcmp(bufname, ABBR_BufName) == 0)) {
+    if ((*mpp && *mpp == abbr_map) || (strcmp(bufname, ABBR_BufName) == 0)) {
 	/* reverse the lhs */
 	int i;
 	char t;
@@ -712,7 +710,7 @@ save_keystroke(int c)
 	if (kr->kused >= NUMKEYSTR * 2) {	/* time to dump the oldest half */
 	    (void) memcpy((kp->d_chunk),
 			  (&kp->d_chunk[NUMKEYSTR / 2]),
-			  (size_t) (NUMKEYSTR / 2));
+			  NUMKEYSTR / 2);
 	    kr->kused = NUMKEYSTR / 2;
 	}
     }
@@ -726,7 +724,7 @@ static int
 normal_getc(void)
 {
     int c = term.getch();
-    TRACE(("normal/getc:%c (0x%X)\n", c, c));
+    TRACE(("normal/getc:%c (%#x)\n", c, c));
     save_keystroke(c);
     return c;
 }
@@ -755,28 +753,7 @@ sysmapped_c(void)
     if ((c = term.getch()) == -1)
 	return c;		/* see comment in ttgetc */
 
-    TRACE(("mapped/getc:%c (0x%X)\n", c, c));
-#if OPT_MULTIBYTE
-    if (global_g_val(GMDMINI_MAP) && !is8Bits(c)) {
-	TRACE(("reading_msg_line  %d\n", reading_msg_line));
-	TRACE(("insertmode        %d\n", insertmode));
-	if (!reading_msg_line && !insertmode) {
-	    UCHAR temp[MAX_UTF8];
-	    int j;
-	    int rc;
-	    rc = vl_conv_to_utf8(temp, (UINT) c, (B_COUNT) MAX_UTF8);
-	    if (rc > 1) {
-		TRACE(("...push back UTF-8 encoding\n"));
-		for (j = 1; j < rc; ++j) {
-		    TRACE(("...pushing back 0x%02x\n", temp[j]));
-		    itb_append(&sysmappedchars, temp[j]);
-		}
-		c = temp[0];
-		TRACE(("...proceed with 0x%02x\n", temp[0]));
-	    }
-	}
-    }
-#endif
+    TRACE(("mapped/getc:%c (%#x)\n", c, c));
 
     save_keystroke(c);
 
@@ -806,7 +783,7 @@ sysmapped_c_avail(void)
 void
 mapungetc(int c)
 {
-    TRACE2(("mapungetc 0x%X\n", c));
+    TRACE2(("mapungetc %#x\n", c));
     if (tgetc_avail()) {
 	tungetc(c);
     } else {
@@ -821,11 +798,7 @@ static int mapgetc_raw_flag;
 static int
 mapgetc(void)
 {
-    int result;
     UINT remapflag;
-
-    TRACE((T_CALLED "mapgetc\n"));
-
     if (global_g_val(GMDREMAP))
 	remapflag = 0;
     else
@@ -840,16 +813,13 @@ mapgetc(void)
 	    mlforce("[Infinite loop detected in %s sequence]",
 		    (insertmode) ? "map!" : "map");
 	    catnap(1000, FALSE);	/* FIXME: be sure message gets out */
-	    result = esc_c | (int) NOREMAP;
-	} else {
-	    mapgetc_ungotcnt--;
-	    result = itb_last(mapgetc_ungottenchars) | (int) remapflag;
+	    return esc_c | (int) NOREMAP;
 	}
-    } else {
-	infloopcount = 0;
-	result = tgetc(mapgetc_raw_flag);
+	mapgetc_ungotcnt--;
+	return itb_last(mapgetc_ungottenchars) | (int) remapflag;
     }
-    returnCode(result);
+    infloopcount = 0;
+    return tgetc(mapgetc_raw_flag);
 }
 
 int
@@ -891,33 +861,27 @@ mapped_c(int remap, int raw)
     int speckey = FALSE;
     static ITBUFF *mappedchars = NULL;
 
-    TRACE((T_CALLED "mapped_c(remap:%d, raw:%d)\n", remap, raw));
-
     /* still some pushback left? */
     mapgetc_raw_flag = raw;
     c = mapgetc();
 
-    if (((UINT) c & YESREMAP) == 0 && (!remap || ((UINT) c & NOREMAP)))
-	returnCode(STRIP_REMAPFLAGS(c));
+    if ((c & YESREMAP) == 0 && (!remap || (c & NOREMAP)))
+	return STRIP_REMAPFLAGS(c);
 
     c = STRIP_REMAPFLAGS(c);
 
-    if (reading_msg_line) {
-	mp = NULL;
-	TRACE(("...using no mapping\n"));
-    } else if (insertmode) {
+    if (reading_msg_line)
+	mp = 0;
+    else if (insertmode)
 	mp = map_insert;
-	TRACE(("...using insert-mapping\n"));
-    } else {
+    else
 	mp = map_command;
-	TRACE(("...using command-mapping\n"));
-    }
 
     /* if we got a function key from the lower layers, turn it into '#c'
        and see if the user remapped that */
-    if (((UINT) c & SPEC)
+    if ((c & SPEC)
 #if OPT_KEY_MODIFY
-	&& !((UINT) c & mod_KEY)	/* we don't do this special case */
+	&& !(c & mod_KEY)	/* we don't do this special case */
 #endif
 	) {
 	mapungetc(kcod2key(c));
@@ -926,18 +890,6 @@ mapped_c(int remap, int raw)
     }
 
     do {
-	/*
-	 * This is a workaround for an ambiguity between the different return
-	 * values from mapgetc(), on entry to this function:
-	 * - If infloopcount is zero, mapgetc() has just called tgetc(), which
-	 *   in turn called sysmapped_c(), and then term.getc().  That pointer
-	 *   is initialized to vl_mb_getch(), which will decode UTF-8 into a
-	 *   Unicode value.
-	 * - If infloopcount is nonzero, the function returns a byte (of UTF-8),
-	 *   which must be decoded later in this function.
-	 */
-	int full_c = (infloopcount == 0);	/* tgetc returned full char? */
-
 	(void) itb_init(&mappedchars, esc_c);
 
 	matched = maplookup(c,
@@ -949,9 +901,7 @@ mapped_c(int remap, int raw)
 			    TRUE);
 
 	while (itb_more(mappedchars)) {
-	    int cc = itb_next(mappedchars);
-	    TRACE(("...ungetting %d\n", cc));
-	    mapungetc(cc);
+	    mapungetc(itb_next(mappedchars));
 	}
 
 	/* if the user has not mapped '#c', we return the wide code we got
@@ -961,30 +911,10 @@ mapped_c(int remap, int raw)
 	    c = STRIP_REMAPFLAGS(mapgetc());
 	    if (c != poundc)
 		dbgwrite("BUG: # problem in mapped_c");
-	    returnCode((STRIP_REMAPFLAGS(mapgetc()) | (int) SPEC));
+	    return (STRIP_REMAPFLAGS(mapgetc()) | (int) SPEC);
 	}
 
 	c = mapgetc();
-#if OPT_MULTIBYTE
-	if (remap && !full_c && (vl_encoding >= enc_UTF8 && b_is_utfXX(curbp))) {
-	    char save[MAX_UTF8];
-	    int have = 0;
-	    int need = 9;
-	    UINT utf8;
-	    do {
-		save[have++] = (char) c;
-		need = vl_check_utf8(save, (B_COUNT) have);
-		if (need <= have)
-		    break;
-		c = mapgetc();
-		TRACE(("...re-getting %d\n", c));
-	    } while (c > 127);
-	    if ((have > 1) &&
-		vl_conv_to_utf32(&utf8, save, (B_COUNT) have) == have) {
-		c = (int) utf8;
-	    }
-	}
-#endif
 
 	if (!global_g_val(GMDREMAPFIRST))
 	    matched = FALSE;
@@ -992,65 +922,11 @@ mapped_c(int remap, int raw)
 	speckey = FALSE;
 
     } while (matched &&
-	     ((remap && !((UINT) c & NOREMAP)) || ((UINT) c & YESREMAP)));
+	     ((remap && !(c & NOREMAP)) || (c & YESREMAP)));
 
-    returnCode(STRIP_REMAPFLAGS(c));
+    return STRIP_REMAPFLAGS(c);
+
 }
-
-#if OPT_MULTIBYTE
-static ITBUFF *u2b_input;
-
-static int
-u2b_mapgetc(void)
-{
-    return itb_next(u2b_input);
-}
-
-static int
-u2b_mapped_c_avail(void)
-{
-    return itb_more(u2b_input);
-}
-
-static int
-u2b_mapped_c_start(void)
-{
-    return TRUE;
-}
-
-/*
- * Check if the given character maps (using the command-mapping) to one byte.
- * If so, return that (i.e., in the range 0..255).  Otherwise, return -1.
- */
-int
-map_to_command_char(int c)
-{
-    UCHAR temp[MAX_UTF8];
-    int used = vl_conv_to_utf8(temp, (UINT) c, sizeof(temp));
-    if (used > 1) {
-	int j;
-	int matched;
-	static ITBUFF *u2b_output;
-
-	(void) itb_init(&u2b_input, esc_c);
-	(void) itb_init(&u2b_output, esc_c);
-	for (j = 0; j < used; ++j) {
-	    itb_append(&u2b_input, temp[j]);
-	}
-	matched = maplookup(u2b_mapgetc(),
-			    &u2b_output,
-			    map_command,
-			    u2b_mapgetc,
-			    u2b_mapped_c_avail,
-			    u2b_mapped_c_start,
-			    TRUE);
-	if (matched == used && itb_length(u2b_output) == 1) {
-	    c = itb_values(u2b_output)[0];
-	}
-    }
-    return c;
-}
-#endif
 
 static int abbr_curr_off;
 static int abbr_search_lim;
@@ -1114,9 +990,8 @@ abbr_check(int *backsp_limit_p)
 	}
 	DOT.o -= matched;
 	ldel_bytes((B_COUNT) matched, FALSE);
-	while (status && itb_more(abbr_chars)) {
+	while (status && itb_more(abbr_chars))
 	    status = inschar(itb_last(abbr_chars), backsp_limit_p);
-	}
     }
     itb_free(&abbr_chars);
     return;
@@ -1127,11 +1002,11 @@ static void
 free_maprec(struct maprec **p)
 {
     struct maprec *q;
-    if ((q = *p) != NULL) {
+    if ((q = *p) != 0) {
 	free_maprec(&(q->flink));
 	free_maprec(&(q->dlink));
 	FreeAndNull(q->srv);
-	*p = NULL;
+	*p = 0;
 	free((char *) q);
     }
 }

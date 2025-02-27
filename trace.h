@@ -1,7 +1,8 @@
 /*
  * debugging support -- tom dickey.
  *
- * $Id: trace.h,v 1.40 2025/01/26 17:03:16 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/trace.h,v 1.36 2009/12/22 00:41:10 tom Exp $
+ *
  */
 #ifndef	_trace_h
 #define	_trace_h
@@ -58,7 +59,7 @@ extern	void	dopoison (void *oldp, unsigned long len);
 extern	void	fail_alloc (char *msg, char *ptr);
 extern	void	Trace ( const char *fmt, ... ) GCC_PRINTFLIKE(1,2);
 
-extern	char *	alloc_indent(int level, int marker);
+extern	char *	trace_indent(int level, int marker);
 
 extern char *   retrace_string (char *);
 extern const char * retrace_cstring (const char *);
@@ -76,7 +77,6 @@ extern	char *	str_visible (const char *p);
 extern	char *	str_visible0 (const char *p);
 extern	char *	tb_visible (TBUFF *p);
 extern	char *	visible_buff (const char *p, int length, int eos);
-extern	char *	visible_video_attr (const VIDEO_ATTR *p, int length);
 extern	char *	visible_video_text (const VIDEO_TEXT *p, int length);
 extern	void	trace_attribs (BUFFER *p, char *fn, int ln);
 extern	void	trace_buffer (BUFFER *p);
@@ -107,7 +107,7 @@ extern void trace_all_windows(const char *fn, int ln);
 #define T_RETURN "return }} "
 #define T_LENGTH 10
 
-#define TRACE_NULL(s) ((s) != NULL ? (s) : "<null>")
+#define TRACE_NULL(s) ((s) != 0 ? (s) : "<null>")
 
 #define TRACE_CMDFUNC(p) \
 	   ((p)->c_flags & CMD_PERL \

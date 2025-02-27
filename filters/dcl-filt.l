@@ -4,7 +4,7 @@
 %{
 
 /*
- * $Id: dcl-filt.l,v 1.28 2025/01/26 11:05:40 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/dcl-filt.l,v 1.23 2009/10/07 09:36:05 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of DCL files.
  *
@@ -27,7 +27,7 @@
 
 #include <filters.h>
 
-DefineFilter(dcl);
+DefineFilter("dcl");
 
 static char *Action_attr;
 static char *Comment_attr;
@@ -36,7 +36,7 @@ static char *Ident2_attr;
 static char *Number_attr;
 static char *String_attr;
 
-static const char *look_for = NULL;
+static const char *look_for = 0;
 
 static void handle_ident(char *text, int length);
 static void handle_newline(void);
@@ -92,7 +92,7 @@ STRING		\"([^"\r\n]|(""))*\"
 static void
 handle_ident(char *text, int length)
 {
-    const char *attr = get_keyword_attr(text);
+    const char *attr = ci_keyword_attr(text);
     const char *temp = lowercase_of(text);
     flt_puts(text, length, attr);
     if (!strcmp(temp, "deck")) {
@@ -107,7 +107,7 @@ static void
 handle_newline(void)
 {
     flt_putc('\n');
-    if (look_for != NULL) {
+    if (look_for != 0) {
 	BEGIN(LITERAL);
     }
 }
@@ -134,8 +134,8 @@ handle_literal(char *text, int length)
 	if (dollars) {
 	    const char *temp = lowercase_of(text);
 	    if (!strcmp(temp, look_for)) {
-		look_for = NULL;
-		attr = get_keyword_attr(temp);
+		look_for = 0;
+		attr = ci_keyword_attr(temp);
 		BEGIN(NORMAL);
 	    }
 	}
@@ -154,14 +154,14 @@ do_filter(FILE *inputs)
 {
     InitLEX(inputs);
 
-    Action_attr = class_attr(NAME_ACTION);
+    Action_attr  = class_attr(NAME_ACTION);
     Comment_attr = class_attr(NAME_COMMENT);
-    Ident_attr = class_attr(NAME_IDENT);
-    Ident2_attr = class_attr(NAME_IDENT2);
-    Number_attr = class_attr(NAME_NUMBER);
-    String_attr = class_attr(NAME_LITERAL);
+    Ident_attr   = class_attr(NAME_IDENT);
+    Ident2_attr  = class_attr(NAME_IDENT2);
+    Number_attr  = class_attr(NAME_NUMBER);
+    String_attr  = class_attr(NAME_LITERAL);
 
-    look_for = NULL;
+    look_for = 0;
     BEGIN(NORMAL);
     RunLEX();
 }

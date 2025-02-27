@@ -4,14 +4,14 @@
 %{
 
 /*
- * $Id: difffilt.l,v 1.13 2013/12/02 01:32:54 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/difffilt.l,v 1.11 2008/11/19 23:11:46 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of diff output
  */
 
 #include <filters.h>
 
-DefineFilter(diff);
+DefineFilter("diff");
 
 static char *Marker_attr;
 static char *Header_attr;

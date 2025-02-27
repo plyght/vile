@@ -1,65 +1,47 @@
-# $Id: mime.pl,v 1.11 2020/01/17 23:34:15 tom Exp $
+# $Header: /usr/build/vile/vile/perl/RCS/mime.pl,v 1.4 2002/05/03 10:18:24 tom Exp $
 # (see dir.doc)
 require 'plugins.pl';
 
-use strict;
-
 package mime;
-
-our $RPM_Provides = 'mime.pl perl(mime.pl)';
-
-our @mc;
-our @mt;
-
-our %type;
-our %flag;
-our %prog;
-
-our %gprog;
-our %gflag;
-our %gtype;
-our %gdesc;
-
-our %timestamp;
 
 sub mime {
     my $work = Vile::working(0);
     my ($file) = @_;
-    my ( $cwd, $ext, $nam, $val, $wildcard, $type );
+    my ($cwd, $ext, $nam, $val, $wildcard, $type);
 
-    chop( $cwd = `pwd` );
+    chop($cwd = `pwd`);
 
-    $ENV{MAILCAP}   .= ":$ENV{HOME}/.vile/mailcap";
+    $ENV{MAILCAP} .= ":$ENV{HOME}/.vile/mailcap";
     $ENV{MIMETYPES} .= ":$ENV{HOME}/.vile/mime.types";
 
-    readmc( *prog, *flag, split( ":", $ENV{MAILCAP} ) );
-    readmt( *type, *desc, split( ":", $ENV{MIMETYPES} ) );
+    readmc(*prog, *flag, split(":",$ENV{MAILCAP}));
+    readmt(*type, *desc, split(":",$ENV{MIMETYPES}));
 
-    $file = "$cwd/$file" if ( $file !~ m!^/! );
-    $ext = "" if ( !( ( $ext = $file ) =~ s/.*\.//g ) );
+    $file = "$cwd/$file" if ($file !~ m!^/!);
+    $ext = "" if (!(($ext = $file) =~ s/.*\.//g));
 
-    if ( !-e $file ) {
+    if (! -e $file) {
         print "[No such file or directory]";
         Vile::working($work);
         return;
     }
 
-    if ( defined $type{$ext} ) {
+    if (defined $type{$ext}) {
         ( $wildcard = $type{$ext} ) =~ s:/.*$:/\*:;
-        foreach $type ( $type{$ext}, $wildcard, "*/*", "*" ) {
-            if ( defined $flag{$type} ) {
-                ( $nam, $val ) = split( ":", $flag{$type} );
-                if ( $nam eq "x-vile-flags=plugin" ) {
+        foreach $type ($type{$ext}, $wildcard, "*/*", "*") {
+            if (defined $flag{$type}) {
+                ($nam,$val) = split(":", $flag{$type});
+                if ($nam eq "x-vile-flags=plugin") {
                     eval "plugins::$val(\"$file\")" || print "$file: $@\n";
                     Vile::working($work);
                     return;
                 }
             }
-            if ( defined $prog{$type} ) {
-                if ( fork == 0 ) {
-                    if ( !exec sprintf( $prog{$type}, $file ) ) {
+            if (defined $prog{$type}) {
+                if (fork == 0) {
+                    if (! exec sprintf($prog{$type}, $file)) {
                         print "[Failed executing \"$prog{$type}\"]";
-                        Vile::update();
+                        Vile::update;
                     }
                     exit;
                 }
@@ -74,24 +56,23 @@ sub mime {
 }
 
 sub readmc {
-    ( *gprog, *gflag, @mc ) = @_;
-    my ( $line, $type, $prog, $flag, $mc );
+    local (*gprog, *gflag, @mc) = @_;
+    my ($line, $type, $prog, $flag, $mc);
     foreach $mc (@mc) {
-        next if ( ( !-e $mc ) || ( $timestamp{$mc} > ( stat($mc) )[9] ) );
+        next if ((! -e $mc) || ($timestamp{$mc} > (stat($mc))[9]));
         $timestamp{$mc} = time;
-        open( MC, $mc ) || next;
-        while (<MC>) {
-            chop;
-            next if (/^\s*(#|$)/);
-            $line .= $_;
-            if ( $line !~ s/\\$// ) {
-                ( $type, $prog, $flag ) = split( "\;", $line );
+        open(MC, $mc) || next;
+        while(<MC>) {
+            chop; next if (/^\s*(#|$)/);
+	    $line .= $_;
+            if ($line !~ s/\\$//) {
+                ($type,$prog,$flag) = split("\;",$line);
                 $type =~ s/(^\s*|\s*$)//g;
                 $prog =~ s/(^\s*|\s*$)//g;
                 $flag =~ s/(^\s*|\s*$)//g;
-                $gprog{$type} = $prog if ( defined $prog && length($prog) );
-                $gflag{$type} = $flag if ( defined $flag && length($flag) );
-                undef $line;
+                $gprog{$type} = $prog if (defined $prog && length($prog));
+                $gflag{$type} = $flag if (defined $flag && length($flag));
+	        undef $line;
             }
         }
         close(MC);
@@ -99,30 +80,24 @@ sub readmc {
 }
 
 sub readmt {
-    ( *gtype, *gdesc, @mt ) = @_;
-    my ( $line, $mt, $nam, $val, $type, $exts, $desc, $ext );
+    local (*gtype, *gdesc, @mt) = @_;
+    my ($line, $mt, $nam, $val, $type, $exts, $desc, $ext);
     foreach $mt (@mt) {
-        open( MT, $mt ) || next;
-        next if ( ( !-e $mt ) || ( $timestamp{$mt} > ( stat($mt) )[9] ) );
+        open(MT, $mt) || next;
+        next if ((! -e $mt) || ($timestamp{$mt} > (stat($mt))[9]));
         $timestamp{$mt} = time;
-        while (<MT>) {
-            chop;
-            next if (/^\s*(#|$)/);
-            $line .= $_;
-            if ( $line !~ s/\\$// ) {
-                while ( $line =~ s/(^|\b)(type|desc|exts)=([^"]\S+|"[^"]*")// )
-                {
-                    $nam = $2;
-                    $val = $3;
-                    $val =~ s/(^"|"$)//g;
-                    $val = "\"$val\"";
+        while(<MT>) {
+            chop; next if (/^\s*(#|$)/);
+	    $line .= $_;
+            if ($line !~ s/\\$//) {
+                while ($line =~ s/(^|\b)(type|desc|exts)=([^"]\S+|"[^"]*")//) {
+		    $nam=$2; $val=$3; $val=~s/(^"|"$)//g; $val="\"$val\"";
                     eval "\$$nam=$val";
                 }
-                ( $type, $exts ) = split( /\s+/, $line, 2 )
-                  if ( $line =~ /\S/ );
-                foreach $ext ( split( /[\,\s]+/, $exts ) ) {
+	        ($type, $exts) = split(/\s+/, $line, 2) if ($line =~ /\S/);
+                foreach $ext (split(/[\,\s]+/, $exts)) {
                     $ext =~ s/^\.//;
-                    if ( defined $ext && length($ext) ) {
+                    if (defined $ext && length($ext)) {
                         $gtype{$ext} = $type;
                         $gdesc{$ext} = $desc;
                     }
@@ -140,17 +115,19 @@ __END__
 
 =head1 NAME
 
-mime - MIME library used within vile via perl interface
+MIME library written for use from within vile using the perl interface
 
 =head1 SYNOPSIS
 
-    require "mime.pl"
+require "mime.pl"
 
-    package mime;
+package mime;
 
-    readmc *prog, *flag, @mailcaps;
-    readmt *type, *desc, @mimetypes;
-    mime "filename";
+readmc *prog, *flag, @mailcaps;
+
+readmt *type, *desc, @mimetypes;
+
+mime "filename"
 
 =head1 DESCRIPTION
 
@@ -224,7 +201,7 @@ extent.   Which   means  if  it  cannot  find  a  plugin  or
 application  to  use  for  "image/gif",  it  will  look  for
 plugin  or  application  for  "image/*",  then for "*/*" and
 finally  for  "*" mime type. But it will not honor wildcards
-of  the  format  "ima*/gif" or  "image/g*" (and I don't even
+of  the  format  "ima*/gif"  or  "image/g*" (and I dont even
 know  if  the RFC allows such wildcards in mime types).
 
 The  library  currently  does  not  support  the mailcap and

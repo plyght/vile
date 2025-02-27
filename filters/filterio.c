@@ -1,7 +1,8 @@
 /*
- * $Id: filterio.c,v 1.71 2025/01/27 23:23:15 tom Exp $
- *
  * Main program and I/O for external vile syntax/highlighter programs
+ *
+ * $Header: /usr/build/vile/vile/filters/RCS/filterio.c,v 1.57 2010/07/13 13:29:30 tom Exp $
+ *
  */
 
 #include <filters.h>
@@ -27,7 +28,6 @@ static int my_col;
 static char *
 ParamValue(char **option, int *inx, int argc, char *argv[])
 {
-    static char empty[1];
     char *s = *option;
     char *result = ++s;
 
@@ -36,7 +36,7 @@ ParamValue(char **option, int *inx, int argc, char *argv[])
 	if (*inx < argc) {
 	    result = argv[*inx];
 	} else {
-	    result = empty;
+	    result = "";
 	}
     } else {
 	*option += strlen(*option) - 1;
@@ -50,13 +50,9 @@ ProcessArgs(int argc, char *argv[], int flag)
     int n;
     char *s, *value;
 
-    if (!flag)
-	printf("\001M%s", argv[0]);
     memset(flt_options, 0, sizeof(flt_options));
     for (n = 1; n < argc; n++) {
 	s = argv[n];
-	if (!flag)
-	    printf(" %s", s);
 	if (*s == '-') {
 	    while (*++s) {
 		FltOptions(*s) += 1;
@@ -75,9 +71,9 @@ ProcessArgs(int argc, char *argv[], int flag)
 		    break;
 		default:
 		    if (((filter_def.options != 0
-			  && (strchr) (filter_def.options, *s) == 0)
+			  && strchr(filter_def.options, *s) == 0)
 			 || filter_def.options == 0)
-			&& strchr("ivqQ", *s) == 0) {
+			&& strchr("vqQ", *s) == 0) {
 			fprintf(stderr, "unknown option %c\n", *s);
 			exit(BADEXIT);
 		    }
@@ -88,8 +84,6 @@ ProcessArgs(int argc, char *argv[], int flag)
 	    break;
 	}
     }
-    if (!flag)
-	fwrite("\0", sizeof(char), (size_t) 1, stdout);
     return n;
 }
 
@@ -144,11 +138,10 @@ flt_putc(int ch)
     } else {
 	++my_col;
     }
-#if 0
+
     /* markers come out in flt_puts */
     if (ch == CTL_A)
 	vl_putc('?', my_out);
-#endif
 }
 
 void
@@ -183,14 +176,8 @@ flt_get_col(void)
     return my_col;
 }
 
-int
-flt_succeeds(void)
-{
-    return 1;
-}
-
 void
-flt_error(const char *fmt, ...)
+flt_error(const char *fmt,...)
 {
     if (FltOptions('v') || FltOptions('Q')) {
 	va_list ap;
@@ -207,7 +194,7 @@ flt_error(const char *fmt, ...)
 }
 
 void
-flt_message(const char *fmt, ...)
+flt_message(const char *fmt,...)
 {
     if (FltOptions('v') || FltOptions('Q')) {
 	va_list ap;
@@ -246,7 +233,7 @@ home_dir(void)
 }
 
 void
-mlforce(const char *fmt, ...)
+mlforce(const char *fmt,...)
 {
     va_list ap;
 
@@ -281,7 +268,7 @@ char *
 vile_getenv(const char *name)
 {
     char *result = getenv(name);
-#if defined(_WIN32) || defined(_WIN64)
+#if defined(_WIN32)
     if (result == 0) {
 	static HKEY rootkeys[] =
 	{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
@@ -291,7 +278,7 @@ vile_getenv(const char *name)
 	DWORD dwSzBuffer;
 	char buffer[256];
 
-	for (j = 0; j < (int) TABLESIZE(rootkeys); ++j) {
+	for (j = 0; j < TABLESIZE(rootkeys); ++j) {
 	    if (RegOpenKeyEx(rootkeys[j],
 			     VILE_SUBKEY "\\Environment",
 			     0,
@@ -337,7 +324,7 @@ dname_to_dirnum(char **s GCC_UNUSED, size_t length GCC_UNUSED)
 }
 
 int
-vl_check_cmd(const void *cmd GCC_UNUSED, unsigned long flags GCC_UNUSED)
+vl_check_cmd(const void *cmd GCC_UNUSED, unsigned flags GCC_UNUSED)
 {
     /* added in 9.5s */
     return 0;
@@ -382,7 +369,6 @@ vl_lookup_cmd(const char *name GCC_UNUSED)
     return 0;
 }
 
-#if OPT_EXTRA_COLOR
 /* ARGSUSED */
 int
 vl_lookup_color(const char *mode GCC_UNUSED)
@@ -390,7 +376,6 @@ vl_lookup_color(const char *mode GCC_UNUSED)
     /* added in 9.7f */
     return 0;
 }
-#endif /*  OPT_EXTRA_COLOR */
 
 /* ARGSUSED */
 int
@@ -415,7 +400,6 @@ vl_lookup_var(const char *mode GCC_UNUSED)
     return 0;
 }
 
-#if OPT_EXTRA_COLOR
 /* ARGSUSED */
 int
 vl_lookup_xcolor(const char *mode GCC_UNUSED)
@@ -423,7 +407,6 @@ vl_lookup_xcolor(const char *mode GCC_UNUSED)
     /* added in 9.7f */
     return 0;
 }
-#endif /* OPT_EXTRA_COLOR */
 
 /******************************************************************************
  * Standalone main-program                                                    *
@@ -476,7 +459,7 @@ main(int argc, char **argv)
 	 * Unix hosts.   Handle those hosts now.
 	 */
 
-	const char *name;
+	char *name;
 
 #if defined(_WIN32)
 	name = "NUL";
@@ -502,6 +485,7 @@ main(int argc, char **argv)
     }
 #if NO_LEAKS
     filter_def.FreeFilter();
+    free(default_attr);
     filters_leaks();
 #endif
     fflush(my_out);

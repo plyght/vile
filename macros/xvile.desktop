@@ -1,11 +1,10 @@
-# $XTermId: xvile.desktop,v 1.4 2014/02/02 20:09:55 tom Exp $
+# $XTermId: xvile.desktop,v 1.3 2010/03/05 09:47:57 tom Exp $
 [Desktop Entry]
 Name=XVile
-GenericName=Text Editor
 Comment=VI Like Emacs
-Exec=xvile %f
+Exec=xvile
 Terminal=false
 Type=Application
 Encoding=UTF-8
 Icon=vile
-Categories=Utility;TextEditor;
+Categories=Application;Utility;TextEditor;

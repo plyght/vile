@@ -13,25 +13,12 @@
  * vile.  The file api.c (sometimes) provides a middle layer between
  * this interface and the rest of vile.
  *
- * $Id: perl.xs,v 1.148 2025/01/26 16:43:53 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/perl.xs,v 1.119 2009/10/31 17:12:03 tom Exp $
  */
 
-/*
- * Perl's header (and macro expansions) produce too many warnings to be useful.
- */
-#ifdef __clang__
-#pragma clang diagnostic ignored "-Wcompound-token-split-by-macro"
-#endif
 #ifdef __GNUC__
-#pragma GCC diagnostic ignored "-Wcast-qual"
-#pragma GCC diagnostic ignored "-Wconversion"
 #pragma GCC diagnostic ignored "-Wnested-externs"
-#pragma GCC diagnostic ignored "-Wshadow"
-#pragma GCC diagnostic ignored "-Wpedantic"
-#pragma GCC diagnostic ignored "-Wsign-conversion"
 #pragma GCC diagnostic ignored "-Wunused-variable"
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wundef"
 #endif
 
 /*#
@@ -121,25 +108,21 @@
 
 /* for vile */
 #define MARK vile_MARK
-#define regexp vile_regexp
 #include "estruct.h"
 #include "edef.h"
 #include "api.h"
-#undef regexp
 #undef MARK
 #undef ABORT
 
 /* for perl */
 #define main perl_main
+#define regexp perl_regexp
 #include <EXTERN.h>
 #include <perl.h>
 #include <XSUB.h>
 #undef main
+#undef regexp
 #undef dofile
-
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif
 
 /* Some earlier versions of perl don't have GIMME_V or G_VOID. We must
    be careful of the order in which we check things if these defines
@@ -150,10 +133,6 @@
 
 #ifndef G_VOID
 #define G_VOID G_SCALAR
-#endif
-
-#ifndef INT2PTR
-#define INT2PTR(n) (n)
 #endif
 
 /* Prior to perl5.005, the PL_ prefix wasn't used for things such
@@ -218,10 +197,6 @@ static MGVTBL svcurbuf_accessors = {
 static SV *ofs_sv;
 static SV *ors_sv;
 
-#ifdef PERL_SYS_INIT3
-#define USE_SYS_INIT3 1
-#endif
-
 static int real_perl_init(void);
 static void xs_init(pTHX);
 static int  perl_prompt(void);
@@ -244,7 +219,7 @@ tie_handle(SV *sv, SV *obj)
 
 /* write each line to message line */
 static int
-write_message(const char *prefix, SV *sv)
+write_message(char *prefix, SV *sv)
 {
     int count = 0;
     char *text = SvPV(sv, PL_na);
@@ -252,7 +227,7 @@ write_message(const char *prefix, SV *sv)
 
     while (text)
     {
-	if ((nl = strchr(text, '\n')) != NULL)
+	if ((nl = strchr(text, '\n')) != 0)
 	{
 	    *nl = 0;
 	    mktrimmed(text);
@@ -260,7 +235,7 @@ write_message(const char *prefix, SV *sv)
 		;
 
 	    if (!*nl)
-		nl = NULL;
+		nl = 0;
 	}
 
 	if (*text)
@@ -277,7 +252,7 @@ write_message(const char *prefix, SV *sv)
 /* require a file, `optional' indicates that it is OK for the file not
    to exist */
 static int
-require(const char *file, int optional)
+require(char *file, int optional)
 {
     TRACE((T_CALLED "Vile::require(%s,%s)\n", file, optional ? "optional" : "required"));
     /* require the file */
@@ -290,7 +265,7 @@ require(const char *file, int optional)
     if (optional)
     {
 	/* this error is OK for optional files */
-	SV *tmp = newSVpv("Can't locate ", (size_t) 0);
+	SV *tmp = newSVpv("Can't locate ", 0);
 	char const *my_check;
 	STRLEN sz;
 	int not_found;
@@ -316,12 +291,10 @@ perl_default_region(void)
 {
     static REGION region;
     vile_MARK save_DOT = DOT;
-
     DOT.l = lforw(buf_head(curbp));
-    DOT.o = b_left_margin(curbp);
-
+    DOT.o = 0;
     MK.l  = lback(buf_head(curbp));
-    MK.o  = b_left_margin(curbp);
+    MK.o  = 0;
 
     regionshape = rgn_FULLLINE;
     haveregion = NULL;
@@ -343,10 +316,10 @@ perl_default_region(void)
 static SV *
 newVBrv(SV *rv, VileBuf *sp)
 {
-    if (sp->perl_handle == NULL) {
+    if (sp->perl_handle == 0) {
 	sp->perl_handle = newGVgen("Vile::Buffer");
-	GvSV((GV*)sp->perl_handle) = newSV((size_t) 0);
-	sv_setiv(GvSV((GV*)sp->perl_handle), PTR2IV(sp));
+	GvSV((GV*)sp->perl_handle) = newSV(0);
+	sv_setiv(GvSV((GV*)sp->perl_handle), (IV) sp);
 	tie_handle(sp->perl_handle, rv);
 	gv_IOadd((GV*)sp->perl_handle);
 	IoLINES(GvIO((GV*)sp->perl_handle)) = 0;	/* initialise $. */
@@ -365,12 +338,12 @@ newVBrv(SV *rv, VileBuf *sp)
 }
 
 static VileBuf *
-getVB(SV *sv, const char **croakmessage_ptr)
+getVB(SV *sv, char **croakmessage_ptr)
 {
-    VileBuf *vbp = NULL;
+    VileBuf *vbp = 0;
     if (sv_isa(sv, "Vile::Buffer")) {
-	vbp = INT2PTR(VileBuf *, SvIV((SV*)GvSV((GV*)SvRV(sv))));
-	if (vbp == NULL) {
+	vbp = (VileBuf *)SvIV((SV*)GvSV((GV*)SvRV(sv)));
+	if (vbp == 0) {
 	    *croakmessage_ptr = "buffer no longer exists";
 	}
     }
@@ -394,7 +367,7 @@ perl_free_handle(void *handle)
     /*
      * Zero out perl's handle to the VileBuf structure
      */
-    sv_setiv(GvSV((GV*)handle), (size_t) 0);
+    sv_setiv(GvSV((GV*)handle), 0);
 
     /*
      * Decrement the reference count to indicate the fact that
@@ -425,11 +398,11 @@ newVWrv(SV *rv, VileWin vw)
 }
 
 static VileWin
-getVW(SV *sv, const char **croakmessage_ptr)
+getVW(SV *sv, char **croakmessage_ptr)
 {
-    VileWin vw = NULL;
+    VileWin vw = 0;
     if (sv_isa(sv, "Vile::Window")) {
-	vw = id2win((WIN_ID)SvIV((SV*)SvRV(sv)));
+	vw = id2win((ULONG)SvIV((SV*)SvRV(sv)));
 	if (!vw) {
 	    *croakmessage_ptr = "window no longer exists";
 	}
@@ -455,10 +428,10 @@ do_perl_cmd(SV *cmd, int inplace)
 
     if (recursecount == 0) {
 	curvbp = api_bp2vbp(curbp);
-	if (curvbp == NULL)
+	if (curvbp == 0)
 	    returnCode(FALSE);
 
-	if (DOT.l == NULL || MK.l == NULL || getregion(curbp, &region) != TRUE) {
+	if (DOT.l == 0 || MK.l == 0 || getregion(curbp, &region) != TRUE) {
 	    /* shouldn't ever get here. But just in case... */
 	    perl_default_region();
 	    if (getregion(curbp, &region) != TRUE) {
@@ -474,7 +447,7 @@ do_perl_cmd(SV *cmd, int inplace)
 	curvbp->inplace_edit = inplace;
 
 	{
-	    SV *sv = newVBrv(newSV((size_t) 0), curvbp);
+	    SV *sv = newVBrv(newSV(0), curvbp);
 	    sv_setsv(svcurbuf, sv);
 	    SvREFCNT_dec(sv);
 	}
@@ -548,25 +521,25 @@ int
 perl_call_sub(void *data, int oper, int f, int n)
 {
     AV *av = data;	/* callback is an array containing: */
-    SV **name = NULL;	/* the registered name, */
-    SV **sub = NULL;	/* a sub name or coderef to call, */
-    SV **req = NULL;	/* and an [optional] file to require */
+    SV **name = 0;	/* the registered name, */
+    SV **sub = 0;	/* a sub name or coderef to call, */
+    SV **req = 0;	/* and an [optional] file to require */
 
     TRACE((T_CALLED "perl_call_sub\n"));
     switch (av_len(av))
     {
 	case 2: /* (name, sub, require) */
-	    if ((req = av_fetch(av, 2, 0)) != NULL && SvTRUE(*req))
+	    if ((req = av_fetch(av, 2, 0)) != 0 && SvTRUE(*req))
 		if (!require(SvPV(*req, PL_na), FALSE))
 		    returnCode(FALSE);
 
 	    /* FALLTHRU */
 
 	case 1: /* (name, sub) */
-	    if ((name = av_fetch(av, 0, 0)) == NULL || !SvTRUE(*name))
+	    if ((name = av_fetch(av, 0, 0)) == 0 || !SvTRUE(*name))
 		croak("BUG: can't fetch name SV");
 
-	    if ((sub = av_fetch(av, 1, 0)) == NULL || !SvTRUE(*sub))
+	    if ((sub = av_fetch(av, 1, 0)) == 0 || !SvTRUE(*sub))
 		croak("BUG: can't fetch subroutine SV");
 
 	    break;
@@ -611,7 +584,7 @@ perl_free_sub(void *data)
   # =item :perl STMTS
   #
   # The I<perl> command will cause perl to execute one or more
-  # perl statements.  The user is usually prompted for the statements
+  # perl statements.  The user is usually prompted for the statments
   # to execute immediately after ":perl " is entered.  The user is
   # expected to enter legal perl statements or expressions.  These
   # statements must all fit on one line.  (Vile's :-line will scroll
@@ -679,7 +652,7 @@ perl_prompt(void)
     TRACE((T_CALLED "perl_prompt\n"));
 
     buf[0] = EOS;
-    if ((status = mlreply_no_opts("Perl command: ", buf, (UINT) sizeof(buf))) != TRUE)
+    if ((status = mlreply_no_opts("Perl command: ", buf, sizeof(buf))) != TRUE)
 	returnCode(status);
 
     /* Hack to workaround problem with perl5.005 in which package Dynaloader
@@ -689,7 +662,7 @@ perl_prompt(void)
     cmd = newSVpv(buf, 0);
 #else
     /* This is the hack... */
-    cmd = newSVpv("package main; ", (size_t) 0);
+    cmd = newSVpv("package main; ", 0);
     sv_catpv(cmd, buf);
 #endif
     status = do_perl_cmd(cmd, FALSE);
@@ -880,7 +853,7 @@ perldo_prompt(void)
     TRACE((T_CALLED "perldo_prompt\n"));
 
     buf[0] = EOS;
-    if ((status = mlreply_no_opts("Perl command: ", buf, (UINT) sizeof(buf))) != TRUE)
+    if ((status = mlreply_no_opts("Perl command: ", buf, sizeof(buf))) != TRUE)
 	returnCode(status);
 
 #if OPT_HISTORY
@@ -888,7 +861,7 @@ perldo_prompt(void)
 #endif
 
     strcpy(obuf, "-lpi");
-    if ((status = mlreply_no_opts("options: ", obuf, (UINT) sizeof(obuf))) != TRUE)
+    if ((status = mlreply_no_opts("options: ", obuf, sizeof(obuf))) != TRUE)
 	returnCode(status);
 
     /* skip optional leading `-' */
@@ -920,7 +893,7 @@ perldo_prompt(void)
 		i_rs = RS_PARA;
 		o++;
 	    }
-	    else if (!strncmp(o, "777", (size_t) 3))
+	    else if (!strncmp(o, "777", 3))
 	    {
 		i_rs = RS_NONE;
 		o += 3;
@@ -999,7 +972,7 @@ perldo_prompt(void)
     cmd = newSVpv("{local $/=", 0); /*}*/
 #else
     /* Package name hack - works around a bug in perl5.00503 */
-    cmd = newSVpv("package main; {local $/=", (size_t) 0); /*}*/
+    cmd = newSVpv("package main; {local $/=", 0); /*}*/
 #endif
     if (i_rs == RS_NONE)
 	sv_catpv(cmd, "undef");
@@ -1039,9 +1012,9 @@ perldo_prompt(void)
 	    else
 	    {
 		char delim;
-		const char *test = "'~#\200\1";
+		char *test = "'~#\200\1";
 		/* try to find a delimiter not in the string */
-		while (*test && vl_index(split, *test)) test++;
+		while (*test && strchr(split, *test)) test++;
 		delim = *test;
 		sv_catpvf(cmd, "q%c%s%c", delim, split, delim);
 	    }
@@ -1079,14 +1052,14 @@ svcurbuf_set(pTHX_ SV *sv, MAGIC *mg GCC_UNUSED)
 {
     VileBuf *vbp;
     if (sv_isa(sv, "Vile::Buffer")
-	&& (vbp = INT2PTR(VileBuf *, SvIV((SV*)GvSV((GV*)SvRV(sv))))) != NULL)
+	&& (vbp = (VileBuf *) SvIV((SV*)GvSV((GV*)SvRV(sv)))) != NULL)
     {
 	api_swscreen(NULL, vbp);
     }
     else {
 	VileBuf *curvbp = api_bp2vbp(curbp);
-	if (curvbp != NULL) {
-	    SV *my_sv = newVBrv(newSV((size_t) 0), curvbp);
+	if (curvbp != 0) {
+	    SV *my_sv = newVBrv(newSV(0), curvbp);
 	    sv_setsv(svcurbuf, my_sv);
 	    SvREFCNT_dec(my_sv);
 	}
@@ -1103,7 +1076,7 @@ prepend_include(char *path)
     if (is_directory(path)) {
 	TRACE(("prepend_include(%s)\n", path));
 	av_unshift(av = GvAVn(PL_incgv), 1);
-	sv = newSVpv(path, (size_t) 0);
+	sv = newSVpv(path, 0);
 	av_store(av, 0, sv);
     }
 }
@@ -1111,12 +1084,8 @@ prepend_include(char *path)
 static int
 real_perl_init(void)
 {
-    static char empty[1];
-    static char option_e[] = "-e";
-    static char values_0[] = "0";
-    static char my_class[] = "Vile";
-    char *embedding[] = { empty, option_e, values_0 };
-    char *bootargs[]  = { my_class, NULL };
+    char *embedding[] = { "", "-e", "0" };
+    char *bootargs[]  = { "Vile", NULL };
     SV   *svminibuf;
     char  temp[NFILEN];
     char *vile_path;
@@ -1141,17 +1110,16 @@ real_perl_init(void)
     prepend_include(lengthen_path(pathcat(temp, HELP_LOC, "perl")));
 #endif
     /* Always recognize environment variable */
-    if ((vile_path = vile_getenv("VILE_LIBDIR_PATH")) != NULL)
+    if ((vile_path = vile_getenv("VILE_LIBDIR_PATH")) != 0)
     {
 	const char *cp = vile_path;
 	char result[NFILEN];
-	int first = TRUE;
 	/*
 	 * "patch" @INC to look (first) for scripts in the directory
 	 * %VILE_LIBDIR_PATH%\\perl .
 	 */
 	TRACE(("perl_init VILE_LIBDIR_PATH=%s\n", vile_path));
-	while ((cp = parse_pathlist(cp, result, &first)) != NULL) {
+	while ((cp = parse_pathlist(cp, result)) != 0) {
 	    TRACE(("parsed %s\n", cp));
 	    prepend_include(pathcat(temp, result, "perl"));
 	}
@@ -1161,7 +1129,7 @@ real_perl_init(void)
        if they do not exist. */
     svcurbuf  = perl_get_sv(svcurbuf_name,  TRUE);
 
-    svminibuf   = newVBrv(newSV((size_t) 0), api_bp2vbp(bminip));
+    svminibuf   = newVBrv(newSV(0), api_bp2vbp(bminip));
 
     /* Tie STDOUT and STDERR to miniscr->PRINT() function */
     tie_handle((SV *) gv_fetchpv("STDOUT", TRUE, SVt_PVIO), svminibuf);
@@ -1190,15 +1158,9 @@ real_perl_init(void)
     returnCode(TRUE);
 }
 
-/*
- * This is called from main.c in a context that precludes including Perl's
- * header files.
- */
 void perl_init(int *argc, char ***argv, char ***envp)
 {
-#ifdef USE_SYS_INIT3
     PERL_SYS_INIT3(argc, argv, envp);
-#endif
 }
 
 /* make sure END blocks and destructors get called */
@@ -1209,10 +1171,8 @@ void perl_exit()
 	perl_run(perl_interp);		/* process END blocks */
 	perl_destruct(perl_interp);	/* global destructors */
 	perl_free(perl_interp);
-	perl_interp = NULL;
-#ifdef USE_SYS_INIT3
+	perl_interp = 0;
 	PERL_SYS_TERM();
-#endif
     }
     returnVoid();
 }
@@ -1224,14 +1184,7 @@ extern "C" {
 #endif
 
 extern void boot_DynaLoader(pTHX_ CV* cv);
-
-#if (defined(__CYGWIN__) || defined(WIN32)) && defined(USE_DYNAMIC_LOADING)
-__declspec(dllexport)
-#else
-extern
-#endif
-
-void boot_Vile(pTHX_ CV* cv);
+extern void boot_Vile(pTHX_ CV* cv);
 
 #ifdef __cplusplus
 }
@@ -1240,7 +1193,7 @@ void boot_Vile(pTHX_ CV* cv);
 static void
 xs_init(pTHX)
 {
-    const char *file = __FILE__;
+    char *file = __FILE__;
     dXSUB_SYS;
     newXS("DynaLoader::boot_DynaLoader", boot_DynaLoader, file);
     newXS("Vile::bootstrap", boot_Vile, file);
@@ -1250,8 +1203,8 @@ xs_init(pTHX)
  * Stringify a code ref so it may be called from vile.
  */
 
-static const char *CRfmtstr = "perl \"&{$Vile::CRs[%d]}\"";
-static AV *CRarray   = NULL;
+static char *CRfmtstr = "perl \"&{$Vile::CRs[%d]}\"";
+static AV *CRarray   = 0;
 static int freeCRidx = 0;
 
 static char *
@@ -1260,7 +1213,7 @@ stringify_coderef(SV *coderef) {
     int idx = 0;
     int cantstore = 0;
 
-    if (CRarray == NULL) {
+    if (CRarray == 0) {
 	/* Short name to keep the size of strings short on the vile side */
 	CRarray = perl_get_av("Vile::CRs", TRUE);
 	freeCRidx = -1;
@@ -1270,14 +1223,14 @@ stringify_coderef(SV *coderef) {
 	SV **svp;
 	idx = freeCRidx;
 	svp = av_fetch(CRarray, (I32) idx, 0);
-	if (svp == NULL) {
+	if (svp == 0) {
 	    /* Something's screwy... */
 	    freeCRidx = -1;
 	}
 	else {
-	    freeCRidx = (int) SvIV(*svp);
+	    freeCRidx = SvIV(*svp);
 	}
-	if (av_store(CRarray, (I32) idx, SvREFCNT_inc(coderef)) == NULL) {
+	if (av_store(CRarray, (I32) idx, SvREFCNT_inc(coderef)) == 0) {
 	    cantstore = 1;
 	    SvREFCNT_dec(coderef);
 	}
@@ -1299,7 +1252,7 @@ stringify_coderef(SV *coderef) {
 #if HAVE_BROKEN_PERL_ANON_SUB_DEALLOC
 static unsigned CRs_tofree_maxsize = 0;
 static unsigned CRs_tofree_idx = 0;
-static SV **CRs_tofree = NULL;
+static SV **CRs_tofree = 0;
 #endif /* HAVE_BROKEN_PERL_ANON_SUB_DEALLOC */
 
 void
@@ -1321,7 +1274,7 @@ perl_free_callback(char *callback)
 	SV **svp;
 	SV *svfreeCRidx;
 	svp = av_fetch(CRarray, (I32) idx, 0);
-	if (svp == NULL)
+	if (svp == 0)
 	    return 0;	/* Something screwy, bail... */
 
 	if (!SvROK(*svp) || SvTYPE(SvRV(*svp)) != SVt_PVCV)
@@ -1364,8 +1317,8 @@ perl_free_callback(char *callback)
 	CRs_tofree[CRs_tofree_idx++] = *svp;
 #endif /* HAVE_BROKEN_PERL_ANON_SUB_DEALLOC */
 
-	svfreeCRidx = newSViv((IV)freeCRidx);
-	if (av_store(CRarray, (I32) idx, svfreeCRidx) == NULL) {
+	svfreeCRidx = newSViv(freeCRidx);
+	if (av_store(CRarray, (I32) idx, svfreeCRidx) == 0) {
 	    /* Not successful (!) */
 	    SvREFCNT_dec(svfreeCRidx);
 	}
@@ -1395,7 +1348,7 @@ sv2linenum(SV *sv)
 	linenum = vl_line_count(curbp) + 1;
     }
     else {
-	linenum = (I32) SvIV(sv);
+	linenum = SvIV(sv);
 	if (linenum < 1) {
 	    linenum = 1;
 	}
@@ -1427,7 +1380,7 @@ sv2offset(SV *sv)
 	offset = llength(DOT.l);
     }
     else {
-	offset = (I32) SvIV(sv);
+	offset = SvIV(sv);
 	if (offset < 0) {
 	    offset = 0;
 	}
@@ -1497,7 +1450,7 @@ svgetline(SV **svp, VileBuf *vbp, char *rsstr GCC_UNUSED, STRLEN rslen GCC_UNUSE
 	    || b_val(curbp, MDNEWLINE)))
     {
 	nllen = len_rs;
-	DOT.o = b_left_margin(curbp);
+	DOT.o = 0;
 	DOT.l = lforw(DOT.l);
     }
     else {
@@ -1521,7 +1474,7 @@ svgetline(SV **svp, VileBuf *vbp, char *rsstr GCC_UNUSED, STRLEN rslen GCC_UNUSE
 	sv_setpvn(sv, ending, len_rs);
     }
     else {
-	sv_setpvn(sv, "", (size_t) 0);
+	sv_setpvn(sv, "", 0);
     }
 
     return TRUE;
@@ -1550,7 +1503,7 @@ svgetregion(SV **svp, VileBuf *vbp, char *rsstr GCC_UNUSED, STRLEN rslen GCC_UNU
     vbp->region.r_size = 0;
 
     *svp = sv = newSV(len + 1);	/* + 1 for \0 */
-    sv_setpvn(sv, "", (size_t) 0);
+    sv_setpvn(sv, "", 0);
 
     if (vbp->inplace_edit)
 	vbp->ndel += len;
@@ -1614,15 +1567,8 @@ svgettors(SV **svp, VileBuf *vbp, char *rsstr, STRLEN rslen)
 
     /* Adjust rsstr if need be */
     if (rslen == 0) {
-	rslen = strlen(ending);
-	if (rslen < (sizeof(temp) / 2) - 1) {
-	    rsstr = strcat(strcpy(temp, ending), ending);
-	    rslen = strlen(rsstr);
-	} else {	/* should never happen, but analyzers do not know */
-	    rsstr = temp;
-	    *rsstr = '\0';
-	    rslen = 0;
-	}
+	rsstr = strcat(strcpy(temp, ending), ending);
+	rslen = strlen(rsstr);
     }
 
     /* Get first separator character */
@@ -1697,6 +1643,7 @@ svgettors(SV **svp, VileBuf *vbp, char *rsstr, STRLEN rslen)
 		fidx = 0;
 	    }
 	    if (lp == buf_head(curbp) || len + (B_COUNT) (rsidx - 1) >= reglen) {
+		off = fidx;
 		len += (B_COUNT) (rsidx - 1);
 		goto have_length;
 	    }
@@ -1710,6 +1657,7 @@ svgettors(SV **svp, VileBuf *vbp, char *rsstr, STRLEN rslen)
 
 	if (rsidx >= rslen) {
 	    len += (B_COUNT) (rslen - 1);
+	    off = fidx;
 	    goto have_length;
 	}
 	lp = cont_lp;
@@ -1721,11 +1669,13 @@ have_length:
        as many additional newlines as we can */
     if (orig_rslen == 0) {
 	lp = lforw(lp);
+	off = 0;
 	while (   ! (lp == buf_head(curbp) || len >= reglen)
 	       && llength(lp) == 0)
 	{
 	    len += len_rs;
 	    lp = lforw(lp);
+	    off = 0;
 	}
     }
 
@@ -1739,7 +1689,7 @@ have_length:
 
     /* Now copy the region over to the SV... */
     *svp = sv = newSV(len + 1);	/* + 1 for \0 */
-    sv_setpvn(sv, "", (size_t) 0);
+    sv_setpvn(sv, "", 0);
 
     if (vbp->inplace_edit)
 	vbp->ndel += len;
@@ -1784,9 +1734,8 @@ FindMode(char *mode, int isglobal, VALARGS *args)
     int status = FALSE;
     int literal = (toktyp(mode) == TOK_LITSTR);
     const char *value;
-    char *result = NULL;
-    TBUFF *temp = NULL;
-    char new_mode[NLINE];
+    char *result = 0;
+    TBUFF *temp = 0;
 
     if (literal)
 	status = find_mode(curbp, mode, isglobal, args);
@@ -1795,6 +1744,7 @@ FindMode(char *mode, int isglobal, VALARGS *args)
 	value = string_mode_val(args);
     } else {
 	if (literal) {
+	    char new_mode[NLINE];
 	    new_mode[0] = '$';
 	    vl_strncpy(new_mode+1, mode, sizeof(new_mode)-1);
 	    value = tokval(new_mode);
@@ -1806,7 +1756,7 @@ FindMode(char *mode, int isglobal, VALARGS *args)
 		char *save_str = execstr;
 		int save_flag = clexec;
 
-		if ((temp = tb_scopy(&temp, mode)) != NULL
+		if ((temp = tb_scopy(&temp, mode)) != 0
 		    && tb_length(temp) != 0) {
 
 		    execstr = skip_text(tb_values(temp));
@@ -1831,14 +1781,14 @@ FindMode(char *mode, int isglobal, VALARGS *args)
 
     if (isErrorVal(value)) {
 	result = error_val;
-    } else if (value != NULL) {
-	if ((result = strmalloc(value)) == NULL)
+    } else if (value != 0) {
+	if ((result = strmalloc(value)) == 0)
 	    value = "";
     } else {
 	value = "";
     }
-    TRACE(("value of %s(%s) = %s\n", status ? "mode" : "", mode, value));
     tb_free(&temp);
+    TRACE(("value of %s(%s) = %s\n", status ? "mode" : "", mode, value));
     return result;
 }
 
@@ -1908,7 +1858,7 @@ PROTOTYPES: DISABLE
   #
   # Note the trailing "1;" at the end.  The reason for this is so
   # that I<true> is returned as the result of the script.  If things
-  # are not done this way, the loading mechanism might flag an
+  # are not done this way, the loading mechansim might flag an
   # error.  (All it needs to do is return a true value somehow.)
   #
   # Assuming the above code has been placed in the file
@@ -2017,7 +1967,7 @@ buffers(...)
 	}
 
 	for_each_buffer(bp) {
-	    XPUSHs(sv_2mortal(newVBrv(newSV((size_t) 0), api_bp2vbp(bp))));
+	    XPUSHs(sv_2mortal(newVBrv(newSV(0), api_bp2vbp(bp))));
 	}
 
   #
@@ -2086,7 +2036,7 @@ keystroke(...)
 	}
 
 	if (!noget)
-	    XPUSHs(sv_2mortal(newSViv((IV)sysmapped_c())));
+	    XPUSHs(sv_2mortal(newSViv(sysmapped_c())));
 
 	curwp_visible = curwp;
 
@@ -2153,13 +2103,13 @@ mlreply(prompt, ...)
 
 	switch (ix) {
 	    case 1:
-		status = mlreply_no_opts(prompt, buf, (UINT) sizeof(buf));
+		status = mlreply_no_opts(prompt, buf, sizeof(buf));
 		break;
 	    case 2:
-		status = mlreply_no_bs(prompt, buf, (UINT) sizeof(buf));
+		status = mlreply_no_bs(prompt, buf, sizeof(buf));
 		break;
 	    default:
-		status = mlreply(prompt, buf, (UINT) sizeof(buf));
+		status = mlreply(prompt, buf, sizeof(buf));
 		break;
 	}
 #if OPT_HISTORY
@@ -2167,7 +2117,7 @@ mlreply(prompt, ...)
 	    hst_glue('\r');
 #endif
 	XPUSHs((status == TRUE || status == FALSE)
-		 ? sv_2mortal(newSVpv(buf, (size_t) 0))
+		 ? sv_2mortal(newSVpv(buf, 0))
 		 : &PL_sv_undef);
 
 
@@ -2212,7 +2162,7 @@ mlreply_dir(prompt, ...)
 	    hst_glue('\r');
 #endif
 	XPUSHs((status == TRUE || status == FALSE)
-		 ? sv_2mortal(newSVpv(buf, (size_t) 0))
+		 ? sv_2mortal(newSVpv(buf, 0))
 		 : &PL_sv_undef);
 
 
@@ -2257,7 +2207,7 @@ mlreply_file(prompt, ...)
 	    hst_glue('\r');
 #endif
 	XPUSHs((status == TRUE || status == FALSE)
-		 ? sv_2mortal(newSVpv(buf, (size_t) 0))
+		 ? sv_2mortal(newSVpv(buf, 0))
 		 : &PL_sv_undef);
 
   #
@@ -2329,10 +2279,10 @@ selection_buffer(...)
 	    bp = get_selection_buffer_and_region(&aregion);
 	    if (bp != NULL) {
 		VileBuf *vbp = api_bp2vbp(bp);
-		if (vbp != NULL) {
+		if (vbp != 0) {
 		    vbp->region = aregion.ar_region;
 		    vbp->regionshape =  aregion.ar_shape;
-		    XPUSHs(sv_2mortal(newVBrv(newSV((size_t) 0), vbp)));
+		    XPUSHs(sv_2mortal(newVBrv(newSV(0), vbp)));
 		}
 	    }
 	    else {
@@ -2341,11 +2291,11 @@ selection_buffer(...)
 	}
 	else if (items - argno == 1) { /* setter */
 	    VileBuf *vbp;
-	    const char *croakmess;
+	    char *croakmess;
 	    /* Need a buffer object */
 	    vbp = getVB(ST(argno), &croakmess);
 
-	    if (vbp == NULL)
+	    if (vbp == 0)
 		croak("Vile::%s: %s",
 		      ix == 1 ? "Buffer::set_selection" : "selection_buffer",
 		      croakmess);
@@ -2435,14 +2385,14 @@ set(...)
 	mode     = NULL;		/* just in case it never gets set */
 
 	if (!isglobal /* one of the Vile::Buffer methods */) {
-	    const char *croakmess;
+	    char *croakmess;
 	    VileBuf *vbp;
 
 	    /* Need a buffer object */
 	    vbp = getVB(ST(argno), &croakmess);
 	    argno++;
 
-	    if (vbp == NULL)
+	    if (vbp == 0)
 		croak("Vile::Buffer::set: %s", croakmess);
 
 	    isglobal = 0;
@@ -2485,7 +2435,7 @@ set(...)
 		    modenames[nmodenames++] = mode;
 
 		if (issetter) {
-		    const char *val;
+		    char *val;
 		    val = NULL;
 		    if (argno >= items) {
 			if (args.names->type == VALTYPE_BOOL) {
@@ -2507,7 +2457,7 @@ set(...)
 		    }
 		}
 	    } else {
-		const char *val = NULL;
+		const char *val = 0;
 
 		if (modenames)
 		    modenames[nmodenames++] = mode;
@@ -2535,14 +2485,14 @@ set(...)
 	if (modenames == NULL) {
 	    if (issetter) {
 		if (isglobal)
-		    XPUSHs(sv_2mortal(newSVpv("Vile", (size_t) 0)));
+		    XPUSHs(sv_2mortal(newSVpv("Vile", 0)));
 		else
 		    XPUSHs(ST(0));	/* Buffer object */
 	    }
 	    else {
 		if (mode != NULL) {
 		    value = FindMode(mode, isglobal, &args);
-		    XPUSHs(sv_2mortal(newSVpv(value, (size_t) 0)));
+		    XPUSHs(sv_2mortal(newSVpv(value, 0)));
 		    FreeMode(value);
 		}
 	    }
@@ -2552,8 +2502,8 @@ set(...)
 	    for (i = 0; i < nmodenames; i++) {
 		mode = modenames[i];
 		value = FindMode(mode, isglobal, &args);
-		XPUSHs(sv_2mortal(newSVpv(mode, (size_t) 0)));
-		XPUSHs(sv_2mortal(newSVpv(value, (size_t) 0)));
+		XPUSHs(sv_2mortal(newSVpv(mode, 0)));
+		XPUSHs(sv_2mortal(newSVpv(value, 0)));
 		FreeMode(value);
 	    }
 	    free(modenames);
@@ -2684,19 +2634,19 @@ register(name, ...)
 	    if (!isAlnum(*p) && *p != '-' && *p != '_')
 		croak("invalid subroutine name");
 
-	if ((cmd = typecalloc(CMDFUNC)) == NULL)
+	if ((cmd = typecalloc(CMDFUNC)) == 0)
 	    croak("Can't allocate space");
 
 	ix |= (I32) ((ix == OPER) ? RANGE : VIEWOK);
 	cmd->cu.c_perl = av = newAV();
-	cmd->c_flags = (REDO | UNDO | CMD_PERL | (CMDFLAGS) ix);
+	cmd->c_flags = REDO|UNDO|CMD_PERL|ix;
 #if OPT_ONLINEHELP
 	cmd->c_help = strmalloc((items > 2 && SvTRUE(ST(2)))
 				? SvPV(ST(2), PL_na)
 				: "Perl subroutine");
 #endif
 
-	if (insert_namebst(name, cmd, FALSE, 0) != TRUE)
+	if (insert_namebst(name, cmd, FALSE) != TRUE)
 	{
 #if OPT_ONLINEHELP
 	    free((char *) cmd->c_help);
@@ -2707,7 +2657,7 @@ register(name, ...)
 	else
 	{
 	    /* push the name */
-	    av_push(av, newSVpv(name, (size_t) 0));
+	    av_push(av, newSVpv(name, 0));
 
 	    /* push the subroutine */
 	    if (items > 1 && SvTRUE(ST(1)))
@@ -2723,7 +2673,7 @@ register(name, ...)
 		}
 	    }
 	    else /* sub = name */
-		av_push(av, newSVpv(name, (size_t) 0));
+		av_push(av, newSVpv(name, 0));
 	}
 #else
 	croak("%s requires vile to be compiled with OPT_NAMBST",
@@ -2863,7 +2813,7 @@ MODULE = Vile	PACKAGE = Vile::Buffer
   # After a line is read, DOT is left at the next location in the
   # buffer at which to start reading.  Note, however, that the value
   # of DOT (which a convenient name for the current position in the
-  # buffer) is not propagated back to any of the user's windows unless
+  # buffer) is not propogated back to any of the users windows unless
   # it has been explicitly set by calling dot (the method).
   #
   # When the I<inplace_edit> flag has been set via the C<inplace_edit>
@@ -2925,7 +2875,7 @@ READLINE(vbp)
 		    prompt[len] = EOS;
 		}
 	    }
-	    status = mlreply_no_opts(prompt, buf, (UINT) sizeof(buf));
+	    status = mlreply_no_opts(prompt, buf, sizeof(buf));
 #if OPT_HISTORY
 	    if (status == TRUE)
 		hst_glue('\r');
@@ -2936,7 +2886,7 @@ READLINE(vbp)
 	    }
 	    else {
 		use_ml_as_prompt = 0;
-		PUSHs(sv_2mortal(newSVpv(buf,(size_t) 0)));
+		PUSHs(sv_2mortal(newSVpv(buf,0)));
 	    }
 	}
 	else {
@@ -2957,7 +2907,7 @@ READLINE(vbp)
 
 	    if (RsSNARF(svrs)) {
 		fnc = svgetregion;
-		rsstr = NULL;
+		rsstr = 0;
 		rslen = 0;
 	    }
 	    else {
@@ -3048,7 +2998,7 @@ attribute(vbp, ...)
 	    char *atname;
 	    VIDEO_ATTR vattr = 0;
 	    int normal = 0;
-	    char *hypercmd = NULL;
+	    char *hypercmd = 0;
 	    int status;
 
 	    for (i = 1; i < items; i++) {
@@ -3096,7 +3046,7 @@ attribute(vbp, ...)
 
 	    if (normal) {
 		vattr = 0;
-		FreeAndNull(hypercmd);
+		hypercmd = 0;
 	    }
 
 	    status = attributeregion_in_region(
@@ -3203,10 +3153,8 @@ buffername(vbp,...)
 	}
 
 	if (status == TRUE) {
-	    XPUSHs(sv_2mortal(newSVpv((ix == 0
-				       ? curbp->b_bname
-				       : curbp->b_fname),
-				      (size_t) 0)));
+	    XPUSHs(sv_2mortal(newSVpv(ix == 0 ?
+				      curbp->b_bname : curbp->b_fname, 0)));
 	}
 	else {
 	    XPUSHs(&PL_sv_undef);		/* return undef */
@@ -3318,8 +3266,8 @@ current_buffer(...)
 	Vile::current_buffer = 1
 
     PREINIT:
-	VileBuf *callbuf = NULL;
-	VileBuf *newbuf = NULL;
+	VileBuf *callbuf = 0;
+	VileBuf *newbuf = 0;
 
     PPCODE:
 	TRACE(("Vile::current_buffer\n"));
@@ -3327,17 +3275,17 @@ current_buffer(...)
 	    croak("Too many arguments to current_buffer");
 	else if (items == 2) {
 	    if (sv_isa(ST(0), "Vile::Buffer")) {
-		callbuf = INT2PTR(VileBuf *, SvIV((SV*)GvSV((GV*)SvRV(ST(0)))));
-		if (callbuf == NULL) {
+		callbuf = (VileBuf *)SvIV((SV*)GvSV((GV*)SvRV(ST(0))));
+		if (callbuf == 0) {
 		    croak("buffer no longer exists");
 		}
 	    }
 	    else
-		callbuf = NULL;
+		callbuf = 0;
 
 	    if (sv_isa(ST(1), "Vile::Buffer")) {
-		newbuf = INT2PTR(VileBuf *, SvIV((SV*)GvSV((GV*)SvRV(ST(1)))));
-		if (newbuf == NULL) {
+		newbuf = (VileBuf *)SvIV((SV*)GvSV((GV*)SvRV(ST(1))));
+		if (newbuf == 0) {
 		    croak("switched to buffer no longer exists");
 		}
 	    }
@@ -3369,7 +3317,7 @@ delete(vbp)
 	if (api_delregion(vbp))
 	    RETVAL = vbp;
 	else
-	    RETVAL = NULL;	/* which gets turned into undef */
+	    RETVAL = 0;		/* which gets turned into undef */
     OUTPUT:
 	RETVAL
 
@@ -3484,17 +3432,17 @@ dot(vbp, ...)
 	    vbp->dot_inited = TRUE;
 	    if (ix != 2) {
 		/* Indicate that DOT has been explicitly changed which means
-		   that changes to DOT will be propagated upon return to vile */
+		   that changes to DOT will be propogated upon return to vile */
 		vbp->dot_changed = TRUE;
 	    }
 	}
 	gimme = GIMME_V;
 	if (gimme == G_SCALAR) {
-	    XPUSHs(sv_2mortal(newSViv((IV)line_no(curbp, DOT.l))));
+	    XPUSHs(sv_2mortal(newSViv(line_no(curbp, DOT.l))));
 	}
 	else if (gimme == G_ARRAY) {
-	    XPUSHs(sv_2mortal(newSViv((IV)line_no(curbp, DOT.l))));
-	    XPUSHs(sv_2mortal(newSViv((IV)DOT.o)));
+	    XPUSHs(sv_2mortal(newSViv(line_no(curbp, DOT.l))));
+	    XPUSHs(sv_2mortal(newSViv(DOT.o)));
 	}
 
   #
@@ -3530,7 +3478,7 @@ fetch(vbp)
 
 	old_DOT = DOT;
 
-	svgetregion(&sv, vbp, NULL, (STRLEN) 0);
+	svgetregion(&sv, vbp, 0, 0);
 
 	XPUSHs(sv_2mortal(sv));
 
@@ -3559,7 +3507,7 @@ fetch(vbp)
   #
   # The <$curbuf> operation will cause one line to be read and
   # deleted.  DOT will be left at the beginning of the next line.  The
-  # print statement will cause $_ to get inserted prior the the next
+  # print statment will cause $_ to get inserted prior the the next
   # line.
   #
   # Setting this flag to true is very similar to setting the
@@ -3621,8 +3569,8 @@ inplace_edit(vbp, ...)
   #                     # "foo".
   #
   #     $cb->dot($cb->dot);
-  #                     # Make sure DOT gets propagated back.
-  #                     # (It won't get propagated unless
+  #                     # Make sure DOT gets propogated back.
+  #                     # (It won't get propogated unless
   #                     # explicitly set.)
   #
   # =for html <br><br>
@@ -3665,10 +3613,10 @@ motion(vbp,mstr)
 		so = eo;
 		eo = to;
 	    }
-	    XPUSHs(sv_2mortal(newSViv((IV)sl)));
-	    XPUSHs(sv_2mortal(newSViv((IV)so)));
-	    XPUSHs(sv_2mortal(newSViv((IV)el)));
-	    XPUSHs(sv_2mortal(newSViv((IV)eo)));
+	    XPUSHs(sv_2mortal(newSViv(sl)));
+	    XPUSHs(sv_2mortal(newSViv(so)));
+	    XPUSHs(sv_2mortal(newSViv(el)));
+	    XPUSHs(sv_2mortal(newSViv(eo)));
 	}
 
   #
@@ -3884,17 +3832,13 @@ PRINT(vbp, ...)
   #
   # Notes:
   #
-  # =over 4
-  #
-  # =item *
+  # =item 1
   #
   # rectangular regions are not implemented yet.
   #
-  # =item *
+  # =item 2
   #
   # setregion is an alias for set_region.
-  #
-  # =back
   #
   # =for html <br><br>
   #
@@ -3983,16 +3927,15 @@ set_region(vbp, ...)
 	}
 	else if (gimme == G_ARRAY) {
 	    /* Return range information */
-	    XPUSHs(sv_2mortal(newSViv((IV)line_no(curbp, vbp->region.r_orig.l))));
-	    XPUSHs(sv_2mortal(newSViv((IV)vbp->region.r_orig.o)));
-	    XPUSHs(sv_2mortal(newSViv((IV)line_no(curbp, vbp->region.r_end.l)
+	    XPUSHs(sv_2mortal(newSViv(line_no(curbp, vbp->region.r_orig.l))));
+	    XPUSHs(sv_2mortal(newSViv(vbp->region.r_orig.o)));
+	    XPUSHs(sv_2mortal(newSViv(line_no(curbp, vbp->region.r_end.l)
 						     - (vbp->regionshape == rgn_FULLLINE))));
-	    XPUSHs(sv_2mortal(newSViv((IV)vbp->region.r_end.o)));
+	    XPUSHs(sv_2mortal(newSViv(vbp->region.r_end.o)));
 	    XPUSHs(sv_2mortal(newSVpv(
 		vbp->regionshape == rgn_FULLLINE ? "fullline" :
 		vbp->regionshape == rgn_EXACT    ? "exact"
-						 : "rectangle",
-		(size_t) 0 )));
+						 : "rectangle",  0 )));
 	}
 
 
@@ -4110,11 +4053,11 @@ buffer(vw, ...)
 	if (items > 2)
 	    croak("Vile::Window::buffer: Too many arguments.");
 	else if (items == 2) {
-	    const char *croakmess;
+	    char *croakmess;
 	    VileBuf *vbp;
 	    WINDOW *savewp = curwp;
 	    vbp = getVB(ST(1), &croakmess);
-	    if (vbp == NULL)
+	    if (vbp == 0)
 		croak("Vile::Window::buffer: %s", croakmess);
 	    set_curwp(vw);
 	    swbuffer_lfl(vbp2bp(vbp), FALSE, TRUE);
@@ -4173,11 +4116,11 @@ current_window(...)
 	}
 	else if (items - argno == 1) { /* setter */
 	    VileWin vw;
-	    const char *croakmess;
+	    char *croakmess;
 	    /* Need a window object */
 	    vw = getVW(ST(argno), &croakmess);
 
-	    if (vw == NULL)
+	    if (vw == 0)
 		croak("Vile::%scurrent_window: %s",
 		      ix == 1 ? "Window::" : "",
 		      croakmess);
@@ -4225,7 +4168,7 @@ delete(vw)
 	    XPUSHs(&PL_sv_undef);
 	}
 	else {
-	    XPUSHs(sv_2mortal(newSViv((IV)1)));
+	    XPUSHs(sv_2mortal(newSViv(1)));
 	}
 
   #
@@ -4285,11 +4228,11 @@ dot(vw, ...)
 	if (gimme == G_SCALAR || gimme == G_ARRAY) {
 	    /* Return line number when in either a scalar or an array context */
 	    XPUSHs(sv_2mortal(newSViv(
-		(IV)line_no(vw->w_bufp, vw->w_traits.w_dt.l))));
+		line_no(vw->w_bufp, vw->w_traits.w_dt.l))));
 	}
 	if (gimme == G_ARRAY) {
 	    /* When in an array context, also return the line offset */
-	    XPUSHs(sv_2mortal(newSViv((IV)vw->w_traits.w_dt.o)));
+	    XPUSHs(sv_2mortal(newSViv(vw->w_traits.w_dt.o)));
 	}
 
   #
@@ -4353,13 +4296,13 @@ new(...)
 
     CODE:
 	if (items == 2) {
-	    const char *croakmess;
+	    char *croakmess;
 	    vbp = getVB(ST(1), &croakmess);
 	    if (!vbp)
 		croak("Vile::Window::new: %s",croakmess);
 	}
 	else
-	    vbp = NULL;
+	    vbp = 0;
 
 	if (items > 2)
 	    croak("Vile::Window::new: Too many arguments.");
@@ -4369,9 +4312,9 @@ new(...)
 	    vw = wpopup();
 	}
 	else if (sv_isa(ST(0), "Vile::Window")) {
-	    const char *croakmess;
+	    char *croakmess;
 	    vw = getVW(ST(0), &croakmess);	/* Fetch window object */
-	    if (vw == NULL)
+	    if (vw == 0)
 		croak("Vile::Window::new: %s", croakmess);
 
 	    if (vw->w_ntrows < MINWLNS)
@@ -4456,11 +4399,11 @@ size(vw, ...)
 	}
 	gimme = GIMME_V;
 	if (gimme == G_SCALAR) {
-	    XPUSHs(sv_2mortal(newSViv((IV)vw->w_ntrows)));
+	    XPUSHs(sv_2mortal(newSViv(vw->w_ntrows)));
 	}
 	else if (gimme == G_ARRAY) {
-	    XPUSHs(sv_2mortal(newSViv((IV)vw->w_ntrows)));
-	    XPUSHs(sv_2mortal(newSViv((IV)term.cols)));
+	    XPUSHs(sv_2mortal(newSViv(vw->w_ntrows)));
+	    XPUSHs(sv_2mortal(newSViv(term.cols)));
 	}
 
   #
@@ -4531,7 +4474,6 @@ window_at(idx)
   #
   # =for html <br><br>
   #
-  # =back
 
 int
 window_count()

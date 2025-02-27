@@ -17,7 +17,7 @@
  *   "FAILED" may not be used to test an OLE return code.  Use SUCCEEDED
  *   instead.
  *
- * $Id: w32ole.cpp,v 1.37 2022/08/21 23:37:31 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/w32ole.cpp,v 1.31 2009/10/15 10:41:22 tom Exp $
  */
 
 #include "w32vile.h"
@@ -111,7 +111,7 @@ oleauto_init(OLEAUTO_OPTIONS *opts)
     if (! (olebuf && ansibuf))
         return (FALSE);
 
-    hr = OleInitialize(NULL);   // Initialize OLE
+    hr = OleInitialize(NULL);   // Intialize OLE
     if (! SUCCEEDED(hr))
     {
         disp_win32_error(hr, NULL);
@@ -146,9 +146,9 @@ oleauto_init(OLEAUTO_OPTIONS *opts)
      * Register Vile application object in the Running Object Table (ROT).
      * This allows controllers to connect to a running application object
      * instead of creating a new instance.  Use weak registration so that
-     * the ROT releases its reference when all external references are
+     * the ROT releases it's reference when all external references are
      * released.  If strong registration is used, the ROT will not release
-     * its reference until RevokeActiveObject is called and so will keep
+     * it's reference until RevokeActiveObject is called and so will keep
      * the object alive even after all external references have been
      * released.
      */
@@ -212,7 +212,7 @@ oleauto_exit(int code)
 
 /* ----------------------- C++ Helper Functions --------------------- */
 
-#if OPT_TRACE && !(defined(_UNICODE) || defined(UNICODE))
+#if OPT_TRACE
 static char *visible_wcs(OLECHAR *source)
 {
     static char *result = 0;
@@ -278,7 +278,7 @@ static char *visible_wcs(OLECHAR *source)
  * used/copied before the conversion routine is called again.
  *
  */
-#if 0 // !(defined(_UNICODE) || defined(UNICODE))
+#if !(defined(_UNICODE) || defined(UNICODE))
 
 static char *
 ConvertToAnsi(OLECHAR *szW)
@@ -305,9 +305,7 @@ ConvertToAnsi(OLECHAR *szW)
     TRACE(("ConvertToAnsi %d->%d:%s\n", len, strlen(ansibuf), ansibuf));
     return (ansibuf);
 }
-#endif
 
-#if !(defined(_UNICODE) || defined(UNICODE))
 static OLECHAR *
 ConvertToUnicode(const char *szA)
 {
@@ -486,7 +484,7 @@ vile_oa::Create(vile_oa **ppvile, BOOL visible)
     pvile->m_bVisible = (visible) ? VARIANT_TRUE : VARIANT_FALSE;
 
     // Name
-    tmp = reinterpret_cast<OLECHAR *>(TO_OLE_STRING(prognam));
+    tmp = TO_OLE_STRING(prognam);
     if (! (tmp && (pvile->m_bstrName = SysAllocString(tmp)) != 0))
         return E_OUTOFMEMORY;
 
@@ -627,7 +625,7 @@ vile_oa::get_FullName(BSTR *pbstr)
         /* Extract server path from registry. */
         sprintf(key, "CLSID\\%s\\LocalServer32", CLSID_VILEAUTO_KEY);
         if (RegOpenKeyEx(HKEY_CLASSES_ROOT,
-                         reinterpret_cast<LPTSTR>(w32_charstring(key)),
+                         w32_charstring(key),
                          0,
                          KEY_QUERY_VALUE,
                          &hk) != ERROR_SUCCESS)
@@ -644,7 +642,7 @@ vile_oa::get_FullName(BSTR *pbstr)
         }
         if ((cp = strchr(value, ' ')) != NULL)
             *cp = '\0';
-        tmp = reinterpret_cast<OLECHAR *>(TO_OLE_STRING(value));
+        tmp = TO_OLE_STRING(value);
         if (! (tmp && (m_bstrFullName = SysAllocString(tmp)) != 0))
             return (E_OUTOFMEMORY);
     }
@@ -681,7 +679,7 @@ STDMETHODIMP
 vile_oa::VileKeys(BSTR keys)
 {
     HRESULT hr   = NOERROR;
-    char    *msg = _com_util::ConvertBSTRToString(keys);
+    char    *msg = FROM_OLE_STRING(keys);
 
     TRACE(("VileKeys %d bytes:\n%s\n", strlen(msg), msg));
     while (*msg)
@@ -1587,8 +1585,8 @@ oleauto_redirected_key(ULONG vk, ULONG modifier)
 
         ntwinio_redirect_hwnd(FALSE);
         sprintf(msg,
-        "Keyboard redirection to window hwnd %#0lx failed, redirection disabled",
-                (unsigned long) redirect_hwnd);
+        "Keyboard redirection to window hwnd %#0x failed, redirection disabled",
+                redirect_hwnd);
 
         /* Killed keyboard redirection, so make sure user sees error */
         w32_message_box((HWND) winvile_hwnd(), msg, MB_OK|MB_ICONSTOP);

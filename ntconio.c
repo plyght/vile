@@ -1,7 +1,8 @@
 /*
  * Uses the Win32 console API.
  *
- * $Id: ntconio.c,v 1.106 2020/01/17 23:11:00 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/ntconio.c,v 1.92 2009/12/09 01:43:48 tom Exp $
+ *
  */
 
 #include "estruct.h"
@@ -23,13 +24,6 @@
 
 #define ABS(x) (((x) < 0) ? -(x) : (x))
 
-/* CHAR_INFO and KEY_EVENT_RECORD use the same struct member */
-#ifdef UNICODE
-#define WHICH_CHAR UnicodeChar
-#else
-#define WHICH_CHAR AsciiChar
-#endif
-
 #define DFT_BCOLOR  C_BLACK
 #define DFT_FCOLOR  ((ncolors >= 8) ? 7 : (ncolors - 1))
 
@@ -49,11 +43,8 @@ static int icursor;		/* T -> enable insertion cursor       */
 static int icursor_cmdmode;	/* cmd mode cursor height             */
 static int icursor_insmode;	/* insertion mode  cursor height      */
 static int chgd_cursor;		/* must restore cursor height on exit */
-static ENC_CHOICES my_encoding = enc_DEFAULT;
 
-static int conemu = 0;		/* whether running under conemu */
-static int cattr = 0;		/* current attributes */
-static int cfcolor = -1;	/* current foreground color */
+static int cfcolor = -1;	/* current forground color */
 static int cbcolor = -1;	/* current background color */
 static int nfcolor = -1;	/* normal foreground color */
 static int nbcolor = -1;	/* normal background color */
@@ -71,7 +62,7 @@ static int ac_active = FALSE;	/* autocolor active */
 static const char *initpalettestr = "0 4 2 6 1 5 3 7 8 12 10 14 9 13 11 15";
 /* black, red, green, yellow, blue, magenta, cyan, white   */
 
-static W32_CHAR linebuf[NCOL];
+static char linebuf[NCOL];
 static int bufpos = 0;
 
 /* Add state variables for console vile's autoscroll feature.              */
@@ -90,18 +81,6 @@ static WORD
 AttrVideo(int b, int f)
 {
     WORD result;
-    if (conemu) {
-	if (cattr & VABOLD) {
-	    result = ((WORD) ((12 << 4) | ForeColor(f)));
-	    TRACE2(("bold AttrVideo(%d,%d) = %04x\n", f, b, result));
-	    return result;
-	}
-	if (cattr & VAITAL) {
-	    result = ((WORD) ((13 << 4) | ForeColor(f)));
-	    TRACE2(("ital AttrVideo(%d,%d) = %04x\n", f, b, result));
-	    return result;
-	}
-    }
     if (rvcolor) {
 	result = ((WORD) ((ForeColor(f) << 4) | BackColor(b)));
 	TRACE2(("rev AttrVideo(%d,%d) = %04x\n", f, b, result));
@@ -166,15 +145,32 @@ scflush(void)
     if (bufpos) {
 	COORD coordCursor;
 	DWORD written;
+#ifdef UNICODE
+	W32_CHAR *actual;
+	char save_buf;
+#endif
 
 	coordCursor.X = (SHORT) ccol;
 	coordCursor.Y = (SHORT) crow;
 	TRACE2(("scflush %04x [%d,%d]%.*s\n",
 		currentAttribute, crow, ccol, bufpos, linebuf));
+#ifdef UNICODE
+	save_buf = linebuf[bufpos];
+	linebuf[bufpos] = 0;
+	if ((actual = w32_charstring(linebuf)) != 0) {
+	    WriteConsoleOutputCharacter(
+					   hConsoleOutput, actual, bufpos,
+					   coordCursor, &written
+		);
+	    free(actual);
+	}
+	linebuf[bufpos] = save_buf;
+#else
 	WriteConsoleOutputCharacter(
 				       hConsoleOutput, linebuf, bufpos,
 				       coordCursor, &written
 	    );
+#endif
 	FillConsoleOutputAttribute(
 				      hConsoleOutput, currentAttribute,
 				      bufpos, coordCursor, &written
@@ -282,7 +278,11 @@ ntconio_scroll(int from, int to, int n)
 	    from = to + 1;
     }
 #endif
-    fill.Char.WHICH_CHAR = ' ';
+#ifdef UNICODE
+    fill.Char.UnicodeChar = ' ';
+#else
+    fill.Char.AsciiChar = ' ';
+#endif
     fill.Attributes = currentAttribute;
 
     sRect.Left = 0;
@@ -374,15 +374,10 @@ ntconio_beep(void)
 static void
 ntconio_putc(int ch)
 {
-#define maybe_flush() \
-    if (bufpos >= ((int) sizeof(linebuf) - 2)) \
-	scflush()
-
     if (ch >= ' ') {
 
 	/* This is an optimization for the most common case. */
-	maybe_flush();
-	linebuf[bufpos++] = (W32_CHAR) ch;
+	linebuf[bufpos++] = (char) ch;
 
     } else {
 
@@ -399,9 +394,11 @@ ntconio_putc(int ch)
 	    break;
 
 	case '\t':
+	    scflush();
 	    do {
-		maybe_flush();
 		linebuf[bufpos++] = ' ';
+		if (bufpos >= sizeof(linebuf))
+		    scflush();
 	    } while ((ccol + bufpos) % 8 != 0);
 	    break;
 
@@ -412,19 +409,19 @@ ntconio_putc(int ch)
 
 	case '\n':
 	    scflush();
-	    if (crow < csbi.dwMaximumWindowSize.Y - 1) {
+	    if (crow < csbi.dwMaximumWindowSize.Y - 1)
 		crow++;
-	    } else {
+	    else
 		ntconio_scroll(1, 0, csbi.dwMaximumWindowSize.Y - 1);
-	    }
 	    break;
 
 	default:
-	    linebuf[bufpos++] = (W32_CHAR) ch;
+	    linebuf[bufpos++] = (char) ch;
 	    break;
 	}
     }
-    maybe_flush();
+    if (bufpos >= sizeof(linebuf))
+	scflush();
 }
 
 static void
@@ -447,7 +444,6 @@ static void
 ntconio_rev(UINT attr)
 {				/* change video state */
     scflush();
-    cattr = attr;
     cbcolor = nbcolor;
     cfcolor = nfcolor;
     rvcolor = (global_g_val(GVAL_VIDEO) & VAREV) ? 1 : 0;
@@ -485,7 +481,6 @@ ntconio_rev(UINT attr)
 static int
 ntconio_cres(const char *res)
 {				/* change screen resolution */
-    (void) res;
     scflush();
     return 0;
 }
@@ -504,73 +499,31 @@ nthandler(DWORD ctrl_type)
 }
 
 static void
-ntconio_set_encoding(ENC_CHOICES code)
-{
-    my_encoding = code;
-}
-
-static ENC_CHOICES
-ntconio_get_encoding(void)
-{
-    return my_encoding;
-}
-
-static void
 ntconio_open(void)
 {
     CONSOLE_CURSOR_INFO newcci;
     BOOL newcci_ok;
 
-    TRACE((T_CALLED "ntconio_open\n"));
+    TRACE(("ntconio_open\n"));
 
-    conemu = getenv("ConEmuPID") != NULL;
     set_colors(NCOLORS);
     set_palette(initpalettestr);
 
     hOldConsoleOutput = 0;
-
     hConsoleOutput = GetStdHandle(STD_OUTPUT_HANDLE);
-    TRACE(("hConsoleOutput %p\n", hConsoleOutput));
-
     origcci_ok = GetConsoleCursorInfo(hConsoleOutput, &origcci);
-
     GetConsoleScreenBufferInfo(hConsoleOutput, &csbi);
-    TRACE(("GetConsoleScreenBufferInfo X:%d Y:%d Top:%d Bottom:%d Left:%d Right:%d\n",
-	   csbi.dwMaximumWindowSize.X,
-	   csbi.dwMaximumWindowSize.Y,
-	   csbi.srWindow.Top,
-	   csbi.srWindow.Bottom,
-	   csbi.srWindow.Left,
-	   csbi.srWindow.Right));
-
-    TRACE(("...compare height %d vs %d\n",
-	   csbi.dwMaximumWindowSize.Y,
-	   csbi.srWindow.Bottom - csbi.srWindow.Top + 1));
-    TRACE(("...compare width  %d vs %d\n",
-	   csbi.dwMaximumWindowSize.X,
-	   csbi.srWindow.Right - csbi.srWindow.Left + 1));
-
     if (csbi.dwMaximumWindowSize.Y !=
 	csbi.srWindow.Bottom - csbi.srWindow.Top + 1
 	|| csbi.dwMaximumWindowSize.X !=
 	csbi.srWindow.Right - csbi.srWindow.Left + 1) {
-
 	TRACE(("..creating alternate screen buffer\n"));
 	hOldConsoleOutput = hConsoleOutput;
 	hConsoleOutput = CreateConsoleScreenBuffer(GENERIC_READ | GENERIC_WRITE,
 						   0, NULL,
 						   CONSOLE_TEXTMODE_BUFFER, NULL);
 	SetConsoleActiveScreenBuffer(hConsoleOutput);
-
 	GetConsoleScreenBufferInfo(hConsoleOutput, &csbi);
-	TRACE(("GetConsoleScreenBufferInfo X:%d Y:%d Top:%d Bottom:%d Left:%d Right:%d\n",
-	       csbi.dwMaximumWindowSize.X,
-	       csbi.dwMaximumWindowSize.Y,
-	       csbi.srWindow.Top,
-	       csbi.srWindow.Bottom,
-	       csbi.srWindow.Left,
-	       csbi.srWindow.Right));
-
 	newcci_ok = GetConsoleCursorInfo(hConsoleOutput, &newcci);
 	if (newcci_ok && origcci_ok && newcci.dwSize != origcci.dwSize) {
 	    /*
@@ -591,19 +544,14 @@ ntconio_open(void)
     set_current_attr();
 
     newscreensize(csbi.dwMaximumWindowSize.Y, csbi.dwMaximumWindowSize.X);
-
     hConsoleInput = GetStdHandle(STD_INPUT_HANDLE);
-    TRACE(("hConsoleInput %p\n", hConsoleInput));
-
     SetConsoleCtrlHandler(nthandler, TRUE);
-    ntconio_set_encoding(enc_DEFAULT);
-    returnVoid();
 }
 
 static void
 ntconio_close(void)
 {
-    TRACE((T_CALLED "ntconio_close\n"));
+    TRACE(("ntconio_close\n"));
     if (chgd_cursor) {
 	/* restore cursor */
 	show_cursor(TRUE, origcci.dwSize);
@@ -624,42 +572,38 @@ ntconio_close(void)
     SetConsoleCtrlHandler(nthandler, FALSE);
     SetConsoleMode(hConsoleInput, ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT);
     keyboard_open = FALSE;
-    returnVoid();
 }
 
 static void
 ntconio_kopen(void)
 {				/* open the keyboard */
-    TRACE((T_CALLED "ntconio_kopen (open:%d, was-closed:%d)\n",
-	   keyboard_open, keyboard_was_closed));
-    if (!keyboard_open) {
-	if (hConsoleOutput) {
-	    SetConsoleActiveScreenBuffer(hConsoleOutput);
-	}
-	keyboard_open = TRUE;
-#ifdef DONT_USE_ON_WIN95
-	SetConsoleCtrlHandler(NULL, TRUE);
-#endif
-	SetConsoleMode(hConsoleInput, ENABLE_MOUSE_INPUT | ENABLE_WINDOW_INPUT);
+    TRACE(("ntconio_kopen (open:%d, was-closed:%d)\n", keyboard_open, keyboard_was_closed));
+    if (keyboard_open)
+	return;
+    if (hConsoleOutput) {
+	SetConsoleActiveScreenBuffer(hConsoleOutput);
     }
-    returnVoid();
+    keyboard_open = TRUE;
+#ifdef DONT_USE_ON_WIN95
+    SetConsoleCtrlHandler(NULL, TRUE);
+#endif
+    SetConsoleMode(hConsoleInput, ENABLE_MOUSE_INPUT | ENABLE_WINDOW_INPUT);
 }
 
 static void
 ntconio_kclose(void)
 {				/* close the keyboard */
-    TRACE((T_CALLED "ntconio_kclose\n"));
-    if (keyboard_open) {
-	keyboard_open = FALSE;
-	keyboard_was_closed = TRUE;
-	if (hOldConsoleOutput) {
-	    SetConsoleActiveScreenBuffer(hOldConsoleOutput);
-	}
-#ifdef DONT_USE_ON_WIN95
-	SetConsoleCtrlHandler(NULL, FALSE);
-#endif
+    TRACE(("ntconio_kclose\n"));
+    if (!keyboard_open)
+	return;
+    keyboard_open = FALSE;
+    keyboard_was_closed = TRUE;
+    if (hOldConsoleOutput) {
+	SetConsoleActiveScreenBuffer(hOldConsoleOutput);
     }
-    returnVoid();
+#ifdef DONT_USE_ON_WIN95
+    SetConsoleCtrlHandler(NULL, FALSE);
+#endif
 }
 
 #define isModified(state) (state & \
@@ -750,14 +694,14 @@ decode_key_event(INPUT_RECORD * irp)
     if (!irp->Event.KeyEvent.bKeyDown)
 	return (NOKYMAP);
 
-    TRACE(("decode_key_event(%c=%02x, Virtual=%#x,%#x, State=%#lx)\n",
-	   irp->Event.KeyEvent.uChar.WHICH_CHAR,
-	   irp->Event.KeyEvent.uChar.WHICH_CHAR,
+    TRACE(("decode_key_event(%c=%02x, Virtual=%#x,%#x, State=%#x)\n",
+	   irp->Event.KeyEvent.uChar.AsciiChar,
+	   irp->Event.KeyEvent.uChar.AsciiChar,
 	   irp->Event.KeyEvent.wVirtualKeyCode,
 	   irp->Event.KeyEvent.wVirtualScanCode,
 	   irp->Event.KeyEvent.dwControlKeyState));
 
-    if ((key = irp->Event.KeyEvent.uChar.WHICH_CHAR) != 0) {
+    if ((key = (UCHAR) irp->Event.KeyEvent.uChar.AsciiChar) != 0) {
 	if (isCntrl(key)) {
 	    DWORD cstate = state & ~(LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED);
 	    if (isModified(cstate))
@@ -783,7 +727,7 @@ decode_key_event(INPUT_RECORD * irp)
     }
 
     key = NOKYMAP;
-    for (i = 0; i < (int) TABLESIZE(keyxlate); i++) {
+    for (i = 0; i < TABLESIZE(keyxlate); i++) {
 	if (keyxlate[i].windows == irp->Event.KeyEvent.wVirtualKeyCode) {
 
 	    /*
@@ -961,9 +905,7 @@ AutoScroll(WINDOW *wp)
 
 	// Set the cursor. Column doesn't really matter, it will
 	// get updated as soon as we get back into the window...
-	if (setcursor(row, 0)) {
-	    sel_extend(TRUE, TRUE);
-	}
+	setcursor(row, 0) && sel_extend(TRUE, TRUE);
 	(void) update(TRUE);
 	ScrollCount++;
 	if (ScrollCount > TRIGGER && Throttle > 0 && ScrollCount % INCR == 0)
@@ -994,7 +936,6 @@ autoscroll_thread(void *unused)
 {
     DWORD status;
 
-    (void) unused;
     for_ever {
 	status = WaitForSingleObject(hAsMutex, AS_TMOUT);
 	if (!buttondown) {
@@ -1034,7 +975,7 @@ autoscroll_thread(void *unused)
  *                 "latest" tracks the cursor position wrt window resizing
  *                 operations (via a modeline drag).
  *
- *   current     - current cursor row/col coordinates.
+ *   current     - current cursor row/col coordiantes.
  *
  *   lmbdn_mark  - editor MARK when "LMB down" was initially recorded.
  *
@@ -1103,7 +1044,7 @@ mousemove(int *sel_pending,
 	(void) ReleaseMutex(hAsMutex);
     }
     /*
-     * Else either the worker thread abandoned the mutex (not possible as
+     * Else either the worker thread abandonded the mutex (not possible as
      * currently coded) or timed out.  If the latter, something is
      * hung--don't do anything.
      */
@@ -1122,10 +1063,6 @@ handle_mouse_event(MOUSE_EVENT_RECORD mer)
     DWORD thisclick;
     UINT clicktime = GetDoubleClickTime();
 
-    memset(&first, 0, sizeof(first));
-    memset(&latest, 0, sizeof(latest));
-    memset(&current, 0, sizeof(current));
-    memset(&lmbdn_mark, 0, sizeof(lmbdn_mark));
     buttondown = FALSE;
     for_ever {
 	current = mer.dwMousePosition;
@@ -1134,7 +1071,7 @@ handle_mouse_event(MOUSE_EVENT_RECORD mer)
 	    state = mer.dwButtonState;
 	    if (state == 0) {	/* button released */
 		thisclick = GetTickCount();
-		TRACE(("CLICK %ld/%ld\n", lastclick, thisclick));
+		TRACE(("CLICK %d/%d\n", lastclick, thisclick));
 		if (thisclick - lastclick < clicktime) {
 		    clicks++;
 		    TRACE(("MOUSE CLICKS %d\n", clicks));
@@ -1309,11 +1246,9 @@ ntconio_getch(void)
     int milli_ac, orig_milli_ac;
 #endif
 
-    TRACE((T_CALLED "ntconio_getch saveCount:%d\n", saveCount));
-
     if (saveCount > 0) {
 	saveCount--;
-	returnCode(savedChar);
+	return savedChar;
     }
 #ifdef VAL_AUTOCOLOR
     orig_milli_ac = global_b_val(VAL_AUTOCOLOR);
@@ -1322,11 +1257,8 @@ ntconio_getch(void)
 #ifdef VAL_AUTOCOLOR
 	milli_ac = orig_milli_ac;
 	while (milli_ac > 0) {
-	    if (PeekConsoleInput(hConsoleInput, &ir, 1, &nr) == 0) {
-		TRACE(("PeekConsoleInput failed\n"));
+	    if (PeekConsoleInput(hConsoleInput, &ir, 1, &nr) == 0)
 		break;		/* ?? system call failed ?? */
-	    }
-	    TRACE(("PeekConsoleInput nr %ld\n", nr));
 	    if (nr > 0)
 		break;		/* something in the queue */
 	    Sleep(20);		/* sleep a bit, but be responsive to keybd input */
@@ -1350,14 +1282,14 @@ ntconio_getch(void)
 		saveCount = ir.Event.KeyEvent.wRepeatCount - 1;
 		savedChar = key;
 	    }
-	    returnCode(key);
+	    return key;
 
 	case WINDOW_BUFFER_SIZE_EVENT:
-	    GetConsoleScreenBufferInfo(hConsoleOutput, &csbi);
 	    newscreensize(
 			     ir.Event.WindowBufferSizeEvent.dwSize.Y,
 			     ir.Event.WindowBufferSizeEvent.dwSize.X
 		);
+	    GetConsoleScreenBufferInfo(hConsoleOutput, &csbi);
 	    continue;
 
 	case MOUSE_EVENT:
@@ -1514,9 +1446,6 @@ parse_icursor_string(char *str, int *revert_cursor)
 int
 chgd_icursor(BUFFER *bp, VALARGS * args, int glob_vals, int testing)
 {
-    (void) bp;
-    (void) glob_vals;
-
     if (!testing) {
 	int revert_cursor;
 	char *val = args->global->vp->p;
@@ -1567,8 +1496,8 @@ TERM term =
     NROW,
     NCOL,
     NCOL,
-    ntconio_set_encoding,
-    ntconio_get_encoding,
+    dumb_set_encoding,
+    dumb_get_encoding,
     ntconio_open,
     ntconio_close,
     ntconio_kopen,

@@ -1,9 +1,9 @@
 /*
- * $Id: vl_ctype.h,v 1.42 2025/01/26 15:04:32 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/vl_ctype.h,v 1.27 2010/02/09 00:59:24 tom Exp $
  *
  * Character-type tests, like <ctype.h> for vile (vi-like-emacs).
  *
- * Copyright 2005-2013,2025 Thomas E. Dickey
+ * Copyright 2005-2009,2010 Thomas E. Dickey
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the
@@ -34,7 +34,7 @@
 #define VL_CTYPE_H_incl 1
 
 #ifndef SMALLER
-#define	SMALLER	0		/* strip some fluff -- not a lot smaller, but some */
+#define	SMALLER	0	/* strip some fluff -- not a lot smaller, but some */
 #endif
 
 #ifndef OPT_VILE_CTYPE
@@ -42,7 +42,7 @@
 #endif
 
 #ifndef OPT_MULTIBYTE
-#define OPT_MULTIBYTE !SMALLER	/* multibyte characters */
+#define OPT_MULTIBYTE !SMALLER		/* multibyte characters */
 #endif
 
 #ifndef OPT_WIDE_CTYPES
@@ -56,7 +56,7 @@
 #endif
 
 #ifndef N_chars
-#define N_chars    256		/* must be a power-of-2         */
+#define N_chars    256			/* must be a power-of-2		*/
 #endif
 
 #define EOS        '\0'
@@ -92,34 +92,31 @@
 #define chrBIT(n) ((CHARTYPE)(1L<<(n)))
 
 typedef enum {
-    vl_ALPHA = 0
-    ,vl_UPPER
-    ,vl_LOWER
-    ,vl_DIGIT
-    ,vl_SPACE
-    ,vl_CNTRL
-    ,vl_PRINT
-    ,vl_PUNCT
-    /* first 8 comprise a byte in gnreight.h */
-    ,vl_BSPACE
-    ,vl_IDENT
-    ,vl_PATHN
-    ,vl_WILD
-    ,vl_LINESPEC
-    ,vl_FENCE
-    ,vl_NONSPACE
-    ,vl_QIDENT
+	vl_UPPER = 0
+	, vl_LOWER
+	, vl_DIGIT
+	, vl_SPACE
+	, vl_BSPACE
+	, vl_CNTRL
+	, vl_PRINT
+	, vl_PUNCT
+	, vl_IDENT
+	, vl_PATHN
+	, vl_WILD
+	, vl_LINESPEC
+	, vl_FENCE
+	, vl_NONSPACE
+	, vl_QIDENT
 #if OPT_WIDE_CTYPES
-    ,vl_SCRTCH
-    ,vl_SHPIPE
-    ,vl_XDIGIT
+	, vl_SCRTCH
+	, vl_SHPIPE
+	, vl_XDIGIT
 #else
 #define vl_XDIGIT 0
 #endif
-    ,vl_UNUSED
+	, vl_UNUSED
 } VL_CTYPES;
 
-#define vl_alpha    chrBIT(vl_ALPHA)	/* alphabetic */
 #define vl_upper    chrBIT(vl_UPPER)	/* upper case */
 #define vl_lower    chrBIT(vl_LOWER)	/* lower case */
 #define vl_digit    chrBIT(vl_DIGIT)	/* digits */
@@ -131,7 +128,7 @@ typedef enum {
 #define vl_ident    chrBIT(vl_IDENT)	/* is typically legal in "normal" identifier */
 #define vl_pathn    chrBIT(vl_PATHN)	/* is typically legal in a file's pathname */
 #define vl_wild     chrBIT(vl_WILD)	/* is typically a shell wildcard char */
-#define vl_linespec chrBIT(vl_LINESPEC)	/* ex-style line range: 1,$ or 13,15 or % etc. */
+#define vl_linespec chrBIT(vl_LINESPEC)	/* ex-style line range: 1,$ or 13,15 or % etc.*/
 #define vl_fence    chrBIT(vl_FENCE)	/* a fence, i.e. (, ), [, ], {, } */
 #define vl_nonspace chrBIT(vl_NONSPACE)	/* non-whitespace */
 #define vl_qident   chrBIT(vl_QIDENT)	/* is typically legal in "qualified" identifier */
@@ -142,7 +139,7 @@ typedef enum {
 #define vl_xdigit   chrBIT(vl_XDIGIT)	/* hex digit */
 #define isXDigit(c)	istype(vl_xdigit, c)
 
-typedef unsigned long CHARTYPE;
+typedef	unsigned long CHARTYPE;
 #else
 typedef USHORT CHARTYPE;
 #endif
@@ -152,21 +149,12 @@ typedef struct {
     char *encoding;		/* "ISO-8859-1" */
 } VL_CTYPE2;
 
-#define okCTYPE2(ct)	((ct).locale != NULL && *((ct).locale) != '\0')
+#define okCTYPE2(ct)	((ct).locale != 0)
 
 /* these parallel the ctypes.h definitions, except that
 	they force the char to valid range first */
-#define vlCTYPE(c)	vl_chartypes_[CharOf(c) + 1]
-
-#if !defined(inline) && defined(__GNUC__)
-#define istype(m,c)	isVlCTYPE(m, (int)(c), (int)(c))
-#else
+#define vlCTYPE(c)	vl_chartypes_[CharOf(c)]
 #define istype(m,c)	((vlCTYPE(c) & (m)) != 0)
-#endif
-
-#define addVlCTYPE(c,m)	vl_chartypes_[CharOf(c) + 1] |= (m)
-#define clrVlCTYPE(c,m)	vl_chartypes_[CharOf(c) + 1] &= ~(m)
-#define setVlCTYPE(c,m)	vl_chartypes_[CharOf(c) + 1] = (m)
 
 #define isAlnum(c)	istype(vl_lower | vl_upper | vl_digit, c)
 #define isAlpha(c)	istype(vl_lower | vl_upper, c)
@@ -196,10 +184,13 @@ typedef struct {
    They are xor-able values.  */
 #define	DIFCASE		0x20
 #define	DIFCNTRL	0x40
-#define toUpper(c)	vl_uppercase[CharOf(c) + 1]
-#define toLower(c)	vl_lowercase[CharOf(c) + 1]
+#define toUpper(c)	vl_uppercase[CharOf(c)]
+#define toLower(c)	vl_lowercase[CharOf(c)]
 #define tocntrl(c)	(((unsigned)(c)) ^ DIFCNTRL)
 #define toalpha(c)	(((unsigned)(c)) ^ DIFCNTRL)
+
+extern CHARTYPE vl_ctype_ascii[];
+extern CHARTYPE vl_ctype_latin1[];
 
 extern CHARTYPE vl_ctype_bits(int ch, int use_locale);
 extern void vl_ctype_init(int print_lo, int print_hi);
@@ -271,6 +262,9 @@ extern void vl_ctype_clr(int ch, CHARTYPE cclass);
 
 #define sys_WINT_T	int
 
+#if !(defined(isblank) || defined(HAVE_ISBLANK))
+#define isblank(c) ((c) == ' ' || (c) == '\t')
+#endif
 #define sys_isalpha(n)  isalpha(n)
 #define sys_isalnum(n)  isalnum(n)
 #define sys_isblank(n)  isblank(n)
@@ -287,10 +281,6 @@ extern void vl_ctype_clr(int ch, CHARTYPE cclass);
 #define sys_toupper(n)  toUpper(n)
 
 #endif /* USE_WIDE_CTYPE */
-
-#if !(defined(isblank) || defined(HAVE_ISBLANK))
-#define isblank(c) ((c) == ' ' || (c) == '\t')
-#endif
 
 /* macro for cases where return & newline are equivalent */
 #define	isreturn(c)	((c == '\r') || (c == '\n'))

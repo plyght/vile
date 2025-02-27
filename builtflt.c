@@ -1,7 +1,8 @@
 /*
- * $Id: builtflt.c,v 1.104 2025/01/26 16:50:14 tom Exp $
+ * Main program and I/O for external vile syntax/highlighter programs
  *
- * Main program and I/O for builtin vile syntax/highlighter programs
+ * $Header: /usr/build/vile/vile/RCS/builtflt.c,v 1.85 2010/07/13 14:27:29 tom Exp $
+ *
  */
 
 #include "estruct.h"
@@ -12,34 +13,18 @@
 #include "edef.h"
 #include "nefunc.h"
 #include "nevars.h"
-
 #include <stdarg.h>
-#include <setjmp.h>
 
 #ifdef HAVE_LIBDL
 #include <dlfcn.h>
 #endif
 
-static jmp_buf flt_recovery;
 static FILTER_DEF *current_filter;
 static MARK mark_in;
 static MARK mark_out;
 static TBUFF *gets_data;
 static const char *current_params;
 static int need_separator;
-
-#define FLT_PUTC(ch) \
-    if (filter_only > 0) { \
-	putchar(ch); \
-    } else { \
-	if (ch == '\n') { \
-	    if (mark_out.l != buf_head(curbp)) \
-		mark_out.l = lforw(mark_out.l); \
-	    mark_out.o = w_left_margin(curwp); \
-	} else { \
-	    mark_out.o++; \
-	} \
-    }
 
 /******************************************************************************
  * Private functions                                                          *
@@ -65,12 +50,12 @@ parse_filtername(const char *major_name, const char **params)
 
     char *temp;
 
-    *params = NULL;
+    *params = 0;
 
     if (valid_buffer(curbp)
-	&& curbp->majr != NULL
+	&& curbp->majr != 0
 	&& !strcmp(curbp->majr->shortname, major_name)
-	&& (temp = b_val_ptr(curbp, VAL_FILTERNAME)) != NULL) {
+	&& (temp = b_val_ptr(curbp, VAL_FILTERNAME)) != 0) {
 	if (!strncmp(temp, prefix, sizeof(prefix) - 1)) {
 	    char *base = temp + sizeof(prefix) - 1;
 	    char *next = base;
@@ -81,7 +66,7 @@ parse_filtername(const char *major_name, const char **params)
 		    && (isSpace(next[sizeof(suffix) - 1])
 			|| (next[sizeof(suffix) - 1] == EOS))) {
 		    size_t len = (size_t) (next - base);
-		    for (n = 0; builtflt[n] != NULL; n++) {
+		    for (n = 0; builtflt[n] != 0; n++) {
 			const char *name = builtflt[n]->filter_name;
 			if (strlen(name) == len
 			    && !strncmp(base, name, len)) {
@@ -102,14 +87,14 @@ parse_filtername(const char *major_name, const char **params)
 static char *
 param_value(const char **ptr)
 {
-    char *value = NULL;
+    char *value = 0;
     const char *s;
     const char *t;
 
     s = skip_cblanks(*ptr + 1);
     t = skip_ctext(s);
     if (t != s) {
-	if ((value = strmalloc(s)) != NULL) {
+	if ((value = strmalloc(s)) != 0) {
 	    value[t - s] = EOS;
 	    *ptr = t;
 	}
@@ -127,22 +112,6 @@ ProcessArgs(int flag)
     const char *s = current_params;
     char *value;
 
-    if (!flag) {
-	char *command = NULL;
-	size_t needed = strlen(current_filter->filter_name) + 11 + strlen(s);
-	if (*s)
-	    ++needed;
-	if ((command = malloc(needed + 1)) != NULL) {
-	    sprintf(command, "vile-%s-filt", current_filter->filter_name);
-	    if (*s) {
-		strcat(command, " ");
-		strcat(command, s);
-	    }
-	    flt_puts(command, (int) needed, "M");
-	    free(command);
-	}
-    }
-
     memset(flt_options, 0, sizeof(flt_options));
     FltOptions('t') = tabstop_val(curbp);
     while (*s != EOS) {
@@ -152,7 +121,7 @@ ProcessArgs(int flag)
 		flt_options[CharOf(*s)] += 1;
 		switch (*s) {
 		case 'k':
-		    if ((value = param_value(&s)) != NULL) {
+		    if ((value = param_value(&s)) != 0) {
 			if (flag) {
 			    flt_init_table(value);
 			    flt_setup_symbols(value);
@@ -161,7 +130,7 @@ ProcessArgs(int flag)
 		    }
 		    break;
 		case 't':
-		    if ((value = param_value(&s)) != NULL) {
+		    if ((value = param_value(&s)) != 0) {
 			if ((FltOptions('t') = atoi(value)) <= 0)
 			    FltOptions('t') = 8;
 			free(value);
@@ -213,25 +182,17 @@ load_filter(const char *name)
     const char *cp = libdir_path;
 
     if (strlen(name) < NSTRING - 30) {
-	int first = TRUE;
-
-	/* potential symbol conflict with ncurses */
-	if (!strcmp(name, "key")) {
-	    sprintf(defining, "vl_define_%s", name);
-	} else {
-	    sprintf(defining, "define_%s", name);
-	}
-
+	sprintf(defining, "define_%s", name);
 	sprintf(leafname, "vile-%s-filt.so", name);
-	while ((cp = parse_pathlist(cp, filename, &first)) != NULL) {
+	while ((cp = parse_pathlist(cp, filename)) != 0) {
 	    if (strlen(filename) + strlen(leafname) + 3 >= sizeof(filename))
 		continue;
 	    pathcat(filename, filename, leafname);
 	    TRACE(("load_filter(%s) %s\n", filename, defining));
 	    ++tried;
-	    if ((obj = dlopen(filename, my_RTLD)) != NULL) {
+	    if ((obj = dlopen(filename, my_RTLD)) != 0) {
 		found = 1;
-		if ((def = dlsym(obj, defining)) == NULL) {
+		if ((def = dlsym(obj, defining)) == 0) {
 		    dlclose(obj);
 		    mlwarn("[Error: can't reference variable %s from %s (%s)]",
 			   defining, filename, dlerror());
@@ -278,31 +239,14 @@ chop_newline(char *s)
 void
 flt_echo(const char *string, int length)
 {
-    int ch;
-    while (length-- > 0) {
-	ch = *string++;
-	FLT_PUTC(ch);
-    }
+    while (length-- > 0)
+	flt_putc(*string++);
 }
 
-/*
- * Followup from flt_failed() by returning zero if we are recovering from a
- * fatal error.
- */
-int
-flt_succeeds(void)
-{
-    return !setjmp(flt_recovery);
-}
-
-/*
- * This is used to stop lex/flex from exiting the program on a syntax error.
- */
 void
 flt_failed(const char *msg)
 {
     mlforce("[Filter: %s]", msg);
-    longjmp(flt_recovery, 1);
 }
 
 void
@@ -319,8 +263,8 @@ flt_finish(void)
  * Syntax filters expect text to be separated by newlines, and don't
  * expect embedded carriage returns.  Try to meet that expectation.
  */
-static int
-fixup_cr_lf(int ch)
+static char
+fixup_cr_lf(char ch)
 {
     if (b_val(curbp, VAL_RECORD_SEP) == RS_CR) {
 	if (ch == '\n')
@@ -340,13 +284,13 @@ flt_gets(char **ptr, size_t *len)
     int need = is_header_line(mark_in, curbp) ? -1 : llength(mark_in.l);
 
     *len = 0;
-    *ptr = NULL;
+    *ptr = 0;
 
     if (need >= 0
-	&& tb_init(&gets_data, 0) != NULL
-	&& tb_bappend(&gets_data, lvalue(mark_in.l), (size_t) need) != NULL
-	&& tb_append(&gets_data, use_record_sep(curbp)) != NULL
-	&& tb_append(&gets_data, EOS) != NULL) {
+	&& tb_init(&gets_data, 0) != 0
+	&& tb_bappend(&gets_data, lvalue(mark_in.l), (size_t) need) != 0
+	&& tb_append(&gets_data, use_record_sep(curbp)) != 0
+	&& tb_append(&gets_data, EOS) != 0) {
 	*ptr = tb_values(gets_data);
 	*len = (unsigned) (need + len_record_sep(curbp));
 
@@ -366,12 +310,9 @@ flt_gets(char **ptr, size_t *len)
 	    if (len2 != 0) {
 		size_t n;
 		char *values = tb_values(gets_data);
-		int ch;
 
 		for (n = 0; n < len2; ++n) {
-		    ch = values[n];
-		    if (isreturn(ch))
-			values[n] = (char) fixup_cr_lf(ch);
+		    values[n] = fixup_cr_lf(values[n]);
 		}
 	    }
 	}
@@ -396,7 +337,7 @@ flt_get_line(void)
 int
 flt_get_col(void)
 {
-    return offs2col(curwp, mark_out.l, mark_out.o);
+    return offs2col(curwp, mark_out.l, mark_out.o + 1);
 }
 
 #ifdef MDFILTERMSGS
@@ -408,8 +349,9 @@ static BUFFER *
 find_filtermsgs(void)
 {
     BUFFER *bp = make_ro_bp(FLTMSGS_BufName, BFINVS);
-    if (bp != NULL) {
-	set_local_b_val(bp, MDFILTERMSGS, FALSE);
+    if (bp != 0) {
+	make_local_b_val(bp, MDFILTERMSGS);
+	b_val(bp, MDFILTERMSGS) = FALSE;
     }
     return bp;
 }
@@ -422,7 +364,7 @@ init_flt_error(void)
 {
     BUFFER *bp;
     if (b_val(curbp, MDFILTERMSGS)) {
-	if ((bp = find_filtermsgs()) != NULL) {
+	if ((bp = find_filtermsgs()) != 0) {
 	    b_clr_changed(bp);	/* so bclear does not prompt */
 	    bclear(bp);
 	}
@@ -436,11 +378,11 @@ init_flt_error(void)
  * Log an error detected by the syntax filter.
  */
 void
-flt_error(const char *fmt, ...)
+flt_error(const char *fmt,...)
 {
 #ifdef MDFILTERMSGS
     if (b_val(curbp, MDFILTERMSGS)) {
-	const char *filename = ((curbp != NULL)
+	const char *filename = ((curbp != 0)
 				? (isInternalName(curbp->b_fname)
 				   ? curbp->b_bname
 				   : curbp->b_fname)
@@ -448,11 +390,11 @@ flt_error(const char *fmt, ...)
 	BUFFER *bp;
 	va_list ap;
 
-	if ((bp = find_filtermsgs()) != NULL) {
+	if ((bp = find_filtermsgs()) != 0) {
 	    (void) b2printf(bp, "%s: %d:%d: ",
 			    filename,
 			    flt_get_line(),
-			    flt_get_col() + 1);
+			    flt_get_col());
 
 	    va_start(ap, fmt);
 	    (void) b2vprintf(bp, fmt, ap);
@@ -468,14 +410,14 @@ flt_error(const char *fmt, ...)
  * Log an message from the syntax filter.
  */
 void
-flt_message(const char *fmt, ...)
+flt_message(const char *fmt,...)
 {
 #ifdef MDFILTERMSGS
     if (b_val(curbp, MDFILTERMSGS)) {
 	BUFFER *bp;
 	va_list ap;
 
-	if ((bp = find_filtermsgs()) != NULL) {
+	if ((bp = find_filtermsgs()) != 0) {
 	    va_start(ap, fmt);
 	    (void) b2vprintf(bp, fmt, ap);
 	    va_end(ap);
@@ -495,7 +437,6 @@ flt_input(char *buffer, int max_size)
     const char *separator = "\n";
     int need = (int) strlen(separator);
     int used = 0;
-    int ch;
 
     if (need_separator) {
 	strcpy(buffer, separator);
@@ -505,14 +446,8 @@ flt_input(char *buffer, int max_size)
     if (!is_header_line(mark_in, curbp)) {
 	while (used < max_size) {
 	    if (mark_in.o < llength(mark_in.l)) {
-		ch = lgetc(mark_in.l, mark_in.o++);
-		if (filter_only) {
-		    buffer[used++] = (char) ch;
-		} else {
-		    if (isreturn(ch))
-			ch = fixup_cr_lf(ch);
-		    buffer[used++] = (char) ch;
-		}
+		buffer[used++] = fixup_cr_lf((char) lgetc(mark_in.l,
+							  mark_in.o++));
 	    } else {
 		mark_in.l = lforw(mark_in.l);
 		mark_in.o = w_left_margin(curwp);
@@ -547,7 +482,17 @@ flt_put_blanks(char *string)
 void
 flt_putc(int ch)
 {
-    FLT_PUTC(ch);
+    if (filter_only > 0) {
+	putchar(ch);
+    } else {
+	if (ch == '\n') {
+	    if (mark_out.l != buf_head(curbp))
+		mark_out.l = lforw(mark_out.l);
+	    mark_out.o = w_left_margin(curwp);
+	} else {
+	    mark_out.o++;
+	}
+    }
 }
 
 static int
@@ -593,11 +538,12 @@ void
 flt_puts(const char *string, int length, const char *marker)
 {
     char bfr1[NSTRING];
+    char bfr2[NSTRING];
     char *last;
     int count;
 
     if (filter_only > 0) {
-	if (marker != NULL && *marker != EOS && *marker != 'N') {
+	if (marker != 0 && *marker != EOS && *marker != 'N') {
 	    size_t limit = sizeof(bfr1) - 2;
 
 	    strncpy(bfr1, marker, limit)[limit] = EOS;
@@ -611,34 +557,24 @@ flt_puts(const char *string, int length, const char *marker)
 	}
 	flt_echo(string, length);
     } else {
-	if (length > 0 && marker != NULL && *marker != EOS && *marker != 'N') {
-	    size_t prefix;
+	if (length > 0 && marker != 0 && *marker != EOS && *marker != 'N') {
 
 	    save_mark(TRUE);
 
-	    sprintf(bfr1, "%c%d", CTL_A, length);
-	    prefix = strlen(bfr1);
-
-	    vl_strncpy(bfr1 + prefix, marker, sizeof(bfr1) - (prefix + 3));
+	    vl_strncpy(bfr2, marker, sizeof(bfr1) - 10);
+	    sprintf(bfr1, "%c%d%s:", CTL_A, length, bfr2);
 	    last = bfr1 + strlen(bfr1);
-	    *last++ = ':';
-	    *last = EOS;
+	    decode_attribute(bfr1, (size_t) (last - bfr1), 0, &count);
 
-	    decode_attribute(bfr1, (size_t) (last - bfr1), (size_t) 0, &count);
+	    flt_echo(string, length);
+	    save_mark(FALSE);
 
-	    if (count > 0) {
-		flt_echo(string, length);
-		save_mark(FALSE);
-
-		if (apply_attribute()) {
-		    REGIONSHAPE save_shape = regionshape;
-		    regionshape = rgn_EXACT;
-		    (void) attributeregion();
-		    videoattribute = 0;
-		    regionshape = save_shape;
-		}
-	    } else {
-		save_mark(FALSE);
+	    if (apply_attribute()) {
+		REGIONSHAPE save_shape = regionshape;
+		regionshape = rgn_EXACT;
+		(void) attributeregion();
+		videoattribute = 0;
+		regionshape = save_shape;
 	    }
 	} else {
 	    flt_echo(string, length);
@@ -665,7 +601,7 @@ flt_lookup(char *name)
 	return TRUE;
     }
 #endif
-    for (n = 0; builtflt[n] != NULL; n++) {
+    for (n = 0; builtflt[n] != 0; n++) {
 	if (!strcmp(name, builtflt[n]->filter_name)) {
 	    current_filter = builtflt[n];
 	    current_params = "";
@@ -777,8 +713,8 @@ var_FILTER_LIST(TBUFF **rp, const char *vp)
     int n;
 
     if (rp) {
-	if (filter_list == NULL) {
-	    for (n = 0; builtflt[n] != NULL; n++) {
+	if (filter_list == 0) {
+	    for (n = 0; builtflt[n] != 0; n++) {
 		if (n)
 		    tb_sappend0(&filter_list, " ");
 		tb_sappend0(&filter_list, builtflt[n]->filter_name);
@@ -802,16 +738,13 @@ vl_is_setting(const void *cmd)
     const CMDFUNC *ptr = (const CMDFUNC *) cmd;
     int result = 0;
 
-    if (ptr != NULL) {
+    if (ptr != 0) {
 	if (ptr == &f_setglobmode
 	    || ptr == &f_delglobmode
 	    || ptr == &f_setlocmode
 	    || ptr == &f_dellocmode
-#if OPT_EVAL
 	    || ptr == &f_setvar
-	    || ptr == &f_unsetvar
-#endif
-	    ) {
+	    || ptr == &f_unsetvar) {
 	    result = 1;
 	}
     }
@@ -825,7 +758,7 @@ vl_is_xcolor(const void *cmd)
     const CMDFUNC *ptr = (const CMDFUNC *) cmd;
     int result = 0;
 
-    if (ptr != NULL) {
+    if (ptr != 0) {
 	if (ptr == &f_set_extra_colors) {
 	    result = 1;
 	}
@@ -844,7 +777,7 @@ vl_is_majormode(const void *cmd)
 #if OPT_MAJORMODE
     const CMDFUNC *ptr = (const CMDFUNC *) cmd;
 
-    if (ptr != NULL) {
+    if (ptr != 0) {
 	if (ptr == &f_define_mode
 	    || ptr == &f_remove_mode) {
 	    result = 1;
@@ -864,7 +797,7 @@ vl_is_submode(const void *cmd)
 #if OPT_MAJORMODE
     const CMDFUNC *ptr = (const CMDFUNC *) cmd;
 
-    if (ptr != NULL) {
+    if (ptr != 0) {
 	if (ptr == &f_define_submode
 	    || ptr == &f_remove_submode) {
 	    result = 1;
@@ -875,12 +808,12 @@ vl_is_submode(const void *cmd)
 }
 
 int
-vl_check_cmd(const void *cmd, unsigned long flags)
+vl_check_cmd(const void *cmd, unsigned flags)
 {
     const CMDFUNC *actual = (const CMDFUNC *) cmd;
     int result = 0;
 
-    if (actual != NULL) {
+    if (actual != 0) {
 	result = ((actual->c_flags & flags) != 0);
     }
     return result;

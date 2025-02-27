@@ -1,16 +1,15 @@
 %pointer
 
 %{
-
 /*
- * $Id: bnf-filt.l,v 1.16 2013/12/02 01:32:54 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/bnf-filt.l,v 1.12 2008/11/19 23:11:46 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of BNF syntax.
  */
 
 #include <filters.h>
 
-DefineFilter(bnf);
+DefineFilter("bnf");
 
 static char *Action_attr;
 static char *Comment_attr;
@@ -28,7 +27,7 @@ BSTRING		\'(=.|[^'=])*\'
 
 %%
 
-{IDENT}			{ WriteToken(get_keyword_attr(yytext)); }
+{IDENT}			{ WriteToken(ci_keyword_attr(yytext)); }
 "::="			|
 [<>\[\]{}?|;+*/-]	{ WriteToken(Action_attr); }
 
@@ -49,10 +48,10 @@ static void
 do_filter(FILE *inputs)
 {
     InitLEX(inputs);
-    Action_attr = class_attr(NAME_ACTION);
+    Action_attr  = class_attr(NAME_ACTION);
     Comment_attr = class_attr(NAME_COMMENT);
-    Number_attr = class_attr(NAME_NUMBER);
-    String_attr = class_attr(NAME_LITERAL);
+    Number_attr  = class_attr(NAME_NUMBER);
+    String_attr  = class_attr(NAME_LITERAL);
 
     RunLEX();
 }

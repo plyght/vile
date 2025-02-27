@@ -1,5 +1,5 @@
 /*
- * $Id: xterm.c,v 1.13 2025/01/26 20:54:00 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/xterm.c,v 1.9 2010/02/09 21:32:14 tom Exp $
  *
  * xterm-specific code for vi-like-emacs.
  */
@@ -36,7 +36,7 @@ xterm_open(TERM * tp)
     /* use xterm #251 feature to save title */
     putpad("\033[22t");
 
-    if (tp != NULL) {
+    if (tp != 0) {
 	tp->set_title = xterm_settitle;
 	tp->mopen = xterm_mopen;
 	tp->mclose = xterm_mclose;
@@ -52,7 +52,7 @@ xterm_open(TERM * tp)
 }
 
 void
-xterm_close(void)
+xterm_close()
 {
     /* use xterm #251 feature to restore title */
     putpad("\033[23t");
@@ -289,11 +289,11 @@ xterm_button(int c)
 void
 xterm_settitle(const char *string)
 {
-    if (global_g_val(GMDXTERM_TITLE) && string != NULL) {
+    if (global_g_val(GMDXTERM_TITLE) && string != 0) {
 #if OPT_MULTIBYTE
 	int check;
 	UINT ch;
-	UCHAR temp[MAX_UTF8];
+	UCHAR temp[10];
 	ENC_CHOICES want_encoding = title_encoding;
 #endif
 	TRACE(("xterm_settitle(%s)\n", string));
@@ -306,7 +306,7 @@ xterm_settitle(const char *string)
 		want_encoding = enc_8BIT;
 	    }
 	}
-	if (curbp == NULL) {
+	if (curbp == 0) {
 	} else if (want_encoding == enc_UTF8 && !b_is_utfXX(curbp)) {
 	    TRACE(("...converting to UTF-8\n"));
 	    while (*string != EOS) {

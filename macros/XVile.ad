@@ -1,9 +1,9 @@
-! $Id: XVile.ad,v 1.10 2022/08/02 03:58:11 bod Exp $
+! $Header: /usr/build/vile/vile/macros/RCS/XVile.ad,v 1.6 2010/03/20 13:19:36 tom Exp $
 
 ! "white" on "black" main window
 *background: grey5
 *foreground: grey95
-*font: -misc-fixed-medium-r-normal--18-120-100-100-c-90-iso8859-1
+*font: 8x13
 *cursor.background: yellow
 *cursor.foreground: grey5
 
@@ -31,11 +31,6 @@
 *menubar.vSpace: 1
 *menubar.hSpace: 1
 *menuHeader.highlightThickness: 1
-
-! if OPT_MENUS_COLORED is set in configure/compile, these override/extend
-! menubar*background and menubar*foreground:
-*menuBackground: grey
-*menuForeground: black
 
 ! options
 *focusFollowsMouse: true

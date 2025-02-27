@@ -1,5 +1,5 @@
 /*
- * $Id: vl_stdio.h,v 1.5 2007/05/05 15:24:04 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/vl_stdio.h,v 1.4 2007/05/05 15:24:04 tom Exp $
  *
  * Copyright 2007, Thomas E. Dickey
  *

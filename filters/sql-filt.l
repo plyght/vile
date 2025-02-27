@@ -4,7 +4,7 @@
 %{
 
 /*
- * $Id: sql-filt.l,v 1.52 2025/01/26 11:38:02 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/sql-filt.l,v 1.47 2009/11/12 09:34:29 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of SQL script
  * - T.Dickey
@@ -13,7 +13,7 @@
 #include <filters.h>
 #undef YY_NO_UNPUT
 
-DefineOptFilter(sql, "d");
+DefineOptFilter("sql", "d");
 
 #define DPRINTF(params) if(FltOptions('d'))printf params
 #define set_state(name) DPRINTF(("{@%d:" #name ":%d}", __LINE__, name)); BEGIN(name); began_state = name
@@ -69,17 +69,17 @@ HOSTVAR		":"{IDENT}
 %%
 
 <LEAD>{IDENT}		{   const char *text = lowercase_of(yytext);
-			    const char *attr = get_keyword_attr(text);
+			    const char *attr = ci_keyword_attr(text);
 			    DPRINTF(("{%s->%s}", text, NONNULL(attr)));
 			    if (attr == Comment_attr) {
 				WriteToken(attr);
 				new_state(INLINE_CMT);
-			    } else if (attr == NULL) {
+			    } else if (attr == 0) {
 				new_state(BODY);
 				if (set_symbol_table("sqlplus")) {
-				    attr = get_keyword_attr(text);
+				    attr = ci_keyword_attr(text);
 				    WriteToken(attr);
-				    if (attr != NULL
+				    if (attr != 0
 					&& is_oneliner(text)) {
 					begin_oneliner();
 					/* FIXME:  a few commands have keywords,
@@ -95,7 +95,7 @@ HOSTVAR		":"{IDENT}
 			}
 
 <MORE,BODY>{IDENT}	{   const char *text = lowercase_of(yytext);
-			    const char *attr = get_keyword_attr(text);
+			    const char *attr = ci_keyword_attr(text);
 			    DPRINTF(("{%s->%s}", text, NONNULL(attr)));
 			    if (attr == Comment_attr) {
 				new_state(INLINE_CMT);
@@ -231,8 +231,8 @@ is_oneliner(const char *name)
 {
     const char *flags = ci_keyword_flag(name);
     int result = 0;
-    if (flags != NULL) {
-	result = (strchr(flags, '1') != NULL);
+    if (flags != 0) {
+	result = (strchr(flags, '1') != 0);
     }
     return result;
 }
@@ -248,13 +248,13 @@ do_filter(FILE *inputs)
 {
     InitLEX(inputs);
 
-    Action_attr = class_attr(NAME_ACTION);
+    Action_attr  = class_attr(NAME_ACTION);
     Comment_attr = class_attr(NAME_COMMENT);
-    Error_attr = class_attr(NAME_ERROR);
-    Ident_attr = class_attr(NAME_IDENT2);
+    Error_attr   = class_attr(NAME_ERROR);
+    Ident_attr   = class_attr(NAME_IDENT2);
     Keyword_attr = class_attr(NAME_KEYWORD);
-    Number_attr = class_attr(NAME_NUMBER);
-    String_attr = class_attr(NAME_LITERAL);
+    Number_attr  = class_attr(NAME_NUMBER);
+    String_attr  = class_attr(NAME_LITERAL);
 
     began_state = LEAD;
     saved_state = LEAD;

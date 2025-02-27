@@ -2,9 +2,8 @@
 %x COMMENT CODE UUID
 
 %{
-
 /*
- * $Id: midlfilt.l,v 1.11 2013/12/02 01:32:53 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/midlfilt.l,v 1.7 2008/11/19 23:11:46 tom Exp $
  *
  * Filter to add vile "attribution" sequences to MIDL / ODL files.
  * - T.Dickey
@@ -12,14 +11,13 @@
 
 #include <filters.h>
 
-DefineFilter(midl);
+DefineFilter("midl");
 
 static char *Comment_attr;
 static char *Error_attr;
 static char *Ident2_attr;
 static char *Number_attr;
 static char *String_attr;
-
 %}
 
 STRINGS		\"(\\.|[^"\\]|\\\n)*\"
@@ -33,7 +31,7 @@ NUMBER		{SIGN}?({DECIMAL}|{REAL})
 
 %%
 
-<CODE>{IDENT}		{ WriteToken(get_keyword_attr(yytext)); }
+<CODE>{IDENT}		{ WriteToken(keyword_attr(yytext)); }
 <CODE>";"		{ ECHO; }
 
 <CODE>"/*"		{ WriteToken(Comment_attr); BEGIN(COMMENT); }
@@ -66,10 +64,10 @@ do_filter(FILE *inputs)
     InitLEX(inputs);
 
     Comment_attr = class_attr(NAME_COMMENT);
-    Error_attr = class_attr(NAME_ERROR);
-    Ident2_attr = class_attr(NAME_IDENT2);
-    Number_attr = class_attr(NAME_NUMBER);
-    String_attr = class_attr(NAME_LITERAL);
+    Error_attr   = class_attr(NAME_ERROR);
+    Ident2_attr  = class_attr(NAME_IDENT2);
+    Number_attr  = class_attr(NAME_NUMBER);
+    String_attr  = class_attr(NAME_LITERAL);
 
     BEGIN(CODE);
     RunLEX();

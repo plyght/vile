@@ -82,7 +82,6 @@ Screen Types
    smallest and fastest.
 
    There are several types of terminal driver:
-
      * text terminals
      * X Window displays
      * Win32 displays, when building in MSYS for MinGW
@@ -125,19 +124,12 @@ Screen Types
 
    In addition to "ncursesw", two other forms of "curses" driver are
    supported:
-
      * curses
      * ncurses
-
    They both use the same driver source, but "ncurses" tells the configure
    script to look for the ncurses library, which may not be the default
    curses implementation on your machine. Like "ncursesw", these can provide
    better optimization of the terminal than the termcap/terminfo driver.
-
-     However, the "ncursesw" driver is more likely to support multibyte
-     encodings such as UTF-8 than the other choices. The $term-encoding
-     variable shows at runtime what the driver is actually doing, whether
-     "locale" (capable of switching), "utf8" or "8bit".
 
    The "ansi" driver is the least capable. It uses built-in ANSI escape
    sequences.
@@ -156,6 +148,7 @@ Screen Types
    --with-screen=Xaw3d
    --with-screen=neXtaw
    --with-screen=X11
+   --with-screen=OpenLook
 
    The Motif display has the nicest appearance. The one drawback (relative to
    Athena) is that dragging the separator between window panes is done on the
@@ -166,6 +159,9 @@ Screen Types
    script simpler to use. The "Xaw", "Xaw3d" and "neXtaw" choices are almost
    the same, choosing libraries that have the same capabilities but different
    appearances.
+
+   The OpenLook driver is deprecated (does not work with current Solaris
+   systems), and will be removed at some point.
 
   Win32 Drivers
 
@@ -183,7 +179,6 @@ Screen Types
 UTF-8 Support versus Driver
 ---------------------------
    vile supports UTF-8 in two ways:
-
      * it edits UTF-8 data as characters rather than bytes and
      * it can display UTF-8 data.
 
@@ -261,7 +256,6 @@ Syntax coloring options
    def            vile-def-filt        Windows .def files
    diff           vile-diff-filt       output of diff command
    ecl            vile-ecl-filt        Prolog/ECLiPSe
-   erl            vile-erl-filt        Erlang
    esql           vile-esql-filt       embedded SQL with C/C++.
    est            vile-est-filt        Enscript syntax-descriptions
    fdl            vile-fdl-filt        forms definition language
@@ -334,18 +328,16 @@ Syntax coloring options
          make install
 
    The above commands:
-
      * compile vile [1],
      * compile and link 21 filters into the final editor image,
      * create the remaining, non-builtin filters as external executable
        images, and
      * copy the editor and external filters to an to an install tree [2].
-
    Assuming the editor's startup file initiates syntax coloring [3], then at
    vile run time, the macro file filters/filters.rc preferentially selects
    and executes internal filters when coloring a supported language or file
    format. If a required internal filter is not available, filters.rc starts
-   a pipe and applies color attributes via the corresponding external filter
+   a pipe and applies color attributes via the corresponsing external filter
    listed in the table above.
 
    [1] Or xvile if you prefer. See next topic.
@@ -358,7 +350,6 @@ Building xvile
    You must decide which version of xvile you want to build. To a certain
    degree this decision may be forced upon you by which libraries you have on
    your machine. There are three different versions you can build.
-
     1. X toolkit version: This version uses only the X toolkit to implement
        scrollbars and the window resize grips (meaning _vile_ windows, not X
        windows). As a consequence, it should only require the X toolkit
@@ -407,49 +398,30 @@ Building xvile
          ./configure --with-screen=motif
          ./configure --with-screen=Xm
 
-   The Athena and Motif versions support a menubar, with pulldown menus. The
-   configure option --enable-colored-menus compiles-in resource values which
-   simplify coloring the menubar and menus with the same foreground and
-   background colors. The corresponding resource values are menuForeground
-   and menuBackground.
+    3. OpenLook version: Uses the OpenLook widgets to implement scrollbars.
+       Since OpenLook lacks a pane widget, resizing (vile) windows is pretty
+       cheesy. Still, if you are running olwm or olvwm, you might well want
+       to run this version so that xvile will look the same as your other
+       applications.
 
-   There are also options for configuring the icon used, using option values:
+         ./configure --with-screen=openlook
+         ./configure --with-screen=Xol
 
-   --with-xpm
-           use this to check for, and use the Xpm library which supports
-           colored options (".xpm" in contrast to the monochrome ".xbm").
+       After configuration, you may look at the makefile or config.h if you
+       wish. You can finish making xvile by entering the following command:
 
-   --with-icon-name=XXX
-           allows you to override the icon name. Normally this is the "vile"
-           icon, which shows a representation of an editing screen. The other
-           choices are
-              * --with-icon-name=pumpkin
-              * --with-icon-name=sink
+         make
 
-           There is a "mini" icon used in a few special cases which consists
-           only of the tilde's from the "vile" icon. That is unaffected by
-           this configure option.
+       On some systems it seems to be sometimes necessary (?) to have X_LIBS
+       set to -static prior running configure, i.e, use either:
 
-   --with-pixmapdir=XXX
-           specify the directory in which to install pixmaps, e.g.,
-           /usr/share/pixmaps.
+         X_LIBS=-static ./configure --with-screen=openlook
 
-           The special value "auto" tells the configure script to check for
-           the existence of (fairly standard) locations.
+       for sh, ksh, and bash. Or:
 
-   --with-icondir=XXX
-           specify the directory in which to install icons for desktop, e.g.,
-           /usr/share/icons.
+         (setenv X_LIBS -static ; ./configure --with-screen=openlook)
 
-           The special value "auto" tells the configure script to check for
-           the existence of (fairly standard) locations.
-
-   --with-icon-theme=XXX
-           install icons into desktop theme (default "hicolor"). Vile
-           provides ".svg" and ".png" flavors of the icons which are used for
-           this option. If you use the icon-theme option, it is still a good
-           idea to not suppress the pixmap feature due to inconsistencies and
-           gaps in the support provided by the desktop configurations.
+       for csh and tcsh.
 
 
 Installing (x)vile
@@ -503,7 +475,7 @@ Installing (x)vile
 
 
 Building in a separate directory
---------------------------------
+------------- ------------------
    If you are building (x)vile for several machines or want to perhaps
    simultaneously build and try out the various versions of xvile, you will
    probably want to configure (x)vile to build in a directory different from
@@ -598,7 +570,6 @@ Testing/Development Options
    They are used to support testing and development, by building various
    debug versions of vile. These include:
 
-   --enable-warnings       test: turn on GCC compiler warnings
    --disable-echo          test: display "compiling" commands (default: on)
    --disable-extensions    test: build only core functions (default: on)
    --disable-rpath-hack    don't add rpath options for additional libraries
@@ -607,6 +578,7 @@ Testing/Development Options
    --with-dmalloc          test: use Gray Watson's dmalloc library
    --with-no-leaks         test: free permanent memory, analyze leaks
    --with-trace            test: turn on debug-tracing
+   --with-warnings         test: turn on GCC compiler warnings
 
    The dbmalloc and dmalloc libraries are similar, checking for memory leaks
    and related malloc/free problems. Both have limitations, so we use both,
@@ -639,6 +611,6 @@ Testing/Development Options
    the executable to be bound to a particular library path from their build
    environment.
 
--- (generated by make-hlp.pl from config.html(1.23))
+-- (generated by make-hlp.pl from config.html(1.8))
 -- vile:txtmode fillcol=78
--- $Id: config.doc,v 1.39 2021/01/01 12:41:09 tom Exp $
+-- $Header: /usr/build/vile/vile/doc/RCS/config.doc,v 1.24 2010/08/08 17:56:11 tom Exp $

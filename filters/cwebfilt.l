@@ -2,9 +2,8 @@
 %x COMMENT PREP_COM
 
 %{
-
 /*
- * $Id: cwebfilt.l,v 1.24 2013/12/02 01:32:54 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/cwebfilt.l,v 1.20 2008/11/19 23:11:46 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of Cwebx input
  * text.  Also useful for Cweb
@@ -15,7 +14,7 @@
 
 #include <filters.h>
 
-DefineFilter(cweb);
+DefineFilter("cweb");
 
 #define NAME_TeX_command "TeX_command"
 #define NAME_TeX_comment "TeX_comment"
@@ -35,7 +34,7 @@ static char *Cweb_nom_module;
 static char *Cweb_code_titre;
 static char *Cweb_code_autre;
 
-static int in_code;		/* FIXME: should implement a stack */
+static int in_code;	/* FIXME: should implement a stack */
 
 %}
 
@@ -73,7 +72,7 @@ RC		\n
 #{BLANK}*include{BLANK}*\"(\\\.|[^\"])*\" |
 #{BLANK}*undef		{ WriteToken(Preproc_attr); }
 
-{IDENT}			{ WriteToken(in_code ? get_keyword_attr(yytext) : ""); }
+{IDENT}			{ WriteToken(in_code ? keyword_attr(yytext) : ""); }
 
 
 "/*"			{ WriteToken(Comment_attr);
@@ -122,8 +121,8 @@ init_filter(int before)
 	insert_keyword(NAME_TeX_command, ATTR_KEYWORD, 1);
 	insert_keyword(NAME_TeX_comment, ATTR_COMMENT, 1);
 	insert_keyword(NAME_Cweb_module, ATTR_KEYWORD, 1);
-	insert_keyword(NAME_Cweb_title, ATTR_IDENT2, 1);
-	insert_keyword(NAME_Cweb_other, "", 1);
+	insert_keyword(NAME_Cweb_title,  ATTR_IDENT2,  1);
+	insert_keyword(NAME_Cweb_other,  "",           1);
     }
 }
 
@@ -136,12 +135,12 @@ do_filter(FILE *inputs)
     Comment_attr = class_attr(NAME_COMMENT);
     Preproc_attr = class_attr(NAME_PREPROC);
     Keyword_attr = class_attr(NAME_KEYWORD);
-    String_attr = class_attr(NAME_LITERAL);
-    Number_attr = class_attr(NAME_NUMBER);
-    Type_attr = class_attr(NAME_TYPES);
+    String_attr  = class_attr(NAME_LITERAL);
+    Number_attr  = class_attr(NAME_NUMBER);
+    Type_attr    = class_attr(NAME_TYPES);
 
-    TeX_mot_cle = class_attr(NAME_TeX_command);
-    TeX_comment = class_attr(NAME_TeX_comment);
+    TeX_mot_cle  = class_attr(NAME_TeX_command);
+    TeX_comment  = class_attr(NAME_TeX_comment);
     Cweb_nom_module = class_attr(NAME_Cweb_module);
     Cweb_code_titre = class_attr(NAME_Cweb_title);
     Cweb_code_autre = class_attr(NAME_Cweb_other);

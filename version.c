@@ -1,7 +1,7 @@
 /*
  * version & usage-messages for vile
  *
- * $Id: version.c,v 1.80 2025/01/26 14:34:21 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/version.c,v 1.74 2010/04/30 22:38:41 tom Exp $
  *
  */
 
@@ -31,11 +31,11 @@ print_usage(int code)
 #endif
 	"-R             edit files \"read-only\" -- no writes permitted",
 #if OPT_TAGS
-# if DISP_X11			/* because -title is predefined */
+#if DISP_X11			/* because -title is predefined */
 	"-T tagname     look up a tag",
-# else
+#else
 	"-t tagname     look up a tag",
-# endif
+#endif
 #endif
 	"-v             edit in \"view\" mode -- no changes permitted",
 	"-V             for version info",
@@ -62,22 +62,22 @@ print_usage(int code)
 #if SYS_WINNT
 	"",
 	"Win32-specific:",
-# if DISP_NTWIN
+#if DISP_NTWIN
 	"-fn fontspec   change font",
 	"-geometry CxR  set initial size to R rows and C columns",
 	"-i             set current-directory to pathname of file-parameter",
-#  if defined(VILE_OLE)
+#if defined(VILE_OLE)
 	"-Oa            invoke as an OLE Automation server",
 	"-Or            register ole automation interface and exit",
 	"-Ou            unregister ole automation interface and exit",
 	"-invisible     OLE Automation server does not initially show a window",
 	"-multiple      multiple instances of OLE Automation server permitted",
-#  endif
-# endif				/* DISP_NTWIN */
+#endif
+#endif				/* DISP_NTWIN */
 
-# if DISP_NTCONS
+#if DISP_NTCONS
 	"-console       if stdin is not a tty, start editor in a new console",
-# endif
+#endif
 #endif				/* SYS_WINNT */
 
 #if DISP_X11
@@ -116,7 +116,7 @@ print_usage(int code)
 	unsigned j;
 	for (j = 0; j < TABLESIZE(options); j++) {
 	    char *colon = strrchr(options[j], ':');
-	    if (colon != NULL && colon[1] == EOS) {
+	    if (colon != 0 && colon[1] == EOS) {
 		(void) fprintf(stderr, "%s\n", options[j]);
 	    } else {
 		(void) fprintf(stderr, "\t%s\n", options[j]);
@@ -147,8 +147,8 @@ getversion(void)
 			    (FL_EXECDIR | FL_PATH) | FL_EXECABLE)) != NULL) {
 	    time_t mtime = file_modified(s);
 	    if (mtime != 0) {
-		(void) vl_strncat(version_string, ", installed ", NSTRING);
-		(void) vl_strncat(version_string, ctime(&mtime), NSTRING);
+		(void) strcat(version_string, ", installed ");
+		(void) strcat(version_string, ctime(&mtime));
 		/* trim the newline */
 		version_string[strlen(version_string) - 1] = EOS;
 	    }
@@ -200,7 +200,7 @@ getversion(void)
 #   endif
 	);
 #  endif
-# endif	/* SYS_MSDOS || SYS_OS2 || SYS_WINNT */
+# endif				/* SYS_MSDOS || SYS_OS2 || SYS_WINNT */
 #endif /* not SYS_UNIX or SYS_VMS */
     return version_string;
 }

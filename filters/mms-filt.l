@@ -5,7 +5,7 @@
 %{
 
 /*
- * $Id: mms-filt.l,v 1.21 2013/12/02 01:32:53 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/mms-filt.l,v 1.17 2008/11/19 23:11:46 tom Exp $
  *
  * Filter to add vile "attribution" sequences to selected bits of VMS mms script
  * - T.Dickey
@@ -13,7 +13,7 @@
 
 #include <filters.h>
 
-DefineFilter(mms);
+DefineFilter("mms");
 
 static char *Comment_attr;
 static char *Ident2_attr;
@@ -23,7 +23,7 @@ static char *String_attr;
 static void
 write_keyword(char *text, int size)
 {
-    int colon = size > 1 && text[size - 1] == ':';
+    int colon = size > 1 && text[size-1] == ':';
     int space = 0;
 
     if (colon)
@@ -38,12 +38,12 @@ write_keyword(char *text, int size)
 	flt_putc(' ');
 
     space = 0;
-    while (isspace(CharOf(text[size - 1]))) {
+    while (isspace(CharOf(text[size-1]))) {
 	text[--size] = 0;
 	space++;
     }
 
-    flt_puts(text, size, get_keyword_attr(text));
+    flt_puts(text, size, keyword_attr(text));
 
     while (space-- > 0)
 	flt_putc(' ');
@@ -100,9 +100,9 @@ do_filter(FILE *inputs)
     InitLEX(inputs);
 
     Comment_attr = class_attr(NAME_COMMENT);
-    Ident2_attr = class_attr(NAME_IDENT2);
+    Ident2_attr  = class_attr(NAME_IDENT2);
     Keyword_attr = class_attr(NAME_KEYWORD);
-    String_attr = class_attr(NAME_LITERAL);
+    String_attr  = class_attr(NAME_LITERAL);
 
     RunLEX();
 }

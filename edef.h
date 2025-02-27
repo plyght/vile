@@ -6,12 +6,11 @@
  */
 
 /*
- * $Id: edef.h,v 1.379 2025/01/26 13:37:47 tom Exp $
+ * $Header: /usr/build/vile/vile/RCS/edef.h,v 1.361 2010/04/11 18:22:43 tom Exp $
  */
 
 #ifndef VILE_EDEF_H
 #define VILE_EDEF_H 1
-/* *INDENT-OFF* */
 
 #ifdef __cplusplus
 extern "C" {
@@ -52,23 +51,23 @@ decl_init( char *exec_pathname, "." );	/* replaced at runtime with path-head of 
 
 decl_init_const ( char prognam[], PROGRAM_NAME );
 decl_init_const ( char version[], "version " VILE_RELEASE "." VILE_VERSION );
-decl_init (TBUFF *system_name, NULL );
-decl_init (int system_crlf, CRLF_LINES );
 
 #ifdef SYSTEM_NAME
 decl_init_const ( char opersys[], SYSTEM_NAME );
-#elif SYS_UNIX
-decl_init_const ( char opersys[], "unix" );
-#elif SYS_VMS
-decl_init_const ( char opersys[], "vms" );
-#elif SYS_MSDOS
-decl_init_const ( char opersys[], "dos" );
-#elif SYS_OS2
-decl_init_const ( char opersys[], "os/2" );
-#elif SYS_WINNT
-#ifdef _WIN64
-decl_init_const ( char opersys[], "win64" );
 #else
+#if SYS_UNIX
+decl_init_const ( char opersys[], "unix" );
+#endif
+#if SYS_VMS
+decl_init_const ( char opersys[], "vms" );
+#endif
+#if SYS_MSDOS
+decl_init_const ( char opersys[], "dos" );
+#endif
+#if SYS_OS2
+decl_init_const ( char opersys[], "os/2" );
+#endif
+#if SYS_WINNT
 decl_init_const ( char opersys[], "win32" );
 #endif
 #endif
@@ -92,9 +91,9 @@ decl_init( int i_am_dead, 0 );		/* have we been burned? */
 decl_init( int autoindented , -1 );	/* how many chars (not cols) indented */
 decl_uninit( int isnamedcmd );		/* are we typing a command name */
 decl_uninit( int calledbefore );	/* called before during this command? */
-decl_uninit( CHARTYPE vl_chartypes_[N_chars + 1] );	/* character types */
-decl_uninit( char vl_uppercase[N_chars + 1] );
-decl_uninit( char vl_lowercase[N_chars + 1] );
+decl_uninit( CHARTYPE vl_chartypes_[N_chars] );	/* character types	*/
+decl_uninit( char vl_uppercase[N_chars] );
+decl_uninit( char vl_lowercase[N_chars] );
 decl_uninit( int reading_msg_line );	/* flag set during msgline reading */
 decl_uninit( jmp_buf read_jmp_buf );	/* for setjmp/longjmp on SIGINT */
 #ifndef insertmode
@@ -103,8 +102,8 @@ decl_uninit( int insertmode );		/* are we inserting or overwriting? */
 decl_uninit( int lastkey );		/* last keystoke (tgetc)	*/
 decl_uninit( int lastcmd );		/* last command	(kbd_seq)	*/
 decl_uninit( REGIONSHAPE regionshape );	/* shape of region		*/
-decl_init( REGION *haveregion, NULL );
-decl_init( REGION *wantregion, NULL );
+decl_init( REGION *haveregion, 0 );
+decl_init( REGION *wantregion, 0 );
 #if OPT_VIDEO_ATTRS
 decl_uninit( VIDEO_ATTR videoattribute );
 					/* attribute to set in call to
@@ -138,10 +137,9 @@ decl_uninit( WINDOW *wnullp );		/* window for nullterm          */
 decl_uninit( BUFFER *bminip );		/* buffer for command-line      */
 #if OPT_MULTIBYTE
 decl_uninit( BUFFER *btempp );		/* buffer for ffgetline()       */
-decl_init( TBUFF *latin1_expr, NULL );	/* fallback for narrow/wide	*/
+decl_init( TBUFF *latin1_expr, 0 );	/* fallback for narrow/wide	*/
 decl_init( int latin1_codes, 0 );	/* range where narrow/wide equal*/
 decl_init( ENC_CHOICES cmd_encoding, enc_AUTO );
-decl_init( ENC_CHOICES kbd_encoding, enc_LOCALE );
 decl_init( ENC_CHOICES title_encoding, enc_8BIT );
 #endif
 
@@ -151,13 +149,13 @@ decl_uninit( char screen_desc[NBUFN] );	/* rough description of screen  */
 
 decl_init( USHORT vl_glob_opts, vl_GLOB_ALL);
 
-decl_init( TBUFF *mlsave, NULL );	/* last message, if postponed	*/
-decl_init( TBUFF *searchpat, NULL );	/* Search pattern		*/
-decl_init( TBUFF *replacepat, NULL );	/* replacement pattern		*/
+decl_init( TBUFF *mlsave, 0 );		/* last message, if postponed	*/
+decl_init( TBUFF *searchpat, 0 );	/* Search pattern		*/
+decl_init( TBUFF *replacepat, 0 );	/* replacement pattern		*/
 decl_init( int last_srch_direc, FORWARD ); /* Direction of last search */
 decl_uninit( regexp *gregexp );		/* compiled version of searchpat */
-decl_init( TBUFF *tb_matched_pat, NULL );	/* text that scan found */
-decl_init( TBUFF *lastfileedited, NULL );
+decl_init( TBUFF *tb_matched_pat, 0 );	/* text that scan found */
+decl_init( TBUFF *lastfileedited, 0 );
 
 #if OPT_HOOKS
 decl_uninit( HOOK cdhook );		/* proc to run when change dir */
@@ -220,7 +218,6 @@ decl_init( int filter_only, FALSE );	/* command-line -F option	*/
 
 decl_uninit( int vtrow );		/* Row location of SW cursor	*/
 decl_uninit( int vtcol );		/* Column location of SW cursor */
-decl_uninit( int vtcol0 );		/* Column location of first row */
 decl_init( int ttrow, VL_HUGE );	/* Row location of HW cursor	*/
 decl_init( int ttcol, VL_HUGE );	/* Column location of HW cursor */
 decl_uninit( int horscroll );		/* line offset when displaying	*/
@@ -237,9 +234,9 @@ decl_init( int rgb_bright, 255 );
 
 #if OPT_TITLE
 decl_init( int auto_set_title, TRUE );	/* automatically set title	*/
-decl_init( TBUFF * title_format, NULL );	/* format, if any		*/
-decl_init( TBUFF * current_title, NULL );
-decl_init( TBUFF * request_title, NULL );
+decl_init( TBUFF * title_format, 0 );	/* format, if any		*/
+decl_init( TBUFF * current_title, 0 );
+decl_init( TBUFF * request_title, 0 );
 #endif
 
 /* Special characters, used in keyboard control (some values are set on
@@ -274,17 +271,15 @@ decl_uninit( int kchars );		/* how much did we kill? */
 decl_uninit( int klines );
 decl_uninit( int lines_deleted );	/* from 'ldel_bytes()', for reporting */
 decl_uninit( int warnings );		/* from 'mlwarn()', for reporting */
-decl_uninit( int regs_kbd_default );	/* used in name-completion	*/
 
 #if !SMALLER
 decl_uninit( TBUFF *prompt_string );	/* command-line prompt-string	*/
 decl_uninit( WINDOW *swindow );		/* saved window pointer		*/
-decl_init( TBUFF *with_prefix, NULL );	/* prefix set by "~with"	*/
-decl_uninit ( int var_empty_lines );
+decl_init( TBUFF *with_prefix, 0 );	/* prefix set by "~with"	*/
 #endif
 
 #if OPT_ENCRYPT
-decl_init( char * cryptkey, NULL );	/* top-level crypt-key, if any	*/
+decl_init( char * cryptkey, 0 );	/* top-level crypt-key, if any	*/
 #endif
 
 decl_uninit( int dotcmdactive );	/* current dot command mode	*/
@@ -296,20 +291,20 @@ decl_uninit( int dotcmdrep );		/* original dot-command repeat-count */
 
 #if OPT_EVAL
 decl_init( int kill_limit, KBLOCK );	/* $kill-limit			*/
-decl_init( int vl_seed, 123 );		/* random number seed		*/
+decl_init( int seed, 123 );		/* random number seed		*/
 #endif
 
 decl_init( int cmd_count, 0 );		/* 1..n for procedure execution	*/
-decl_init( const CMDFUNC *cmd_motion, NULL ); /* current operator's motion	*/
+decl_init( const CMDFUNC *cmd_motion, 0 ); /* current operator's motion	*/
 
 #if OPT_EVAL || OPT_DEBUGMACROS
 decl_init( int tracemacros, FALSE );	/* macro tracing flag		*/
 #endif
 
 #if OPT_FINDERR
-decl_init( TBUFF *filename_expr, NULL );
-decl_init( TBUFF *error_expr, NULL );
-decl_init( TBUFF *error_match, NULL );
+decl_init( TBUFF *filename_expr, 0 );
+decl_init( TBUFF *error_expr, 0 );
+decl_init( TBUFF *error_match, 0 );
 decl_init( int error_tabstop, 8 );
 #endif
 
@@ -331,8 +326,6 @@ decl_uninit( B_COUNT old_working );	/* previous-value for slowreadf	*/
 
 #if OPT_SHELL
 decl_init( int cd_on_open, FALSE );
-decl_init( int look_in_cwd, FALSE );
-decl_init( int look_in_home, FALSE );
 #endif
 
 	/* These pointers are nonnull only while animating a given buffer or
@@ -351,15 +344,8 @@ decl_uninit( TBUFF *this_macro_result ); /* "$result" variable		*/
 decl_uninit( TBUFF *last_macro_result ); /* "$_" variable		*/
 #endif
 
-#if OPT_EVAL
-decl_uninit( int vl_get_at_dot );	/* "$get-at-dot" variable	*/
-decl_uninit( int vl_get_it_all );	/* "$get-it-all" variable	*/
-decl_uninit( int vl_get_length );	/* "$get-length" variable	*/
-decl_uninit( int vl_get_offset );	/* "$get-offset" variable	*/
-#endif
-
 #if OPT_EVAL || OPT_COLOR
-decl_uninit( TBUFF *tb_curpalette );	/* current colormap palette	*/
+decl_uninit( TBUFF *tb_curpalette );	/* current colormap palete	*/
 #endif
 #if OPT_COLOR
 decl_uninit( int ctrans[NCOLORS] );	/* color translation table	*/
@@ -373,7 +359,7 @@ decl_uninit( int kbd_expand );		/* -1 kbd_putc shows tab as space */
 /*--------------------------------------------------------------------------*/
 
 decl_init( FFType ffstatus, file_is_closed );
-decl_init( FILE *ffp, NULL );		/* File pointer, all functions. */
+decl_init( FILE *ffp, 0 );		/* File pointer, all functions. */
 decl_init( int ffd, -1 );		/* file descriptor if unbuffered */
 decl_uninit( BUFFER *ffbuffer );	/* buffer to read from */
 decl_uninit( LINE *ffcursor );		/* ...and current line read */
@@ -386,9 +372,9 @@ decl_uninit( size_t fflinelen );	/* fflinebuf length */
 
 #if OPT_LOCALE
 decl_init (ENC_CHOICES vl_encoding, enc_DEFAULT );
-decl_init2( VL_CTYPE2 vl_real_enc, NULL, NULL );
-decl_init2( VL_CTYPE2 vl_wide_enc, NULL, NULL );
-decl_init2( VL_CTYPE2 vl_narrow_enc, NULL, NULL );
+decl_init2( VL_CTYPE2 vl_real_enc, 0, 0 );
+decl_init2( VL_CTYPE2 vl_wide_enc, 0, 0 );
+decl_init2( VL_CTYPE2 vl_narrow_enc, 0, 0 );
 #else
 decl_init2( VL_CTYPE2 vl_real_enc, "built-in", VL_ENC_LATIN1 );
 #endif
@@ -523,7 +509,6 @@ decl_init_const( char UNDOSTK_BufName[],	"[Undo Stack]" );
 
 /* defined in nebind.h and nename.h */
 extern const NTAB nametbl[];
-extern const NTAB glbstbl[];
 extern const CMDFUNC *asciitbl[];
 extern KBIND kbindtbl[];
 
@@ -547,22 +532,8 @@ extern	TERM	null_term;
 decl_init( char *current_res_name, "default" );
 #endif	/* resolution */
 
-/*
- * Use an inline function to separate the two uses of 'c' as two parameters so
- * that the compiler can warn about undefined behavior if the istype() macro's
- * parameter has side effects.
- */
-#if !defined(inline) && defined(__GNUC__)
-static inline int
-isVlCTYPE(CHARTYPE m, int c1, int c2)
-{
-    return (c1 >= 0 && c1 < N_chars) ? ((vlCTYPE(c2) & (m)) != 0) : 0;
-}
-#endif
-
 #ifdef __cplusplus
 }
 #endif
-/* *INDENT-ON* */
 
 #endif /* VILE_EDEF_H */

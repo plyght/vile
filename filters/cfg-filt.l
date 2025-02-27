@@ -3,14 +3,14 @@
 %{
 
 /*
- * $Id: cfg-filt.l,v 1.20 2013/12/02 01:32:54 tom Exp $
+ * $Header: /usr/build/vile/vile/filters/RCS/cfg-filt.l,v 1.17 2008/11/19 23:11:46 tom Exp $
  *
  * Filter to add vile "attribution" sequences to an ordinary Lynx config-file
  */
 
 #include <filters.h>
 
-DefineFilter(cfg);
+DefineFilter("cfg");
 
 static char *Comment_attr;
 static char *Ident2_attr;
@@ -79,10 +79,10 @@ do_filter(FILE *inputs)
     InitLEX(inputs);
 
     Comment_attr = class_attr(NAME_COMMENT);
-    Ident2_attr = class_attr(NAME_IDENT2);
+    Ident2_attr  = class_attr(NAME_IDENT2);
     Keyword_attr = class_attr(NAME_KEYWORD);
-    Number_attr = class_attr(NAME_NUMBER);
-    String_attr = class_attr(NAME_LITERAL);
+    Number_attr  = class_attr(NAME_NUMBER);
+    String_attr  = class_attr(NAME_LITERAL);
 
     RunLEX();
 }
