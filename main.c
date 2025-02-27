@@ -723,7 +723,7 @@ MainProgram(int argc, char *argv[])
 	if (isatty(fileno(stdout)))
 	    tty = ttyname(fileno(stdout));
 	if (tty == 0 && isatty(fileno(stderr)))
-	    tty = ttyname(fileno(stderr));
+	    tty = ttyname(fileno(stderr)));
 # endif
 # if defined(HAVE_DEV_TTY)
 	if (tty == 0)

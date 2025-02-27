@@ -25,6 +25,9 @@ static int bfl_num_end;
 static int bfl_buf_1st;
 static int bfl_buf_end;
 
+static int lazy_load_buffer(BUFFER *bp);
+static int is_lazy_loaded(BUFFER *bp);
+
 /*--------------------------------------------------------------------------*/
 
 int
@@ -1701,7 +1704,7 @@ for_buffers(int f, int n)
  * If we are given a repeat-count, try to kill that many buffers.  Killing from
  * names selected from the buffer-list is a special case, because the cursor
  * may be pointing to the buffer-number column.  In that case, we must
- * recompute the buffer-contents.  Otherwise, move the cursor down one line
+     * recompute the buffer-contents.  Otherwise, move the cursor down one line
  * (staying in the same column), so we can pick up the names from successive
  * lines.
  */
@@ -3101,3 +3104,18 @@ bp_leaks(void)
     returnVoid();
 }
 #endif
+
+static int
+lazy_load_buffer(BUFFER *bp)
+{
+    if (bp->b_active != TRUE) {
+        return bp2readin(bp, FALSE);
+    }
+    return TRUE;
+}
+
+static int
+is_lazy_loaded(BUFFER *bp)
+{
+    return bp->b_active == TRUE;
+}

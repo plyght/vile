@@ -4,7 +4,6 @@
  *	written 11-feb-86 by Daniel Lawrence
  *
  * $Header: /usr/build/vile/vile/RCS/bind.c,v 1.350 2010/05/18 23:10:27 tom Exp $
- *
  */
 
 #include	"estruct.h"
@@ -1693,7 +1692,7 @@ cfg_locate(char *fname, UINT which)
 				    FL_STARTPATH | mode)) != 0)
 	returnString(sp);
 
-    if (which & FL_PATH) {	/* look along "PATH" */
+    if ((which & FL_PATH) {	/* look along "PATH" */
 #if OPT_PATHLOOKUP
 	if ((sp = locate_file_in_list(PATH_value(),
 				      fname,
@@ -3099,7 +3098,6 @@ is_shift_cmd(const char *buffer, size_t cpos)
  *		: e!%
  *		: !ls
  *		: q!
- *		: up-line
  *	to work properly.
  *
  *	If we pass this "if" with c != NAMEC, then c is ungotten below,
