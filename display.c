@@ -4686,7 +4686,6 @@ start_working(void)
     TRACE2(("start_working\n"));
     setup_handler(SIGALRM, imworking);
     (void) alarm(1);
-    im_timing = TRUE;
 }
 
 /*
