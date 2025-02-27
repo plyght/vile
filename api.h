@@ -37,6 +37,15 @@ typedef struct {
 	void      * perl_handle;	/* perl visible handle to this
 					   data structure */
 #endif
+#if OPT_USER_KEY_BINDINGS
+	void      * user_key_bindings;	/* user-defined key bindings */
+#endif
+#if OPT_MACROS
+	void      * macros;		/* user-defined macros */
+#endif
+#if OPT_PLUGINS
+	void      * plugins;		/* plugins */
+#endif
 } VileBuf;
 
 /*

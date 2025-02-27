@@ -6,6 +6,10 @@
 #include "plugin.h"
 
 #include <dlfcn.h>
+#include <Python.h>
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
 
 #if defined(RTLD_NOW)
 #define my_RTLD RTLD_NOW
@@ -55,4 +59,38 @@ loadplugin(int f GCC_UNUSED, int n GCC_UNUSED)
     /* TODO: on success, remember in loaded plugin list */
 
     return ret;
+}
+
+int
+run_python_script(const char *script)
+{
+    Py_Initialize();
+    FILE *fp = fopen(script, "r");
+    if (fp == NULL) {
+        PyErr_Print();
+        return FALSE;
+    }
+    int result = PyRun_SimpleFile(fp, script);
+    fclose(fp);
+    if (result != 0) {
+        PyErr_Print();
+        return FALSE;
+    }
+    Py_Finalize();
+    return TRUE;
+}
+
+int
+run_lua_script(const char *script)
+{
+    lua_State *L = luaL_newstate();
+    luaL_openlibs(L);
+    int result = luaL_dofile(L, script);
+    if (result != LUA_OK) {
+        fprintf(stderr, "Error: %s\n", lua_tostring(L, -1));
+        lua_close(L);
+        return FALSE;
+    }
+    lua_close(L);
+    return TRUE;
 }
