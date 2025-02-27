@@ -1,0 +1,65 @@
+#!/bin/sh
+# $Id: vile-pager,v 1.10 2022/11/16 08:49:12 tom Exp $
+# This is a simple script that uses the vi-clone 'vile' as a pager to show
+# highlighted text.  It's a lot easier to work with large listings than 'more'
+# or 'less'
+# - T.Dickey
+PROG=vile
+OPTS=
+
+: "${TMPDIR=/tmp}"
+CMDS=`(mktemp "$TMPDIR/vile.XXXXXXXX") 2>/dev/null` || CMDS="$TMPDIR/vile$$"
+trap "rm -f $CMDS; exit 1" 1 2 3 15
+trap "rm -f $CMDS" 0
+cat >"$CMDS" <<'EOF'
+set glob=on
+~force source &pcat ~ &default '$startup-file'
+set nopopup-msgs
+store-procedure OnRead
+	setl noview
+	1 goto-line
+	filter-til end-of-file "vile-manfilt"
+	attribute-cntl_a-sequences-til end-of-file
+	unmark
+	setl view
+	1 goto-line
+	setv $buffer-hook ""
+~endm
+setv $buffer-hook "OnRead"
+EOF
+case $PROG in
+x*)
+	OPTS="+fork"
+	;;
+esac
+# Normally just one file, but provide for multiple files.
+(
+	LAST=
+	for name in "$@"
+	do
+		if [ -f "$name" ]
+		then
+			WHAT=`file "$name" 2>/dev/null | sed -e 's/[ 	][ 	]*/ /g' -e 's/data, .*/data/'`
+			case "$WHAT" in
+			"$name":\ gzip\ compressed\ data)
+				TOOL="gzip -dc"
+				;;
+			"$name":\ bzip2\ compressed\ data)
+				TOOL="bzip2 -dc"
+				;;
+			"$name":\ lzip\ compressed\ data)
+				TOOL="lzip -dc"
+				;;
+			"$name":\ XZ\ compressed\ data)
+				TOOL="xzcat"
+				;;
+			*)
+				TOOL="cat"
+				;;
+			esac
+			$TOOL "$name"
+			LAST="$name"
+		fi
+	done
+	[ -n "$LAST" ] || echo
+) | $PROG $OPTS @"$CMDS"

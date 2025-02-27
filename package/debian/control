@@ -1,0 +1,56 @@
+Source: vile
+Section: editors
+Priority: optional
+Maintainer: Brendan O'Dea <bod@debian.org>
+Uploaders: Paul van Tilburg <paulvt@debian.org>
+Standards-Version: 4.6.1
+Rules-Requires-Root: no
+Build-Depends: debhelper-compat (= 13), flex, libncurses-dev, libperl-dev, libxaw7-dev
+Homepage: https://invisible-island.net/vile/
+Vcs-Browser: https://salsa.debian.org/debian/vile
+Vcs-Git: https://salsa.debian.org/debian/vile.git
+
+Package: vile
+Architecture: any
+Depends: vile-common (= ${source:Version}), ${misc:Depends}, ${shlibs:Depends}
+Provides: editor
+Description: VI Like Emacs - vi work-alike
+ vile is a text editor which is extremely compatible with vi in terms of
+ ``finger feel''.  In addition, it has extended capabilities in many areas,
+ notably multi-file editing and viewing, syntax highlighting, key rebinding,
+ an optional embedded perl interpreter, and real X window system support.
+ .
+ This package contains the character-mode binary.  Required support files
+ are contained in vile-common.  Source code highlighting filters are in
+ vile-filters.  An X11 binary is in the xvile package.
+
+Package: vile-filters
+Architecture: any
+Depends: vile-common (= ${source:Version}), ${misc:Depends}, ${shlibs:Depends}
+Multi-Arch: same
+Description: VI Like Emacs - highlighting filters for vile/xvile
+ Text highlighting filters for various languages and file formats for
+ the vile and xvile editors.
+
+Package: xvile
+Architecture: any
+Depends: vile-common (= ${source:Version}), ${misc:Depends}, ${shlibs:Depends}
+Recommends: xfonts-100dpi, xfonts-75dpi
+Provides: editor
+Description: VI Like Emacs - vi work-alike (X11)
+ vile is a text editor which is extremely compatible with vi in terms of
+ ``finger feel''.  In addition, it has extended capabilities in many areas,
+ notably multi-file editing and viewing, syntax highlighting, key rebinding,
+ an optional embedded perl interpreter, and real X window system support.
+ .
+ This package contains the X11 binary.  Required support files are
+ contained in vile-common.  Source code highlighting filters are in
+ vile-filters.  A character-mode binary is in the vile package.
+
+Package: vile-common
+Architecture: all
+Depends: libio-pty-perl, ${misc:Depends}
+Recommends: vile | xvile
+Suggests: vile-filters
+Description: VI Like Emacs - support files for vile/xvile
+ Shared files for the vile and xvile editors.

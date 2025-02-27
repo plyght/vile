@@ -1,0 +1,35 @@
+; $Id: vileperl.rc,v 1.8 2015/05/20 18:10:10 bod Exp $
+;
+; This is a sample script which shows how to initialize the perl scripts
+; distributed with vile.
+
+~if &sin $cfgopts "perl"
+
+~if &not &seq $os "win32"
+
+~if &seq $progname "xvile"
+
+; Add vile edit server
+perl "use Vileserv"	; starts automatically, stops on exit
+
+~endif
+
+; Add spell checker
+perl "use spell"
+
+; Add screen lock
+perl "use lock"
+
+; Add asynchronous capture
+perl "use capture"
+
+~endif
+
+; Add directory browser
+perl "use directory"
+
+; Add recursive grep
+perl "use hgrep"
+perl "use dirlist"
+
+~endif

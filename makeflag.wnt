@@ -1,0 +1,86 @@
+# $Id: makeflag.wnt,v 1.4 2018/11/06 21:48:20 tom Exp $
+# vile:makemode
+################################################################################
+# This is a wrapper with fallback definitions for the common NMAKE definitions
+# in older versions (through 7.1) of the Platform SDK and older versions
+# (through XXX) of Visual Studio.  Later versions use MSBuild, which offers
+# the same level of functionality dressed up in XML.
+################################################################################
+
+!if "$(APPVER)"==""
+APPVER      = 5.0
+!endif
+
+# Do this to prevent Visual C++ from creating a program database (".pdb" file).
+# The debugger is less than useful except in the Visual Studio IDE.
+NODEBUG=1
+
+# Newer versions of Visual Studio define the VisualStudioVersion variable.
+# Older versions of nmake cannot use mixed-case environment variables.
+#
+# This part of the script transforms the variable into an integer, e.g., 11.00
+# to 1100, to allow comparison in the "!if" statement.  The script produces a
+# failure with Visual Studio 2008 and 2010 (which have Win32.mak), and a success
+# with Visual Studio 2012 (which does not have Win32.mak).
+#
+# If we really wanted to know the older version numbers, we could (with
+# difficulty) extract that from the install-directory path:
+#	VCINSTALLDIR=C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\
+!if [del makeflag.~ ]
+!endif
+!if [del makeflag.bat ]
+!endif
+
+!if [ echo @echo off > makeflag.bat \
+&& echo set /a VS_VER=%VisualStudioVersion:.=0% + 0 >> makeflag.bat \
+&& echo if "%VS_VER%"=="0" exit 1 >> makeflag.bat \
+&& echo echo VS_VER=%VS_VER% >> makeflag.bat \
+&& echo exit 0 >> makeflag.bat \
+]
+!endif
+!if [ makeflag.bat > makeflag.~ ] == 0
+!include makeflag.~
+!else
+VS_VER = 0
+!endif
+
+!if [del makeflag.~ ]
+!endif
+!if [del makeflag.bat ]
+!endif
+
+# If MAKEFLAG_FILE is defined, include that.  You would need this for the
+# architecture-specific definitions in Visual Studio, or for using the
+# Platform SDK.
+#
+# Starting with Visual Studio 2012, the "vcvarsall.bat" script sets the
+# version flag, making it possible to detect configurations without a
+# Win32.mak file.
+!if "$(MAKEFLAG_FILE)" != ""
+!include $(MAKEFLAG_FILE)
+!elseif $(VS_VER) < 1100
+!include <Win32.mak>
+guilibsmt   = $(guilibsmt) psapi.lib
+!else
+# The definitions used here are from Platform SDK 7.1's Win32.mak
+cc          = cl
+link        = link
+winsocklibs = ws2_32.lib mswsock.lib
+baselibs    = kernel32.lib $(optlibs) $(winsocklibs) advapi32.lib
+winlibs     = $(baselibs) user32.lib gdi32.lib comdlg32.lib winspool.lib
+cdebug      = -Ox -DNDEBUG 
+conlibs     = $(baselibs)
+conlibsmt   = $(conlibs)
+conlflags   = /INCREMENTAL:NO /NOLOGO -subsystem:console,$(APPVER)
+cvarsmt     = -D_MT -MTd
+# Visual Studio 2012 adds more advice than older releases for using
+# non-portable/non-standard stuff.  Just say no.
+!if $(VS_VER) >= 1100
+cvarsmt     = $(cvarsmt) -D_CRT_SECURE_NO_WARNINGS
+!endif
+cvars       = $(cvarsmt)
+guilibs     = $(winlibs)
+guilibsmt   = $(guilibs)
+guilflags   = /INCREMENTAL:NO /NOLOGO -subsystem:windows,$(APPVER)
+ldebug      = /RELEASE
+!endif

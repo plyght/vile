@@ -1,0 +1,78 @@
+# $Id: makefile.in,v 1.93 2024/01/21 19:05:14 tom Exp $
+#
+
+#### Start of system configuration section. ####
+
+SHELL		= @SHELL@
+VPATH		= @srcdir@
+
+top_srcdir	= @top_srcdir@
+srcdir		= @srcdir@
+
+CC		= @CC@
+CPP		= @CPP@
+LINK		= @LINK_PREFIX@ $(CC) $(CFLAGS)
+INSTALL		= @INSTALL@ @INSTALL_OPT_O@
+INSTALL_OPT_S	= @INSTALL_OPT_S@
+INSTALL_PROGRAM	= @INSTALL_PROGRAM@ $(INSTALL_OPT_S)
+INSTALL_DATA	= @INSTALL_DATA@
+
+EXTRA_CFLAGS	= @EXTRA_CFLAGS@
+CFLAGS		= @CFLAGS@ $(EXTRA_CFLAGS)
+LDFLAGS		= @LDFLAGS@ @EXTRA_LDFLAGS@
+LIBS		= @LIBS@
+
+LINT		= @LINT@
+CTAGS		= @CTAGS@
+ETAGS		= @ETAGS@
+
+AR		= @AR@
+ARFLAGS		= @ARFLAGS@
+RANLIB		= @RANLIB@
+LEX		= @LEX@
+LEXLIB		= @LEXLIB@
+LEX_OUTPUT_ROOT	= @LEX_OUTPUT_ROOT@
+
+SH_CFLAGS	= @SH_CFLAGS@
+SH_LDFLAGS	= @SH_LDFLAGS@
+
+x		= @EXEEXT@
+o		= .@OBJEXT@
+so		= .so
+
+SCREEN		= @SCREEN@
+TARGET		= @TARGET@$x
+
+prefix		= @prefix@
+exec_prefix	= @exec_prefix@
+datarootdir	= @datarootdir@
+
+bindir		= @bindir@
+libdir		= @libdir@
+
+filters_bindir	= @filters_bindir@
+datadir		= @datadir@/vile
+
+#### End of system configuration section. ####
+
+RM              = rm -f
+
+QUOTDEFS	= -DVILE_STARTUP_PATH=\"@VILE_STARTUP_PATH@\"
+CPPFLAGS	= -I. -I.. -I$(top_srcdir)/filters -I$(top_srcdir) -DHAVE_CONFIG_H @CPPFLAGS@
+
+BINDIR		= $(DESTDIR)$(bindir)
+LIBDIR		= $(DESTDIR)$(libdir)
+DATADIR		= $(DESTDIR)$(datadir)
+
+FILTERS_BINDIR	= $(DESTDIR)$(filters_bindir)
+
+INSTALL_DIRS    = $(FILTERS_BINDIR) $(DATADIR)
+
+LF_DEPS = filterio$o filters$o
+LF_ARGS = $(LF_DEPS) $(LEXLIB)
+
+CF_DEPS = filterio$o filters$o
+CF_ARGS = $(CF_DEPS)
+
+@MAKE_PHONY@.PHONY: all sources install uninstall clean distclean lint tags
+
